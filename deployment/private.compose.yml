@@ -1,0 +1,27 @@
+# Use with docker-compose.yml. Compose 2.24.4+ is required.
+services:
+  frontend:
+    ports: !override []
+  gateway:
+    image: caddy:2-alpine
+    environment:
+      LEDGER_HOST: ${LEDGER_HOST:?Set LEDGER_HOST to this server's private IP or hostname}
+    ports:
+      - "${BIND_ADDRESS:?Set a private interface address}:${HTTPS_PORT:-8443}:443"
+    volumes:
+      - ./deployment/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ledger-tls:/data
+      - ledger-tls-config:/config
+    depends_on:
+      frontend:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "test -s /data/caddy/pki/authorities/local/root.crt"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped
+volumes:
+  ledger-tls:
+  ledger-tls-config:

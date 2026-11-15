@@ -1,0 +1,12 @@
+{
+    auto_https disable_redirects
+    admin off
+}
+
+https://{$LEDGER_HOST} {
+    tls internal
+    log {
+        output discard
+    }
+    reverse_proxy frontend:8080
+}

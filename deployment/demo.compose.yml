@@ -1,0 +1,11 @@
+# Isolated demo database and port; production data is never seeded implicitly.
+services:
+  backend:
+    environment:
+      DEMO_ENABLED: "true"
+      APP_ORIGIN: http://localhost:8081,http://127.0.0.1:8081
+  frontend:
+    ports: !override
+      - "127.0.0.1:8081:8080"
+volumes:
+  ledger-data:

@@ -1,0 +1,50 @@
+name: Ledger checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  application:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: pip install -r backend/requirements-dev.txt
+      - run: ruff check backend database && ruff format --check backend database
+      - run: pytest -q
+      - run: alembic -c database/alembic.ini upgrade head && alembic -c database/alembic.ini check
+      - run: npm ci && npm run build && npm test
+        working-directory: frontend
+      - run: docker compose config --quiet && docker compose build
+      - run: docker compose up -d --wait
+      - run: curl --fail http://localhost:8080/api/health && curl --fail http://localhost:8080/
+      - name: Private HTTPS hosting smoke
+        env:
+          BIND_ADDRESS: 127.0.0.1
+          LEDGER_HOST: localhost
+          HTTPS_PORT: '8443'
+          APP_ORIGIN: https://localhost:8443
+          ALLOWED_HOSTS: localhost,127.0.0.1
+          COOKIE_SECURE: 'true'
+        run: |
+          docker compose down
+          docker compose -f docker-compose.yml -f deployment/private.compose.yml config --quiet
+          docker compose -f docker-compose.yml -f deployment/private.compose.yml up -d --wait
+          docker compose -f docker-compose.yml -f deployment/private.compose.yml cp gateway:/data/caddy/pki/authorities/local/root.crt /tmp/ledger-root.crt
+          curl --retry 10 --retry-connrefused --retry-delay 1 --fail --cacert /tmp/ledger-root.crt https://localhost:8443/api/health
+          curl --fail --cacert /tmp/ledger-root.crt https://localhost:8443/manifest.webmanifest
+          curl --fail --cacert /tmp/ledger-root.crt -D /tmp/ledger-headers -H 'Origin: https://localhost:8443' -H 'Content-Type: application/json' --data '{"username":"smoke-owner","password":"smoke-only-password-1234"}' https://localhost:8443/api/auth/setup
+          python -c "from pathlib import Path; h=Path('/tmp/ledger-headers').read_text().lower(); assert 'set-cookie:' in h and '; secure' in h"
+          test "$(curl --silent --cacert /tmp/ledger-root.crt -o /dev/null -w '%{http_code}' -H 'Origin: https://evil.example' -X POST https://localhost:8443/api/auth/logout)" = 403
+          test -z "$(docker compose -f docker-compose.yml -f deployment/private.compose.yml port frontend 8080)"
+      - if: always()
+        env:
+          BIND_ADDRESS: 127.0.0.1
+          LEDGER_HOST: localhost
+        run: docker compose -f docker-compose.yml -f deployment/private.compose.yml down

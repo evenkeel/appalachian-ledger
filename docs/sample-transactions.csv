@@ -1,0 +1,4 @@
+date,kind,amount,description,category,external_id,notes
+2026-01-02,income,6200.00,Example salary,Salary,example-salary-2026-01,Fictional example
+2026-01-04,expense,54.25,Example groceries,Groceries,example-grocery-1,Fictional example
+2026-01-08,expense,18.50,Example lunch,Dining,example-dining-1,Fictional example

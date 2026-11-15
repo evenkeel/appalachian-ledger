@@ -1,0 +1,51 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: deployment/backend.Dockerfile
+    environment:
+      DATABASE_URL: sqlite:////data/ledger.db
+      APP_ORIGIN: ${APP_ORIGIN:-http://localhost:8080,http://127.0.0.1:8080}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      DEMO_ENABLED: ${DEMO_ENABLED:-false}
+      BITCOIN_RPC_HOST: ${BITCOIN_RPC_HOST:-}
+      BITCOIN_RPC_PORT: ${BITCOIN_RPC_PORT:-8332}
+      BITCOIN_RPC_USER: ${BITCOIN_RPC_USER:-}
+      BITCOIN_RPC_PASSWORD: ${BITCOIN_RPC_PASSWORD:-}
+      PRICE_WORKER_ENABLED: ${PRICE_WORKER_ENABLED:-true}
+      COINGECKO_API_KEY: ${COINGECKO_API_KEY:-}
+      TZ: ${TZ:-America/New_York}
+    volumes:
+      - ledger-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp:mode=1777,size=96m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+  frontend:
+    build:
+      context: .
+      dockerfile: deployment/frontend.Dockerfile
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${PORT:-8080}:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:mode=1777,size=32m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    restart: unless-stopped
+volumes:
+  ledger-data:
