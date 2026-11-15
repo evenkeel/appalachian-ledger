@@ -3,7 +3,7 @@
 from datetime import date, timedelta
 from sqlalchemy import select
 from .accounting import create_account, create_transaction, adjustment, balance, audit
-from .models import Account, Asset, AssetPrice, Budget, Category, ExchangeRate
+from .models import Account, Asset, AssetPrice, Budget, Category, ExchangeRate, RecurringBill, SavingsGoal
 from .reports import month_sequence, month_days
 from .schemas import AccountInput, TransactionInput
 
@@ -37,6 +37,17 @@ def seed_demo(db, user):
             db, AccountInput(name=name, kind=kind, currency=currency, opening_balance=amount, date=first)
         )
     cats = {c.name: c.id for c in db.scalars(select(Category))}
+    spending_types = {
+        "Housing": "fixed",
+        "Utilities": "fixed",
+        "Groceries": "essential",
+        "Health": "essential",
+        "Transport": "essential",
+        "Dining": "discretionary",
+        "Shopping": "discretionary",
+    }
+    for category in db.scalars(select(Category).where(Category.kind == "expense")):
+        category.spending_type = spending_types.get(category.name, category.spending_type)
     for idx, month in enumerate(months):
         start, end = month_days(month)
         events = [
@@ -135,15 +146,45 @@ def seed_demo(db, user):
         asset = Asset(account_id=acc.id, name=acc.name, kind=kind, quantity="1")
         db.add(asset)
         db.flush()
-        for idx, month in enumerate(months):
-            day = min(month_days(month)[1], today)
+        # The current month has no valuation yet: one dated today would block new
+        # transfers into the account and a same-day "Update value".
+        for idx, month in enumerate(months[:-1]):
+            day = month_days(month)[1]
             base = 32500000 if kind == "real_estate" else 4250000
             value = base + idx * (110000 if kind == "real_estate" else 65000)
             if kind == "brokerage":
-                value += (idx + (today.day >= 10 if month == months[-1] else 1)) * 50000
+                value += (idx + 1) * 50000
             entry = adjustment(
                 db, acc, value - balance(db, acc.id, day), day, "Fictional manual valuation", "valuation"
             )
             db.add(AssetPrice(asset_id=asset.id, date=str(day), value_minor=value, entry_id=entry.id))
+    # Upcoming bills mirror the monthly expenses above, so the planner has something to show.
+    for day_of_month, category, amount, description in [
+        (7, "Utilities", "184.50", "Electric & water"),
+        (21, "Housing", "720.00", "Mortgage interest & insurance"),
+        (23, "Health", "145.00", "Health & wellness"),
+    ]:
+        due = today.replace(day=day_of_month)
+        if due <= today:
+            due = (due.replace(day=1) + timedelta(days=32)).replace(day=day_of_month)
+        db.add(
+            RecurringBill(
+                account_id=accounts["checking"].id,
+                category_id=cats[category],
+                description=description,
+                amount=amount,
+                frequency="monthly",
+                next_due=str(due),
+                anchor_day=day_of_month,
+                anchor_month=due.month,
+            )
+        )
+    # Two goals share the savings account; the earlier one fills first.
+    trip = (today.replace(day=1) + timedelta(days=125)).replace(day=1)
+    fund = (today.replace(day=1) + timedelta(days=400)).replace(day=1)
+    for name, target, target_date in [("Summer trip", 300000, trip), ("Emergency fund", 3000000, fund)]:
+        db.add(
+            SavingsGoal(name=name, account_id=accounts["savings"].id, target_minor=target, target_date=str(target_date))
+        )
     user.demo = True
     audit(db, "demo.seed", user.id, {"fictional": True})

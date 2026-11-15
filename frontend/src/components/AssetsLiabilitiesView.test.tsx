@@ -53,8 +53,9 @@ test("existing property and loans appear without any separate valuation records"
   expect(
     screen.getByRole("heading", { name: "Gooding Loan" }),
   ).toBeInTheDocument();
-  expect(screen.getByText("$140,000.00")).toBeInTheDocument();
-  expect(screen.getByText("$21,000.00")).toBeInTheDocument();
+  // Each figure appears on its card and in the equity summary above the cards.
+  expect(screen.getAllByText("$140,000.00").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("$21,000.00").length).toBeGreaterThan(0);
   for (const name of ["Fidelity", "Checking", "Apple Card"])
     expect(screen.queryByRole("heading", { name })).not.toBeInTheDocument();
   expect(screen.queryByText("No assets yet.")).not.toBeInTheDocument();

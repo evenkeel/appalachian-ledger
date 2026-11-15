@@ -7,17 +7,17 @@ import { TransferDialog } from "./components/TransferDialog";
 import { ExpensesView } from "./components/ExpensesView";
 import { SpendingPaceCard } from "./components/SpendingPaceCard";
 import { RecurringBills } from "./components/RecurringBills";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { usePriceUpdates } from "./lib/usePriceUpdates";
 import {
-  Activity,
-  ArrowDownLeft,
   ArrowRight,
   ArrowLeftRight,
+  BarChart3,
   Building2,
-  ChevronRight,
+  CircleDollarSign,
   Download,
+  Hourglass,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -25,6 +25,7 @@ import {
   Plus,
   PiggyBank,
   Receipt,
+  ScrollText,
   Search,
   Settings2,
   ShieldCheck,
@@ -69,21 +70,39 @@ import { HoldingsDialog, HoldingsSummary } from "./components/Holdings";
 import { Settings } from "./components/Settings";
 import { MountainMark } from "./components/MountainMark";
 import { CategoryManager } from "./components/CategoryManager";
+import { Goals } from "./components/Goals";
+import {
+  AccountsSummary,
+  TransactionsSummary,
+} from "./components/PageSummaries";
 
 const navigation = [
-  { name: "Overview", icon: LayoutDashboard },
-  { name: "Accounts", icon: Wallet },
-  { name: "Income", icon: ArrowDownLeft },
-  { name: "Expenses", icon: Receipt },
-  { name: "Transactions", icon: ArrowDownLeft },
-  { name: "Budgets", icon: Target },
-  { name: "Savings & investing", icon: PiggyBank },
-  { name: "Assets & liabilities", icon: Building2 },
-  { name: "Reports", icon: Activity },
-  { name: "Retirement", icon: Target },
-  { name: "Settings", icon: Settings2 },
+  { name: "Overview", icon: LayoutDashboard, group: "" },
+  { name: "Accounts", icon: Wallet, group: "Money" },
+  { name: "Income", icon: CircleDollarSign, group: "Money" },
+  { name: "Expenses", icon: Receipt, group: "Money" },
+  { name: "Transactions", icon: ScrollText, group: "Money" },
+  { name: "Budgets", icon: Target, group: "Plan" },
+  { name: "Savings & investing", icon: PiggyBank, group: "Plan" },
+  { name: "Retirement", icon: Hourglass, group: "Plan" },
+  { name: "Assets & liabilities", icon: Building2, group: "Wealth" },
+  { name: "Reports", icon: BarChart3, group: "Wealth" },
+  { name: "Settings", icon: Settings2, group: "System" },
 ] as const;
 type Page = (typeof navigation)[number]["name"];
+const pageSummary: Record<Page, string> = {
+  Overview: "Where you stand today, in dollars and bitcoin.",
+  Accounts: "Wallets, banking, investments, and credit cards.",
+  Income: "What came in this month and where it came from.",
+  Expenses: "Where the money went, and what is coming due.",
+  Transactions: "Every entry in your ledger, searchable.",
+  Budgets: "Planned spending against what you actually spent.",
+  "Savings & investing": "Bitcoin buys, savings, and investment funding.",
+  Retirement: "Hypothetical scenarios built from your own assumptions.",
+  "Assets & liabilities": "Property, valued assets, and longer-term debt.",
+  Reports: "Account history, cash flow, and monthly comparisons.",
+  Settings: "Display, prices, payment defaults, and backups.",
+};
 const defaults: Preferences = {
   denomination: "USD",
   theme: "dark",
@@ -159,7 +178,8 @@ export function Auth({
                 name="username"
                 autoComplete="username"
                 required
-                pattern="[a-zA-Z0-9_.-]+"
+                pattern="[a-zA-Z0-9_.\-]+"
+                title="Letters, numbers, dots, dashes and underscores"
                 maxLength={80}
                 autoFocus
               />
@@ -242,7 +262,8 @@ export default function App() {
     [filter, setFilter] = useState(""),
     [accountFilter, setAccountFilter] = useState(""),
     [currencyFilter, setCurrencyFilter] = useState(""),
-    [txPeriod, setTxPeriod] = useState("month");
+    [txPeriod, setTxPeriod] = useState("month"),
+    [reviewOnly, setReviewOnly] = useState(false);
   const refresh = useCallback(() => setRevision((r) => r + 1), []);
   const lockLedger = useCallback((message = "") => {
     preferenceVersion.current += 1;
@@ -269,6 +290,7 @@ export default function App() {
     setAccountFilter("");
     setCurrencyFilter("");
     setTxPeriod("month");
+    setReviewOnly(false);
     setQuoteError("");
     setError("");
     setNotice(message);
@@ -429,6 +451,8 @@ export default function App() {
   function navigate(value: Page) {
     setDetailAccountId(null);
     setPage(value);
+    // Each page starts at its top instead of inheriting the last scroll offset.
+    document.documentElement.scrollTop = 0;
     setMobile(false);
     setNotice("");
     setError("");
@@ -456,7 +480,25 @@ export default function App() {
       setLoading(false);
     }
   }
-  const shownTransactions = transactions.filter(
+  const toReview = transactions.filter((t) => t.review_reasons?.length);
+  // The queue spans all dates; nothing waiting means there is no queue to show.
+  const reviewing = reviewOnly && toReview.length > 0;
+  async function markReviewed(rows: Transaction[]) {
+    try {
+      await api("/transactions/review", "POST", {
+        ids: rows.map((row) => row.id),
+      });
+      setNotice(
+        rows.length === 1
+          ? `“${rows[0].description}” marked as reviewed.`
+          : `${rows.length} entries marked as reviewed.`,
+      );
+      refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+  const shownTransactions = (reviewing ? toReview : transactions).filter(
     (t) =>
       (!search ||
         (t.description + " " + t.notes + " " + t.account)
@@ -469,7 +511,7 @@ export default function App() {
       (!accountFilter ||
         t.account_id === Number(accountFilter) ||
         t.destination_id === Number(accountFilter)) &&
-      (txPeriod === "all" || t.date.startsWith(month)),
+      (reviewing || txPeriod === "all" || t.date.startsWith(month)),
   );
   function openAccount(account: Account) {
     setDetailAccountId(account.id);
@@ -523,16 +565,30 @@ export default function App() {
           <aside className={`sidebar ${mobile ? "open" : ""}`}>
             <Brand />
             <nav aria-label="Main navigation">
-              {navigation.map(({ name, icon: Icon }) => (
-                <button
-                  key={name}
-                  className={page === name ? "nav-item active" : "nav-item"}
-                  onClick={() => navigate(name)}
-                >
-                  <Icon size={18} />
-                  <span>{name}</span>
-                  {page === name && <ChevronRight size={14} />}
-                </button>
+              {navigation.map(({ name, icon: Icon, group }, index) => (
+                <Fragment key={name}>
+                  {group && navigation[index - 1].group !== group && (
+                    <span className="nav-group" aria-hidden="true">
+                      {group}
+                    </span>
+                  )}
+                  <button
+                    className={page === name ? "nav-item active" : "nav-item"}
+                    aria-current={page === name ? "page" : undefined}
+                    onClick={() => navigate(name)}
+                  >
+                    <Icon size={18} />
+                    <span>{name}</span>
+                    {name === "Transactions" && toReview.length > 0 && (
+                      <span
+                        className="nav-badge"
+                        aria-label={`${toReview.length} to review`}
+                      >
+                        {toReview.length}
+                      </span>
+                    )}
+                  </button>
+                </Fragment>
               ))}
             </nav>
             <div className="sidebar-bottom">
@@ -574,24 +630,26 @@ export default function App() {
                 >
                   <Menu size={20} />
                 </Button>
-                <span>Workspace</span>
-                <ChevronRight size={12} />
                 <strong>{page}</strong>
+                {owner.demo && (
+                  <span className="demo-pill">Fictional demo</span>
+                )}
               </div>
               <div className="topbar-right">
+                <Button
+                  size="sm"
+                  className="topbar-add"
+                  onClick={() => setDialog({ type: "transaction" })}
+                >
+                  <Plus size={15} />
+                  Add transaction
+                </Button>
                 <CurrencyToggle
                   unit={unit}
                   onChange={changeMonetaryLens}
                   disabled={!preferencesReady || lensBusy}
                 />
                 <span className="beta-badge">Beta</span>
-                {owner.demo && (
-                  <span className="demo-pill">FICTIONAL DEMO</span>
-                )}
-                <span className="offline-label">
-                  <span className="status-dot" />
-                  Self-hosted
-                </span>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -627,6 +685,7 @@ export default function App() {
                 <div className="page-heading">
                   <div>
                     <h1>{page}</h1>
+                    <p>{pageSummary[page]}</p>
                   </div>
                   <div className="page-actions">
                     {(
@@ -660,14 +719,6 @@ export default function App() {
                       >
                         <Plus size={16} />
                         Record income
-                      </Button>
-                    ) : page === "Expenses" ? null : page === "Overview" ||
-                      page === "Transactions" ? (
-                      <Button
-                        onClick={() => setDialog({ type: "transaction" })}
-                      >
-                        <Plus size={16} />
-                        Add transaction
                       </Button>
                     ) : page === "Accounts" ? (
                       <Button onClick={() => setDialog({ type: "account" })}>
@@ -732,17 +783,38 @@ export default function App() {
                 )}
                 {!accounts.length && !loading && page !== "Settings" && (
                   <section className="welcome-panel">
-                    <MountainMark size={48} />
+                    <MountainMark size={56} />
                     <div>
-                      <h2>No accounts yet.</h2>
+                      <h2>Start your ledger</h2>
                       <p>
-                        {status?.demo_enabled
-                          ? "Add an account or load the demo."
-                          : "Add your first account."}
+                        Everything stays on this device. Add an account and the
+                        rest of the app fills in around it.
                       </p>
                     </div>
+                    <ol className="welcome-steps">
+                      <li>
+                        <strong>
+                          <b>1</b>Add an account
+                        </strong>
+                        A wallet, checking account or card, with today&rsquo;s
+                        balance.
+                      </li>
+                      <li>
+                        <strong>
+                          <b>2</b>Record what moves
+                        </strong>
+                        Income, expenses and transfers take a few seconds each.
+                      </li>
+                      <li>
+                        <strong>
+                          <b>3</b>Watch the picture form
+                        </strong>
+                        Net worth, spending and trends in dollars and bitcoin.
+                      </li>
+                    </ol>
                     <div className="button-row">
                       <Button onClick={() => setDialog({ type: "account" })}>
+                        <Plus size={16} />
                         Create first account
                       </Button>
                       {status?.demo_enabled && (
@@ -771,7 +843,7 @@ export default function App() {
                       </Button>
                     </div>
                   )}
-                {page === "Overview" && report && (
+                {page === "Overview" && report && accounts.length > 0 && (
                   <>
                     <OverviewView
                       transactions={transactions}
@@ -801,6 +873,7 @@ export default function App() {
                       onPeriod={setPeriod}
                       onTransactions={() => navigate("Transactions")}
                       onIncome={() => navigate("Income")}
+                      onBills={() => navigate("Expenses")}
                       onSaved={(message) => {
                         setNotice(message);
                         refresh();
@@ -849,71 +922,45 @@ export default function App() {
                 )}
                 {page === "Accounts" && (
                   <>
-                    <div className="section-toolbar assets-intro">
-                      <p className="hint">
-                        Wallets, banking, investments, and credit cards.
-                        Property and longer-term debts are managed in Assets &
-                        liabilities.
-                      </p>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => navigate("Assets & liabilities")}
-                      >
-                        View assets & debts
-                      </Button>
-                    </div>
-                    <div className="ownership-key">
-                      <span>
-                        <i className="bitcoin" />
-                        Bitcoin holdings
-                      </span>
-                      <span>
-                        <i className="dollars" />
-                        Dollar cash
-                      </span>
-                      <span>
-                        <i className="valued_asset" />
-                        Asset valuations
-                      </span>
-                      <span>
-                        <i className="debt" />
-                        Debt
-                      </span>
-                    </div>
-                    <div className="section-toolbar">
-                      <span>
+                    <AccountsSummary accounts={everydayAccounts} />
+                    <div className="section-toolbar accounts-toolbar">
+                      <strong>
                         {everydayAccounts.filter((a) => !a.archived).length}{" "}
                         active accounts
-                        <span className="muted">
-                          {" "}
-                          · Original currency preserved
-                        </span>
-                      </span>
-                      <Button
-                        variant="outline"
-                        onClick={() => setDialog({ type: "transfer" })}
-                      >
-                        <ArrowLeftRight size={16} /> Transfer
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setDialog({ type: "rate" })}
-                      >
-                        Record exchange rate
-                      </Button>
+                      </strong>
+                      <label className="check">
+                        <input
+                          type="checkbox"
+                          checked={showArchivedAccounts}
+                          onChange={(event) =>
+                            setShowArchivedAccounts(event.target.checked)
+                          }
+                        />
+                        Show archived
+                      </label>
+                      <div className="button-row">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => navigate("Assets & liabilities")}
+                        >
+                          View assets & debts
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setDialog({ type: "rate" })}
+                        >
+                          Record exchange rate
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => setDialog({ type: "transfer" })}
+                        >
+                          <ArrowLeftRight size={16} /> Transfer
+                        </Button>
+                      </div>
                     </div>
-                    <label className="check">
-                      <input
-                        type="checkbox"
-                        checked={showArchivedAccounts}
-                        onChange={(event) =>
-                          setShowArchivedAccounts(event.target.checked)
-                        }
-                      />
-                      Show archived
-                    </label>
                     {!visibleEverydayAccounts.length && (
                       <p className="empty-inline">
                         No active money accounts to show. Add a wallet, bank,
@@ -1095,6 +1142,40 @@ export default function App() {
                 )}
                 {page === "Transactions" && (
                   <>
+                    {toReview.length > 0 && (
+                      <div className="review-banner" role="status">
+                        <span>
+                          <strong>
+                            {toReview.length}{" "}
+                            {toReview.length === 1 ? "entry" : "entries"} to
+                            review
+                          </strong>
+                          Imported, or filed under a catch-all category. Confirm
+                          each one or give it a better category.
+                        </span>
+                        <div className="button-row">
+                          {reviewing && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => markReviewed(shownTransactions)}
+                              disabled={!shownTransactions.length}
+                            >
+                              Mark all shown as reviewed
+                            </Button>
+                          )}
+                          <Button
+                            variant={reviewing ? "outline" : "default"}
+                            size="sm"
+                            aria-pressed={reviewing}
+                            onClick={() => setReviewOnly(!reviewing)}
+                          >
+                            {reviewing ? "Show all transactions" : "Review now"}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                    <TransactionsSummary rows={shownTransactions} />
                     <section className="panel">
                       <div className="panel-heading filter-bar journal-heading">
                         <h2>
@@ -1172,6 +1253,8 @@ export default function App() {
                       </div>
                       <TransactionTable
                         rows={shownTransactions}
+                        onReview={(row) => markReviewed([row])}
+                        showConversions={!reviewing}
                         onRepeat={(transaction) =>
                           setDialog({
                             type: "transaction",
@@ -1196,6 +1279,16 @@ export default function App() {
                       audit trail.
                     </p>
                   </>
+                )}
+                {page === "Savings & investing" && accounts.length > 0 && (
+                  <Goals
+                    accounts={accounts}
+                    revision={revision}
+                    onSaved={(message) => {
+                      setNotice(message);
+                      refresh();
+                    }}
+                  />
                 )}
                 {(page === "Budgets" || page === "Savings & investing") && (
                   <MoneyTracking
@@ -1234,6 +1327,8 @@ export default function App() {
                 )}
                 {page === "Reports" && report && (
                   <ReportsView
+                    transactions={transactions}
+                    budgets={budgets}
                     report={report}
                     period={period}
                     onPeriod={setPeriod}
@@ -1247,7 +1342,7 @@ export default function App() {
                 {page === "Retirement" && <RetirementPlanner />}
                 {page === "Settings" && (
                   <Settings
-                    key={revision}
+                    revision={revision}
                     preferences={prefs}
                     accounts={accounts}
                     categories={categories}
@@ -1333,12 +1428,18 @@ export default function App() {
               <EntryDialog
                 state={dialog}
                 paymentDefaults={prefs.category_payment_defaults}
+                history={transactions}
+                payeeRules={prefs.payee_rules}
                 accounts={accounts}
                 categories={categories}
                 month={month}
                 onClose={() => setDialog(null)}
                 onSaved={(message) => {
                   setDialog(null);
+                  setNotice(message);
+                  refresh();
+                }}
+                onSavedAnother={(message) => {
                   setNotice(message);
                   refresh();
                 }}

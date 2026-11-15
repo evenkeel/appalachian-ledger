@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Download, ShieldCheck, Server, LockKeyhole } from "lucide-react";
+import { PayeeRules } from "./PayeeRules";
 import { api, download, setCsrf } from "../lib/api";
 import type {
   Account,
@@ -50,6 +51,7 @@ export function Settings({
   accounts,
   categories,
   rates,
+  revision,
   onRefresh,
   onRate,
   onNotice,
@@ -59,6 +61,8 @@ export function Settings({
   accounts: Account[];
   categories: Category[];
   rates: Rate[];
+  /** Bumped after every ledger change; reloads the audit trail without discarding drafts. */
+  revision?: number;
   onRefresh: () => void;
   onRate: () => void;
   onNotice: (text: string) => void;
@@ -75,18 +79,28 @@ export function Settings({
   const [paymentDefaults, setPaymentDefaults] = useState(
     preferences.category_payment_defaults || {},
   );
+  // Background refreshes hand over an equal-but-new object; only a real change
+  // to the saved preferences may replace what is being edited.
+  const syncedPreferences = useRef(JSON.stringify(preferences));
   useEffect(() => {
+    const next = JSON.stringify(preferences);
+    if (next === syncedPreferences.current) return;
+    syncedPreferences.current = next;
     setPrefs(preferences);
     setPaymentDefaults(preferences.category_payment_defaults || {});
   }, [preferences]);
   useEffect(() => {
+    let alive = true;
     api<Audit[]>("/audit")
-      .then(setAudit)
+      .then((rows) => alive && setAudit(rows))
       .catch(() => {});
     api<Wallet[]>("/node/wallets")
-      .then(setWallets)
+      .then((rows) => alive && setWallets(rows))
       .catch(() => {});
-  }, []);
+    return () => {
+      alive = false;
+    };
+  }, [revision]);
   async function run(fn: () => Promise<void>) {
     setError("");
     setBusy(true);
@@ -264,6 +278,13 @@ export function Settings({
           <Button disabled={busy}>Save payment defaults</Button>
         </form>
       </section>
+      <PayeeRules
+        rules={preferences.payee_rules ?? []}
+        categories={categories}
+        accounts={accounts}
+        onRefresh={onRefresh}
+        onNotice={onNotice}
+      />
       <PriceSettings
         preferences={preferences}
         rates={rates}

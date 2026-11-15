@@ -23,6 +23,7 @@ from .models import (
     Category,
     ExchangeRate,
     JournalEntry,
+    LoginAttempt,
     Session,
     User,
     WalletConnection,
@@ -41,7 +42,7 @@ from .reports import (
 from .imports import import_csv
 from .prices import fetch_daily, provider_for, utcnow
 from .price_sync import PriceWorker, price_status, queue_history, sync_state
-from . import conversions, investments, recurring, costs
+from . import conversions, insights, investments, recurring, costs
 from .node import BitcoinCore
 from .backup import snapshot, restore, MAX_BYTES
 from .demo import seed_demo
@@ -69,6 +70,7 @@ app = FastAPI(
     lifespan=lifespan, title="Appalachian Bitcoin", version="0.1.0", docs_url=None, redoc_url=None, openapi_url=None
 )
 app.include_router(planning_router)
+app.include_router(insights.router)
 app.include_router(spending_history_router)
 
 allowed_hosts = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,testserver").split(",")
@@ -152,6 +154,9 @@ def login(data: s.Credentials, request: Request, response: Response, db=Depends(
     valid = verify(data.password, user.password_hash if user else DUMMY_HASH)
     if not user or not valid:
         raise HTTPException(401, "Invalid username or password")
+    # Only failed attempts count toward the throttle.
+    client = request.client.host if request.client else "local"
+    db.execute(delete(LoginAttempt).where(LoginAttempt.client == client))
     ledger.audit(db, "auth.login", user.id, {})
     return start_session(db, user, response)
 
@@ -296,6 +301,13 @@ def delete_category(id: int, user=Depends(authenticate), db=Depends(get_db, scop
         raise HTTPException(409, "This category is used by budgets. Remove those budgets before deleting it.")
     if db.scalar(select(RecurringBill.id).where(RecurringBill.category_id == id).limit(1)) is not None:
         raise HTTPException(409, "This category is used by saved recurring bills and cannot be deleted.")
+    # A default payment method for a category that no longer exists would block later saves.
+    prefs = json.loads(user.preferences)
+    removed = prefs.get("category_payment_defaults", {}).pop(str(id), None) is not None
+    rules = [rule for rule in prefs.get("payee_rules", []) if rule["category_id"] != id]
+    if removed or len(rules) != len(prefs.get("payee_rules", [])):
+        prefs["payee_rules"] = rules
+        user.preferences = json.dumps(prefs)
     ledger.audit(db, "category.delete", id, {"name": obj.name, "kind": obj.kind})
     db.delete(obj)
     return {"ok": True}
@@ -312,8 +324,9 @@ def transactions(
     db=Depends(get_db, scope="function"),
 ):
     rows = ledger.active_transactions(db, start, end)
+    reviewed = insights.reviewed_ids(db)
     return [
-        ledger.transaction_dict(db, e, reporting=True)
+        ledger.transaction_dict(db, e, reporting=True) | {"review_reasons": insights.review_reasons(db, e, reviewed)}
         for e in rows
         if (not q or q.casefold() in (e.description + " " + e.notes).casefold())
         and (not kind or e.kind == kind)
@@ -366,6 +379,8 @@ def reports(
         and not account["exclude_from_consumer_debt"]
     )
     result["debt_gauge"] = debt_gauge(db, consumer_debt)
+    # Upcoming bills only exist for the present, so past months carry no reading.
+    result["safe_to_spend"] = insights.safe_to_spend(db) if month == date.today().strftime("%Y-%m") else None
     return result
 
 
@@ -636,6 +651,7 @@ def save_settings(data: s.Preferences, user=Depends(authenticate), db=Depends(ge
     prefs["debt_limits"] = old_preferences.get("debt_limits")
     prefs["card_orders"] = old_preferences.get("card_orders", {})
     prefs["category_payment_defaults"] = old_preferences.get("category_payment_defaults", {})
+    prefs["payee_rules"] = old_preferences.get("payee_rules", [])
     user.preferences = json.dumps(prefs)
     ledger.audit(db, "settings.save", user.id, data.model_dump())
     return {"ok": True}

@@ -53,9 +53,7 @@ export function AllocationOverview({ report }: { report: Report }) {
             <div
               className="allocation-chart"
               role="img"
-              aria-label={rows
-                .map((row) => row.label)
-                .join(", ")}
+              aria-label={rows.map((row) => row.label).join(", ")}
             >
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>

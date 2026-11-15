@@ -155,6 +155,12 @@ class MonetaryLensInput(StrictModel):
     denomination: Literal["BITCOIN", "BTC", "USD"]
 
 
+class PayeeRulePreference(StrictModel):
+    match: str = Field(min_length=1, max_length=80)
+    category_id: int
+    account_id: int | None = None
+
+
 class Preferences(StrictModel):
     denomination: Literal["BITCOIN", "BTC", "USD"] = "USD"
     theme: Literal["dark", "light"] = "dark"
@@ -163,6 +169,7 @@ class Preferences(StrictModel):
     debt_limits: DebtLimits | None = None
     card_orders: dict[CardScope, list[str]] = Field(default_factory=dict)
     category_payment_defaults: dict[int, int] = Field(default_factory=dict)
+    payee_rules: list[PayeeRulePreference] = Field(default_factory=list)
 
 
 class PaymentDefaultsInput(StrictModel):

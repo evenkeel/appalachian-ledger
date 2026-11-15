@@ -12,7 +12,11 @@ export type { AccountActivityData } from "../lib/accountActivity";
 
 const amountClass = (minor: string) => {
   const amount = BigInt(minor);
-  return amount > 0n ? "account-money-in" : amount < 0n ? "account-money-out" : "";
+  return amount > 0n
+    ? "account-money-in"
+    : amount < 0n
+      ? "account-money-out"
+      : "";
 };
 
 const dateLabel = (date: string) =>
@@ -167,7 +171,9 @@ export function AccountActivity({
                               : `Cancelled entry #${row.id}`}
                           </small>
                         </td>
-                        <td className={`numeric nowrap ${amountClass(row.change_minor)}`}>
+                        <td
+                          className={`numeric nowrap ${amountClass(row.change_minor)}`}
+                        >
                           {BigInt(row.change_minor) > 0n ? "+" : ""}
                           <Money value={row.change} unit={data.currency} />
                         </td>

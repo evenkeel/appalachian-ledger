@@ -10,7 +10,6 @@ from .accounting import (
     rate_for,
     active_transactions,
     transaction_dict,
-    entry_rate,
     reporting_rate,
 )
 from .money import convert, original, to_minor
@@ -221,7 +220,7 @@ def account_performance(db, history, accounts, denomination):
         if acc["role"] != "asset":
             continue
         additions = add_nullable(
-            convert(p.amount_minor, acc["currency"], denomination, entry_rate(db, entry))
+            convert(p.amount_minor, acc["currency"], denomination, reporting_rate(db, entry)["value"])
             for p, entry in rows
             if p.account_id == acc["id"]
         )
@@ -342,7 +341,9 @@ def budgets_report(db, month):
             if entry.kind == "expense" and entry.category_id == budget.category_id:
                 acc = db.get(Account, entry.account_id)
                 if budget.scope == "all" or acc.currency == budget.currency:
-                    values.append(convert(entry.amount_minor, acc.currency, budget.currency, entry_rate(db, entry)))
+                    values.append(
+                        convert(entry.amount_minor, acc.currency, budget.currency, reporting_rate(db, entry)["value"])
+                    )
         actual = add_nullable(values)
         planned = original(budget.amount_minor, budget.currency)
         result.append(

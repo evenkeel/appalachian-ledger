@@ -259,7 +259,11 @@ export function RetirementPlanner() {
                 const row = scenarios.find(
                   (s) => s.id === Number(e.target.value),
                 );
-                if (row) {
+                if (!row) {
+                  // “Unsaved draft” keeps the inputs but detaches them from the saved scenario.
+                  setSelected(null);
+                  setStatus("");
+                } else {
                   setSelected(row.id);
                   setName(row.name);
                   setInputs(row.assumptions);
@@ -766,6 +770,7 @@ export function RetirementPlanner() {
               <ProjectionChart
                 title="Scenario portfolio comparison"
                 unit={unit}
+                connectNulls
                 points={Array.from(
                   new Set(
                     comparisons.flatMap((c) =>

@@ -4,6 +4,7 @@ import { conversionNote } from "../lib/conversionNote";
 import { useState } from "react";
 import { ArrowRight, Download } from "lucide-react";
 import type {
+  BudgetOverview,
   Category,
   Flow,
   Ownership,
@@ -20,6 +21,10 @@ import { SpendingMix } from "./SpendingMix";
 import { DebtGauge } from "./DebtGauge";
 import { HistoryChart } from "./Charts";
 import { Button } from "./ui/button";
+import { BarList } from "./Visuals";
+import { SafeToSpend } from "./SafeToSpend";
+import { MonthlyRecap } from "./MonthlyRecap";
+import { CashFlowDiagram } from "./CashFlowDiagram";
 
 export function CurrencyToggle({
   unit,
@@ -275,6 +280,7 @@ export function OverviewView({
   period,
   onPeriod,
   onIncome,
+  onBills,
   onSaved = () => {},
 }: {
   utilities?: ReactNode;
@@ -289,10 +295,14 @@ export function OverviewView({
   onUnit: (unit: Denomination) => void;
   loading: boolean;
   onIncome?: () => void;
+  onBills?: () => void;
   onSaved?: (message: string) => void;
 }) {
   return (
     <>
+      {report.safe_to_spend && (
+        <SafeToSpend reading={report.safe_to_spend} onBills={onBills} />
+      )}
       <div className="overview-summary" aria-label="Financial overview">
         <NetWorth report={report} />
         {spendingPace}
@@ -371,11 +381,15 @@ export function ReportsView({
   period,
   onPeriod,
   onExport,
+  transactions = [],
+  budgets = [],
 }: {
   report: Report;
   period: string;
   onPeriod: (period: string) => void;
   onExport: () => void;
+  transactions?: Transaction[];
+  budgets?: BudgetOverview[];
 }) {
   const [source, setSource] = useState<"all" | "USD" | "BITCOIN">("all");
   const [accountId, setAccountId] = useState("");
@@ -408,6 +422,23 @@ export function ReportsView({
           </Button>
         </div>
       </div>
+      <MonthlyRecap
+        report={report}
+        transactions={transactions}
+        budgets={budgets}
+      />
+      <section className="panel cash-flow-panel">
+        <div className="panel-heading">
+          <div>
+            <h2>Where the money went</h2>
+            <span className="hint">
+              Income on the left, spending and what you kept on the right
+            </span>
+          </div>
+          <span className="tag">{report.month}</span>
+        </div>
+        <CashFlowDiagram report={report} />
+      </section>
       <section className="panel investment-panel">
         <div className="panel-heading">
           <div>
@@ -530,22 +561,32 @@ export function ReportsView({
                 : `originally ${unitLabel(source)}`}
             </span>
           </div>
+          <div className="chart-legend">
+            <span>
+              <i style={{ background: "var(--blue)" }} />
+              Income
+            </span>
+            <span>
+              <i style={{ background: "var(--accent)" }} />
+              Expenses
+            </span>
+          </div>
           <HistoryChart history={flowHistory} unit={unit} flows />
         </section>
         <section className="panel">
           <div className="panel-heading">
             <h2>Spending by category · {report.month}</h2>
           </div>
-          <div className="panel-body stack">
-            {currentFlow.categories.map((c) => (
-              <div className="key-value" key={c.name}>
-                <span>{c.name}</span>
-                <Money value={c.value} unit={unit} />
-              </div>
-            ))}
-            {!currentFlow.categories.length && (
-              <p className="hint">No spending in this currency and period.</p>
-            )}
+          <div className="panel-pad">
+            <BarList
+              unit={unit}
+              empty="No spending in this currency and period."
+              items={currentFlow.categories.map((c) => ({
+                key: c.name,
+                label: c.name,
+                value: c.value,
+              }))}
+            />
           </div>
         </section>
       </div>
@@ -578,7 +619,20 @@ export function ReportsView({
                     <Money value={h.expenses} unit={unit} />
                   </td>
                   <td className="numeric">
-                    {h.savings_rate === null ? "—" : h.savings_rate + "%"}
+                    {h.savings_rate === null ? (
+                      "—"
+                    ) : (
+                      <span className="rate-meter">
+                        <i aria-hidden="true">
+                          <b
+                            style={{
+                              width: `${Math.min(Math.max(Number(h.savings_rate), 0), 100)}%`,
+                            }}
+                          />
+                        </i>
+                        {h.savings_rate}%
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}

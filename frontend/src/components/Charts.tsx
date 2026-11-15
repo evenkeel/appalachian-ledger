@@ -46,14 +46,14 @@ export function HistoryChart({
         dataKey="name"
         axisLine={false}
         tickLine={false}
-        tick={{ fill: "var(--muted)", fontSize: 11 }}
+        tick={{ fill: "var(--muted)", fontSize: 12 }}
         dy={8}
       />
       <YAxis
         axisLine={false}
         tickLine={false}
         tickFormatter={formatChartTick}
-        tick={{ fill: "var(--muted)", fontSize: 11 }}
+        tick={{ fill: "var(--muted)", fontSize: 12 }}
         width={52}
       />
       <Tooltip

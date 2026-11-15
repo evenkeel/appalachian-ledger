@@ -7,6 +7,7 @@ import { belongsInAssets } from "../lib/accountActions";
 import type { DialogState } from "./EntryDialog";
 import { Money } from "./Money";
 import { Button } from "./ui/button";
+import { EquitySummary } from "./PageSummaries";
 
 export function AssetsLiabilitiesView({
   accounts,
@@ -30,24 +31,25 @@ export function AssetsLiabilitiesView({
   );
   return (
     <>
-      <div className="section-toolbar assets-intro">
-        <p className="hint">
-          Property, vehicles, other valued assets, and longer-term debts.
-          Balances come from your existing ledger; valuation history is
-          optional.
-        </p>
-        <Button variant="outline" size="sm" onClick={onAccounts}>
-          View money accounts
-        </Button>
+      <EquitySummary accounts={managed} />
+      <div className="section-toolbar accounts-toolbar">
+        <strong>
+          {managed.filter((account) => !account.archived).length} active
+        </strong>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={showArchived}
+            onChange={(event) => setShowArchived(event.target.checked)}
+          />
+          Show archived
+        </label>
+        <div className="button-row">
+          <Button variant="ghost" size="sm" onClick={onAccounts}>
+            View money accounts
+          </Button>
+        </div>
       </div>
-      <label className="check">
-        <input
-          type="checkbox"
-          checked={showArchived}
-          onChange={(event) => setShowArchived(event.target.checked)}
-        />
-        Show archived
-      </label>
       <SortableCards
         scope="assets"
         className="asset-grid"

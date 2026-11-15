@@ -13,6 +13,12 @@ from .forecasting import ForecastInput, project, earliest_retirement
 from .reports import accounts_report, add_nullable, flow
 from .accounting import audit, current_rate, active_transactions
 
+
+def non_negative(value):
+    """The forecast accepts only non-negative starting amounts (an overdrawn account starts at zero)."""
+    return "0.00" if value is not None and str(value).startswith("-") else value
+
+
 router = APIRouter(prefix="/api/planning", dependencies=[Depends(authenticate)])
 
 
@@ -74,9 +80,9 @@ def starting_position(db=Depends(get_db, scope="function")):
     return {
         "as_of": today.isoformat(),
         "bitcoin": add_nullable(a["balance"] for a in selected if a["holding_type"] == "bitcoin"),
-        "cash_usd": add_nullable(a["usd"] for a in selected if a["holding_type"] == "dollars"),
+        "cash_usd": non_negative(add_nullable(a["usd"] for a in selected if a["holding_type"] == "dollars")),
         "other_assets_usd": add_nullable(a["usd"] for a in selected if a["holding_type"] == "valued_asset"),
-        "liabilities_usd": add_nullable(a["usd"] for a in selected if a["holding_type"] == "debt"),
+        "liabilities_usd": non_negative(add_nullable(a["usd"] for a in selected if a["holding_type"] == "debt")),
         "price_usd": rate.usd_per_btc if rate else None,
         "rate_source": rate.source if rate else None,
         "rate_day": rate.day if rate else None,
