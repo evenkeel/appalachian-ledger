@@ -108,7 +108,7 @@ def test_safe_to_spend_subtracts_spending_savings_bills_and_goals(owner):
     reading = owner.get(f"/api/reports?month={MONTH}&denomination=USD").json()["safe_to_spend"]
     assert reading["complete"] is True
     assert reading["income"] == "3000.00" and reading["spent"] == "500.00"
-    assert reading["bitcoin_bought"] == "500.00"
+    assert reading["other_moved_usd"] == "500.00" and reading["bitcoin_paid_usd"] == "0.00"
     assert reading["bills_due"] == "250.00" and reading["bills_count"] == 1
     assert reading["goals"] == "200.00"
     assert reading["amount"] == "1550.00"
@@ -129,9 +129,21 @@ def test_safe_to_spend_counts_bitcoin_buys(owner):
         destination_amount="300000",
         date=FIRST,
     )
+    # Selling some back to checking nets out of what was stacked.
+    transaction(
+        owner,
+        cold,
+        kind="transfer",
+        amount="50000",
+        destination_id=checking,
+        destination_amount="50.00",
+        date=FIRST,
+    )
     reading = owner.get(f"/api/reports?month={MONTH}&denomination=USD").json()["safe_to_spend"]
-    assert reading["bitcoin_bought"] == "300.00"
-    assert reading["amount"] == "1700.00"
+    assert reading["bitcoin_bought"] == "250000"
+    assert reading["bitcoin_paid_usd"] == "250.00"
+    assert reading["other_moved_usd"] == "0.00"
+    assert reading["amount"] == "1750.00"
 
 
 def test_safe_to_spend_is_absent_for_past_months(owner):

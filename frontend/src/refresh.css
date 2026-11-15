@@ -1204,7 +1204,7 @@ tbody tr:first-child td {
 }
 .safe-steps {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
   gap: 8px;
   margin: 0;
 }
@@ -1226,6 +1226,19 @@ tbody tr:first-child td {
   margin: 4px 0 0;
   font-size: 16px;
   font-weight: 600;
+}
+.safe-steps > .safe-stacked {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  background: var(--accent-soft);
+}
+.safe-stacked dd {
+  color: var(--accent);
+}
+.safe-stacked small {
+  display: block;
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--muted);
 }
 .safe-notes {
   grid-column: 1 / -1;

@@ -73,7 +73,12 @@ export interface SafeToSpend {
   days_left: number;
   income: string | null;
   spent: string | null;
+  /** Bitcoin units stacked this month (BIP 177), net of any sold. */
   bitcoin_bought: string;
+  /** Dollars those buys cost. */
+  bitcoin_paid_usd: string;
+  /** Savings, investing and debt payments moved out of everyday accounts. */
+  other_moved_usd: string;
   bills_due: string;
   bills_count: number;
   goals: string;

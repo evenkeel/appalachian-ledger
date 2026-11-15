@@ -33,7 +33,7 @@ def seed_demo(db, user):
     ]
     accounts = {}
     for name, kind, currency, amount in specs:
-        accounts[kind] = create_account(
+        accounts[kind] = accounts[name] = create_account(
             db, AccountInput(name=name, kind=kind, currency=currency, opening_balance=amount, date=first)
         )
     cats = {c.name: c.id for c in db.scalars(select(Category))}
@@ -129,6 +129,18 @@ def seed_demo(db, user):
                     destination_id=accounts["savings"].id,
                     amount="1200",
                     description="Monthly savings",
+                ),
+            )
+            create_transaction(
+                db,
+                TransactionInput(
+                    date=when,
+                    kind="transfer",
+                    account_id=accounts["checking"].id,
+                    destination_id=accounts["Cold storage"].id,
+                    amount="400",
+                    destination_amount="420000",
+                    description="Bitcoin buy",
                 ),
             )
         for name, planned in [
