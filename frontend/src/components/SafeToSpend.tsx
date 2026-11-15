@@ -1,7 +1,7 @@
 import type { SafeToSpend as Reading } from "../lib/types";
 import { formatMoney } from "../lib/money";
 
-/** What is left of this month's income after spending, saving and the bills still to come. */
+/** What is left of this month's income after spending, buying bitcoin and the bills still to come. */
 export function SafeToSpend({
   reading,
   onBills,
@@ -13,7 +13,7 @@ export function SafeToSpend({
   const steps: [string, string | null, string][] = [
     ["Income so far", reading.income, ""],
     ["Spent", reading.spent, "−"],
-    ["Set aside", reading.set_aside, "−"],
+    ["Bitcoin bought", reading.bitcoin_bought, "−"],
     [
       `Bills still due${reading.bills_count ? ` (${reading.bills_count})` : ""}`,
       reading.bills_due,
@@ -39,7 +39,7 @@ export function SafeToSpend({
           {reading.amount === null
             ? "A bitcoin amount this month has no exchange rate yet, so the total would be a guess."
             : over
-              ? "Spending, savings and upcoming bills exceed this month's income so far."
+              ? "Spending, bitcoin bought and upcoming bills exceed this month's income so far."
               : `About ${formatMoney(reading.per_day, "USD")} a day for the ${reading.days_left} day${reading.days_left === 1 ? "" : "s"} left this month.`}
         </p>
       </div>
@@ -57,11 +57,11 @@ export function SafeToSpend({
       <details className="safe-notes">
         <summary>How this is worked out</summary>
         <p>
-          This month&rsquo;s recorded income, less what you have spent, less
-          money moved from everyday accounts into savings, investments, bitcoin
-          or debt, less unpaid bills due by month end, less what your dated
-          goals still need this month. Card payments are not counted twice. It
-          is a guide from your own records, not a forecast.
+          This month&rsquo;s recorded income, less what you have spent, less the
+          bitcoin you bought from everyday accounts, less unpaid bills due by
+          month end, less what your dated goals still need this month. Card
+          payments are not counted twice. It is a guide from your own records,
+          not a forecast.
           {onBills && (
             <>
               {" "}

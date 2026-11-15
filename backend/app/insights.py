@@ -244,8 +244,8 @@ def bills_due(db, today, end, rate):
     return total, count, complete
 
 
-def set_aside(db, start, end):
-    """Net money moved out of everyday accounts into savings, investments, bitcoin or debt."""
+def bitcoin_bought(db, start, end):
+    """Net money moved out of everyday accounts this month: in this ledger, that is bitcoin buying."""
     total, complete = 0, True
     for entry in active_transactions(db, start, end):
         if entry.kind != "transfer" or not entry.destination_id:
@@ -288,26 +288,26 @@ def goals_still_to_fund(db, today, start, rate):
 
 
 def safe_to_spend(db, today=None):
-    """What is left of this month's income after spending, saving, and the bills still to come."""
+    """What is left of this month's income after spending, buying bitcoin, and the bills still to come."""
     today = today or date.today()
     start, end = month_days(today.strftime("%Y-%m"))
     quote = current_rate(db)
     rate = quote.usd_per_btc if quote else None
     activity = flow(db, start, end, "USD")
-    aside, aside_complete = set_aside(db, start, end)
+    bitcoin, bought_complete = bitcoin_bought(db, start, end)
     bills, bill_count, bills_complete = bills_due(db, today, end, rate)
     goals, goals_complete = goals_still_to_fund(db, today, start, rate)
     complete = (
         activity["income"] is not None
         and activity["expenses"] is not None
-        and aside_complete
+        and bought_complete
         and bills_complete
         and goals_complete
     )
     days = (end - today).days + 1
     amount = per_day = None
     if complete:
-        amount = to_minor(activity["income"], "USD") - to_minor(activity["expenses"], "USD") - aside - bills - goals
+        amount = to_minor(activity["income"], "USD") - to_minor(activity["expenses"], "USD") - bitcoin - bills - goals
         per_day = int(Decimal(max(amount, 0)) / days)
     return {
         "month": today.strftime("%Y-%m"),
@@ -316,7 +316,7 @@ def safe_to_spend(db, today=None):
         "days_left": days,
         "income": activity["income"],
         "spent": activity["expenses"],
-        "set_aside": original(aside, "USD"),
+        "bitcoin_bought": original(bitcoin, "USD"),
         "bills_due": original(bills, "USD"),
         "bills_count": bill_count,
         "goals": original(goals, "USD"),
