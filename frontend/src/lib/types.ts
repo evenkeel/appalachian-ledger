@@ -73,7 +73,7 @@ export interface SafeToSpend {
   days_left: number;
   income: string | null;
   spent: string | null;
-  set_aside: string;
+  bitcoin_bought: string;
   bills_due: string;
   bills_count: number;
   goals: string;

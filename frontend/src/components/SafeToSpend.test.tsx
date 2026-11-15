@@ -9,7 +9,7 @@ const reading = {
   days_left: 16,
   income: "3000.00",
   spent: "500.00",
-  set_aside: "500.00",
+  bitcoin_bought: "500.00",
   bills_due: "250.00",
   bills_count: 1,
   goals: "200.00",
