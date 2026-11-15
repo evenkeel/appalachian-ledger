@@ -42,7 +42,10 @@ jobs:
           curl --fail --cacert /tmp/ledger-root.crt -D /tmp/ledger-headers -H 'Origin: https://localhost:8443' -H 'Content-Type: application/json' --data '{"username":"smoke-owner","password":"smoke-only-password-1234"}' https://localhost:8443/api/auth/setup
           python -c "from pathlib import Path; h=Path('/tmp/ledger-headers').read_text().lower(); assert 'set-cookie:' in h and '; secure' in h"
           test "$(curl --silent --cacert /tmp/ledger-root.crt -o /dev/null -w '%{http_code}' -H 'Origin: https://evil.example' -X POST https://localhost:8443/api/auth/logout)" = 403
-          test -z "$(docker compose -f docker-compose.yml -f deployment/private.compose.yml port frontend 8080)"
+          # `docker compose port` prints "invalid IP:0" for an unpublished port on newer Compose; `docker port` prints nothing.
+          frontend_id="$(docker compose -f docker-compose.yml -f deployment/private.compose.yml ps -q frontend)"
+          test -n "$frontend_id"
+          test -z "$(docker port "$frontend_id")"
       - if: always()
         env:
           BIND_ADDRESS: 127.0.0.1
