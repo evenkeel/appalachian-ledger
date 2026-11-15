@@ -23,6 +23,7 @@ import { HistoryChart } from "./Charts";
 import { Button } from "./ui/button";
 import { BarList } from "./Visuals";
 import { SafeToSpend } from "./SafeToSpend";
+import { BitcoinLens } from "./BitcoinLens";
 import { MonthlyRecap } from "./MonthlyRecap";
 import { CashFlowDiagram } from "./CashFlowDiagram";
 
@@ -300,6 +301,7 @@ export function OverviewView({
 }) {
   return (
     <>
+      <BitcoinLens report={report} />
       {report.safe_to_spend && (
         <SafeToSpend reading={report.safe_to_spend} onBills={onBills} />
       )}
@@ -401,6 +403,7 @@ export function ReportsView({
   const investmentAccounts = report.accounts.filter((a) => a.role === "asset");
   const selected =
     investmentAccounts.find((a) => String(a.id) === accountId) ??
+    investmentAccounts.find((a) => a.holding_type === "bitcoin") ??
     investmentAccounts.find((a) => a.holding_type === "valued_asset") ??
     investmentAccounts[0];
   const performance = report.performance.find(
@@ -432,7 +435,8 @@ export function ReportsView({
           <div>
             <h2>Where the money went</h2>
             <span className="hint">
-              Income on the left, spending and what you kept on the right
+              Income on the left; spending, bitcoin stacked and cash left on the
+              right
             </span>
           </div>
           <span className="tag">{report.month}</span>
@@ -605,7 +609,8 @@ export function ReportsView({
                 <th>Month</th>
                 <th className="numeric">Income</th>
                 <th className="numeric">Expenses</th>
-                <th className="numeric">Savings rate</th>
+                <th className="numeric">Expenses in bitcoin</th>
+                <th className="numeric">Bitcoin stacked</th>
               </tr>
             </thead>
             <tbody>
@@ -619,19 +624,36 @@ export function ReportsView({
                     <Money value={h.expenses} unit={unit} />
                   </td>
                   <td className="numeric">
-                    {h.savings_rate === null ? (
-                      "—"
-                    ) : (
+                    <Money
+                      // Priced at each purchase date's rate; shown for all activity only.
+                      value={
+                        source === "all"
+                          ? (h.dual?.BITCOIN.expenses ?? null)
+                          : null
+                      }
+                      unit="BITCOIN"
+                    />
+                  </td>
+                  <td className="numeric">
+                    {h.stacked ? (
                       <span className="rate-meter">
                         <i aria-hidden="true">
                           <b
                             style={{
-                              width: `${Math.min(Math.max(Number(h.savings_rate), 0), 100)}%`,
+                              width: `${Math.min(Math.max(Number(h.stacked.stack_rate ?? 0), 0), 100)}%`,
                             }}
                           />
                         </i>
-                        {h.savings_rate}%
+                        <Money value={h.stacked.bitcoin} unit="BITCOIN" />
+                        {h.stacked.stack_rate !== null && (
+                          <small className="muted">
+                            {" "}
+                            · {h.stacked.stack_rate}%
+                          </small>
+                        )}
                       </span>
+                    ) : (
+                      "—"
                     )}
                   </td>
                 </tr>

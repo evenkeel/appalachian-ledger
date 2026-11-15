@@ -149,3 +149,23 @@ def test_safe_to_spend_counts_bitcoin_buys(owner):
 def test_safe_to_spend_is_absent_for_past_months(owner):
     new_account(owner)
     assert owner.get("/api/reports?month=2026-01&denomination=USD").json()["safe_to_spend"] is None
+
+
+def test_reports_show_bitcoin_stacked_and_stack_rate(owner):
+    checking = account_on(owner, "Checking", amount="1000")
+    cold = account_on(owner, "Cold storage", "bitcoin_wallet", currency="BITCOIN")
+    transaction(owner, checking, kind="income", amount="2000.00", date=FIRST)
+    transaction(
+        owner,
+        checking,
+        kind="transfer",
+        amount="500.00",
+        destination_id=cold,
+        destination_amount="600000",
+        date=FIRST,
+    )
+    report = owner.get(f"/api/reports?month={MONTH}&denomination=USD").json()
+    assert report["stacked"] == {"bitcoin": "600000", "usd": "500.00", "other_usd": "0.00", "stack_rate": "25.0"}
+    current = report["history"][-1]
+    assert current["stacked"]["bitcoin"] == "600000"
+    assert current["bitcoin_held"] == "600000"

@@ -3,6 +3,7 @@ import { parseMinor, decimalAmount } from "../lib/spendingAnalysis";
 import type { Category, Report } from "../lib/types";
 import { conversionNote } from "../lib/conversionNote";
 import { Money } from "./Money";
+import { formatMoney } from "../lib/money";
 import { LiquidUSD } from "./LiquidUSD";
 
 function point(percent: number, radius: number) {
@@ -143,10 +144,6 @@ export function CashflowCockpit({
     income !== null && income > 0 && expenses !== null
       ? (expenses / income) * 100
       : null;
-  const surplus =
-    flow?.income != null && flow.expenses != null
-      ? parseMinor(flow.income, unit) - parseMinor(flow.expenses, unit)
-      : null;
   const [year, month] = report.month.split("-").map(Number);
   const now = new Date();
   const current = now.getFullYear() === year && now.getMonth() + 1 === month;
@@ -212,36 +209,23 @@ export function CashflowCockpit({
             <Money value={flow?.expenses} unit={unit} />
             <small>Expenses recorded this period</small>
           </div>
-          <div
-            className={
-              surplus !== null && surplus < 0 ? "cockpit-negative" : ""
-            }
-          >
-            <span>
-              {surplus !== null && surplus < 0
-                ? "Cash shortfall"
-                : "Cash surplus"}
-            </span>
-            <Money
-              value={
-                surplus === null
-                  ? null
-                  : decimalAmount(surplus < 0n ? -surplus : surplus, unit)
-              }
-              unit={unit}
-            />
-            <small>Income minus expenses</small>
+          <div className="cockpit-stacked">
+            <span>Bitcoin stacked</span>
+            <Money value={report.stacked?.bitcoin ?? null} unit="BITCOIN" />
+            <small>
+              {report.stacked?.usd != null
+                ? `${formatMoney(report.stacked.usd, "USD")} of income turned into bitcoin`
+                : "Bought with dollars this period"}
+            </small>
           </div>
-          <div
-            className={
-              surplus !== null && surplus < 0 ? "cockpit-negative" : ""
-            }
-          >
-            <span>Savings rate</span>
+          <div>
+            <span>Stack rate</span>
             <strong>
-              {ratio === null ? "—" : `${(100 - ratio).toFixed(1)}%`}
+              {report.stacked?.stack_rate == null
+                ? "—"
+                : `${report.stacked.stack_rate}%`}
             </strong>
-            <small>Share of income left after expenses</small>
+            <small>Share of income turned into bitcoin</small>
           </div>
 
           <div>
@@ -273,10 +257,10 @@ export function CashflowCockpit({
           recorded income and expenses in the same month. During an unfinished
           month, paycheck and bill timing can move the needle sharply. They are
           observations, not spending limits. The green, amber, orange, and red
-          bands are visual guides, not personalized targets. Transfers and
-          investment value changes are excluded. Savings rate describes income
-          left after expenses; it does not measure deposits into savings
-          accounts.
+          bands are visual guides, not personalized targets. Bitcoin stacked
+          counts dollars moved from checking or cash into your bitcoin wallets,
+          net of any sold back; the stack rate is those dollars as a share of
+          the month&rsquo;s income.
         </p>
         <p>
           Burn rate uses up to three completed months ending in the selected

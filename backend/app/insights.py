@@ -7,18 +7,17 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import Field, field_validator
 from sqlalchemy import select
 from .accounting import account as ledger_account
-from .accounting import active_transactions, audit, balance, current_rate, reporting_rate
+from .accounting import active_transactions, audit, balance, current_rate
 from .auth import authenticate
 from .db import get_db
 from .models import Account, Category, EntryReview, RecurringBill, SavingsGoal
 from .money import convert, original, to_minor
-from .reports import flow, month_days
+from .reports import flow, money_moved_out, month_days
 from .schemas import StrictModel
 
 router = APIRouter(prefix="/api", dependencies=[Depends(authenticate)])
 
 GOAL_ACCOUNT_KINDS = {"savings", "checking", "cash", "bitcoin_wallet", "brokerage", "stock", "etf"}
-EVERYDAY_KINDS = {"checking", "cash"}
 
 
 # ---------- Savings goals ----------
@@ -242,43 +241,6 @@ def bills_due(db, today, end, rate):
                 break
             due += timedelta(days=7)
     return total, count, complete
-
-
-def money_moved_out(db, start, end):
-    """Net money moved from everyday accounts this month, net of anything moved back.
-
-    Returns a dict: ``bitcoin`` (whole bitcoin units stacked, BIP 177), ``bitcoin_usd``
-    (dollars those buys cost), ``other_usd`` (savings, investing and debt payments),
-    and ``complete`` (False when a dollar amount has no exchange rate).
-    """
-    moved = {"bitcoin": 0, "bitcoin_usd": 0, "other_usd": 0, "complete": True}
-    for entry in active_transactions(db, start, end):
-        if entry.kind != "transfer" or not entry.destination_id:
-            continue
-        source, destination = db.get(Account, entry.account_id), db.get(Account, entry.destination_id)
-        everyday_source = source.role == "asset" and source.kind in EVERYDAY_KINDS
-        everyday_destination = destination.role == "asset" and destination.kind in EVERYDAY_KINDS
-        # Card payments settle spending that was already counted as an expense.
-        if everyday_source == everyday_destination or "credit_card" in (source.kind, destination.kind):
-            continue
-        other = destination if everyday_source else source
-        sign = 1 if everyday_source else -1
-        is_bitcoin = other.currency == "BITCOIN"
-        if is_bitcoin:
-            moved["bitcoin"] += sign * ((entry.destination_minor or 0) if everyday_source else entry.amount_minor)
-        # Prefer the dollars actually recorded on either side of the transfer.
-        if source.currency == "USD":
-            usd_minor = entry.amount_minor
-        elif destination.currency == "USD" and entry.destination_minor is not None:
-            usd_minor = entry.destination_minor
-        else:
-            usd = convert(entry.amount_minor, source.currency, "USD", reporting_rate(db, entry)["value"])
-            if usd is None:
-                moved["complete"] = False
-                continue
-            usd_minor = to_minor(usd, "USD")
-        moved["bitcoin_usd" if is_bitcoin else "other_usd"] += sign * usd_minor
-    return moved
 
 
 def goals_still_to_fund(db, today, start, rate):

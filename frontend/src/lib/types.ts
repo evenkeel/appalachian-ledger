@@ -195,7 +195,18 @@ export interface DualValues extends Flow {
   liabilities: string | null;
   net_worth: string | null;
 }
+/** Dollars moved into bitcoin in a period: the app's measure of saving. */
+export interface Stacked {
+  /** Whole bitcoin units (BIP 177), net of any sold back. */
+  bitcoin: string;
+  usd: string | null;
+  other_usd: string | null;
+  /** Share of dollar income that went into bitcoin, as a percent. */
+  stack_rate: string | null;
+}
 export interface History {
+  stacked?: Stacked;
+  bitcoin_held?: string;
   allocation?: Allocation;
   dual?: Record<"BITCOIN" | "USD", DualValues>;
   lifestyle?: Record<"BITCOIN" | "USD", string | null>;
@@ -217,6 +228,7 @@ export interface History {
   }[];
 }
 export interface Report {
+  stacked?: Stacked;
   safe_to_spend?: SafeToSpend | null;
   debt_gauge?: DebtGaugeData;
   dual?: Record<"BITCOIN" | "USD", DualValues>;

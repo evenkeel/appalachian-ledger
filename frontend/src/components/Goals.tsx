@@ -45,7 +45,7 @@ function GoalDialog({
   const [accountId, setAccountId] = useState(
     String(
       goal?.account_id ??
-        eligible.find((a) => a.kind === "savings")?.id ??
+        eligible.find((a) => a.currency === "BITCOIN")?.id ??
         eligible[0]?.id ??
         "",
     ),
@@ -110,11 +110,11 @@ function GoalDialog({
         )}
         <div className="form-grid">
           <div className="full-width">
-            <Field label="What are you saving for?">
+            <Field label="What is this stack for?">
               <input
                 name="name"
                 defaultValue={goal?.name}
-                placeholder="Emergency fund"
+                placeholder="One whole bitcoin"
                 maxLength={80}
                 required
                 autoFocus
@@ -123,7 +123,7 @@ function GoalDialog({
           </div>
           <div className="full-width">
             <Field
-              label="Account that holds the money"
+              label="Wallet that holds it"
               hint="Progress is this account's balance. Goals sharing an account fill in the order they were added."
             >
               <select
@@ -132,7 +132,7 @@ function GoalDialog({
                 required
               >
                 {!eligible.length && (
-                  <option value="">Add a savings account first</option>
+                  <option value="">Add a bitcoin wallet first</option>
                 )}
                 {eligible.map((a) => (
                   <option key={a.id} value={a.id}>
@@ -149,7 +149,9 @@ function GoalDialog({
               name="target"
               defaultValue={goal?.target}
               inputMode="decimal"
-              placeholder={account?.currency === "BITCOIN" ? "1000000" : "5000"}
+              placeholder={
+                account?.currency === "BITCOIN" ? "100000000" : "5000"
+              }
               required
             />
           </Field>
@@ -228,9 +230,9 @@ export function Goals({
     }
   }
   return (
-    <section className="goals" aria-label="Savings goals">
+    <section className="goals" aria-label="Stacking goals">
       <div className="section-toolbar accounts-toolbar">
-        <h2>Savings goals</h2>
+        <h2>Stacking goals</h2>
         <div className="button-row">
           <Button variant="outline" onClick={() => setEditing("new")}>
             <Plus size={16} /> Add goal
@@ -246,10 +248,10 @@ export function Goals({
         <div className="panel goals-empty">
           <Target size={28} />
           <div>
-            <strong>Give your savings a job.</strong>
+            <strong>Set a bitcoin target.</strong>
             <p>
-              Name a target, link the account that holds the money, and watch it
-              fill as the balance grows.
+              Pick a wallet and an amount of bitcoin to reach, and watch it fill
+              as you stack.
             </p>
           </div>
         </div>
