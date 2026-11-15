@@ -45,10 +45,66 @@ export function formatMoney(
   if (!/^-?\d+(\.\d+)?$/.test(value)) return "Unavailable";
   const negative = value.startsWith("-");
   const [whole, fraction = ""] = value.replace(/^-/, "").split(".");
-  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   const places = denomination === "BTC" ? 8 : denomination === "USD" ? 2 : 0;
-  const decimals = places
-    ? "." + fraction.padEnd(places, "0").slice(0, places)
-    : "";
-  return `${negative ? "−" : ""}${denomination === "USD" ? "$" : denomination === "BITCOIN" ? "₿" : ""}${grouped}${decimals}`;
+  // Extra digits round half up instead of being cut off ($67,123.456 → $67,123.46).
+  let units = BigInt(whole + fraction.padEnd(places, "0").slice(0, places));
+  if (fraction.length > places && fraction[places] >= "5") units += 1n;
+  const digits = units.toString().padStart(places + 1, "0");
+  const rounded = digits
+    .slice(0, digits.length - places)
+    .replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const decimals = places ? "." + digits.slice(-places) : "";
+  return `${negative && units !== 0n ? "−" : ""}${denomination === "USD" ? "$" : denomination === "BITCOIN" ? "₿" : ""}${rounded}${decimals}`;
+}
+
+const decimalPattern = /^-?\d+(\.\d{1,8})?$/;
+function scaleDecimal(value: string) {
+  const negative = value.startsWith("-");
+  const [whole, fraction = ""] = value.replace(/^-/, "").split(".");
+  const units = BigInt(whole + fraction.padEnd(8, "0"));
+  return negative ? -units : units;
+}
+function unscaleDecimal(units: bigint) {
+  const digits = (units < 0n ? -units : units).toString().padStart(9, "0");
+  const fraction = digits.slice(-8).replace(/0+$/, "");
+  return `${units < 0n ? "-" : ""}${digits.slice(0, -8)}${fraction ? "." + fraction : ""}`;
+}
+
+/** Exact a − b for decimal strings (up to eight places); display maths never touches floats. */
+export function subtractMoney(
+  a: string | null | undefined,
+  b: string | null | undefined,
+) {
+  if (
+    a == null ||
+    b == null ||
+    !decimalPattern.test(a) ||
+    !decimalPattern.test(b)
+  )
+    return null;
+  return unscaleDecimal(scaleDecimal(a) - scaleDecimal(b));
+}
+
+/** Exact total of the available values, with a count of those that were unavailable. */
+export function sumMoney(values: (string | null | undefined)[]) {
+  let total = 0n,
+    missing = 0;
+  for (const value of values) {
+    if (value == null || !decimalPattern.test(value)) missing += 1;
+    else total += scaleDecimal(value);
+  }
+  return { total: unscaleDecimal(total), missing };
+}
+
+/** Percentage change for labels only; null when the base is zero or unavailable. */
+export function percentChange(
+  from: string | null | undefined,
+  to: string | null | undefined,
+) {
+  if (from == null || to == null) return null;
+  const start = Number(from),
+    end = Number(to);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start === 0)
+    return null;
+  return ((end - start) / Math.abs(start)) * 100;
 }

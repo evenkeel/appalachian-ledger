@@ -63,7 +63,7 @@ export function DualHistoryChart({
             axisLine={false}
             tickLine={false}
             minTickGap={25}
-            tick={{ fill: "var(--muted)", fontSize: 9 }}
+            tick={{ fill: "var(--muted)", fontSize: 12 }}
             tickFormatter={(month: string) =>
               new Date(`${month}-15T12:00:00`).toLocaleDateString(undefined, {
                 month: "short",
@@ -77,7 +77,7 @@ export function DualHistoryChart({
             width={51}
             axisLine={false}
             tickLine={false}
-            tick={{ fill: "var(--blue)", fontSize: 9 }}
+            tick={{ fill: "var(--blue)", fontSize: 12 }}
             tickFormatter={(n: number) => `$${formatChartTick(n)}`}
           />
           <YAxis
@@ -87,7 +87,7 @@ export function DualHistoryChart({
             width={57}
             axisLine={false}
             tickLine={false}
-            tick={{ fill: "var(--accent)", fontSize: 9 }}
+            tick={{ fill: "var(--accent)", fontSize: 12 }}
             tickFormatter={(n: number) => `₿${formatChartTick(n)}`}
           />
           <Tooltip

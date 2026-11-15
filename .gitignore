@@ -46,6 +46,7 @@ wallet.dat
 .ssh/
 .codex/
 .agents/
+.claude/
 backups/
 exports/
 secrets/

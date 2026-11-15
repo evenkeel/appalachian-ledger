@@ -10,13 +10,21 @@ import {
   isTransactionDestination,
   isPaymentAccount,
 } from "../lib/accountActions";
-import { formatBitcoinPerDollar, formatMoney } from "../lib/money";
 import { bitcoinInput, bitcoinAsBtc } from "../lib/bitcoinInput";
+import { formatMoney } from "../lib/money";
+import {
+  matchRule,
+  payeeMemory,
+  suggestPayees,
+  upsertRule,
+  type PayeeSuggestion,
+} from "../lib/payees";
 import type {
   Account,
   Asset,
   BudgetOverview,
   Category,
+  PayeeRule,
   Transaction,
   RecurringBill,
 } from "../lib/types";
@@ -120,26 +128,60 @@ export function EntryDialog({
   accounts,
   categories,
   paymentDefaults = {},
+  history = [],
+  payeeRules = [],
   month,
   onClose,
   onSaved,
+  onSavedAnother,
 }: {
   state: DialogState;
   accounts: Account[];
   categories: Category[];
   paymentDefaults?: Record<string, number>;
+  /** Past transactions; the form learns each payee's usual details from them. */
+  history?: Transaction[];
+  payeeRules?: PayeeRule[];
   month: string;
   onClose: () => void;
   onSaved: (message: string) => void;
+  /** Saves without closing, so several entries can be recorded in a row. */
+  onSavedAnother?: (message: string) => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const lock = useRef(false);
+  const another = useRef(false);
+  const amountInput = useRef<HTMLInputElement>(null);
+  const [savedCount, setSavedCount] = useState(0);
+  const isTransaction = initialState.type === "transaction";
+  const preset: Partial<Transaction> | undefined =
+    initialState.transaction ||
+    initialState.repeat ||
+    (initialState.bill
+      ? {
+          ...initialState.bill,
+          date: initialState.bill.next_due,
+          kind: "expense",
+        }
+      : undefined);
+  /** Opened without a fixed purpose, so the form offers every transaction type. */
+  const typeChoice =
+    isTransaction &&
+    !initialState.kind &&
+    !initialState.intent &&
+    !preset &&
+    !initialState.recurring;
+  const [mode, setMode] = useState(
+    initialState.intent || preset?.kind || initialState.kind || "expense",
+  );
+  const kind = ["bitcoin", "savings", "investing"].includes(mode)
+    ? "transfer"
+    : mode;
   const newExpense =
-    initialState.type === "transaction" &&
-    initialState.kind === "expense" &&
+    isTransaction &&
+    mode === "expense" &&
     !initialState.transaction &&
-    !initialState.bill &&
-    !initialState.intent;
+    !initialState.bill;
   const [paymentTiming, setPaymentTiming] = useState(
     initialState.recurring ? "upcoming" : "paid",
   );
@@ -153,22 +195,9 @@ export function EntryDialog({
         oneTime: frequency === "once",
       }
     : initialState;
-  const [legacyRecurring, setSaveRecurring] = useState(
-    Boolean(initialState.recurring || initialState.bill),
-  );
   const saveRecurring = newExpense
     ? paymentTiming === "upcoming" || frequency !== "once"
-    : legacyRecurring;
-  const preset: Partial<Transaction> | undefined =
-    state.transaction ||
-    state.repeat ||
-    (state.bill
-      ? {
-          ...state.bill,
-          date: state.bill.next_due,
-          kind: "expense",
-        }
-      : undefined);
+    : Boolean(initialState.bill);
   const [entryDate, setEntryDate] = useState(
     (initialState.repeat || initialState.recurring ? today() : preset?.date) ||
       (month !== today().slice(0, 7) ? `${month}-01` : today()),
@@ -181,12 +210,6 @@ export function EntryDialog({
   const [accountCurrency, setAccountCurrency] = useState(
     state.accountKind === "bitcoin_wallet" ? "BITCOIN" : "USD",
   );
-  const [mode, setMode] = useState(
-    state.intent || preset?.kind || state.kind || "expense",
-  );
-  const kind = ["bitcoin", "savings", "investing"].includes(mode)
-    ? "transfer"
-    : mode;
   const sources = accounts.filter((a) => isTransactionSource(a, mode));
   function suggestedAccount(categoryId: number | string | undefined) {
     if (state.type !== "transaction" || kind !== "expense" || preset)
@@ -208,6 +231,70 @@ export function EntryDialog({
   );
   const account = accounts.find((a) => String(a.id) === source);
   const currency = account?.currency === "USD" ? "USD" : "bitcoin";
+  const [description, setDescription] = useState(
+    preset?.description ||
+      (initialState.intent === "savings"
+        ? "Savings contribution"
+        : initialState.intent === "investing"
+          ? "Investment contribution"
+          : ""),
+  );
+  const [categoryId, setCategoryId] = useState(
+    String(preset?.category_id || initialState.category_id || ""),
+  );
+  // Once a category is picked by hand, typing a description never overrides it.
+  const categoryPicked = useRef(Boolean(categoryId));
+  const [remember, setRemember] = useState(false);
+  const kindCategories = categories.filter((c) => c.kind === kind);
+  const kindCategoryIds = new Set(kindCategories.map((c) => c.id));
+  const learning =
+    isTransaction && kind !== "transfer" && !initialState.transaction;
+  const memory = learning ? payeeMemory(history, kind) : [];
+  const payees = suggestPayees(memory, description, 5);
+  const chosenCategory = kindCategories.find(
+    (c) => String(c.id) === categoryId,
+  );
+  const activeRule = matchRule(payeeRules, description, kindCategoryIds);
+  const ruleAlreadySaved =
+    activeRule !== undefined &&
+    activeRule.match.trim().toLowerCase() ===
+      description.trim().toLowerCase() &&
+    String(activeRule.category_id) === categoryId;
+  function pickAccount(id: number | null | undefined) {
+    if (id != null && sources.some((a) => a.id === id)) setSource(String(id));
+  }
+  function describe(next: string) {
+    setDescription(next);
+    if (!learning || categoryPicked.current) return;
+    // A saved rule wins; otherwise an exact match with a past payee fills the rest.
+    const rule = matchRule(payeeRules, next, kindCategoryIds);
+    const known = memory.find(
+      (payee) => payee.description.toLowerCase() === next.trim().toLowerCase(),
+    );
+    const category = rule?.category_id ?? known?.category_id;
+    if (category != null && kindCategoryIds.has(category)) {
+      setCategoryId(String(category));
+      pickAccount(
+        rule?.account_id ?? known?.account_id ?? suggestedAccount(category)?.id,
+      );
+    }
+  }
+  function applyPayee(payee: PayeeSuggestion) {
+    setDescription(payee.description);
+    const rule = matchRule(payeeRules, payee.description, kindCategoryIds);
+    const category = rule?.category_id ?? payee.category_id;
+    if (category != null && kindCategoryIds.has(category)) {
+      setCategoryId(String(category));
+      categoryPicked.current = true;
+    }
+    pickAccount(rule?.account_id ?? payee.account_id);
+    // The last amount is a starting point only when nothing has been typed yet.
+    if (amountInput.current && !amountInput.current.value.trim()) {
+      amountInput.current.value = payee.amount;
+      amountInput.current.select();
+    }
+    amountInput.current?.focus();
+  }
   const destinations = accounts.filter(
     (a) => String(a.id) !== source && isTransactionDestination(a, mode),
   );
@@ -223,222 +310,48 @@ export function EntryDialog({
   );
   const crossCurrency =
     account && destination && account.currency !== destination.currency;
-  const isTransaction = state.type === "transaction";
-  const steps = [
-    ...(newExpense
-      ? [{ id: "payment", label: "Has this expense been paid?" }]
-      : !state.recurring && !state.bill
-        ? [{ id: "type", label: "What would you like to record?" }]
-        : []),
-    ...(kind !== "transfer"
-      ? [{ id: "category", label: "Choose a category" }]
-      : []),
-    {
-      id: "accounts",
-      label:
-        kind === "transfer" ? "Choose the from account" : "Choose the account",
-    },
-    ...(kind === "transfer"
-      ? [
-          {
-            id: "destination",
-            label:
-              mode === "bitcoin"
-                ? "Choose the bitcoin wallet"
-                : "Choose the to account",
-          },
-        ]
-      : []),
-    { id: "amount", label: "Enter the amount" },
-    {
-      id: "schedule",
-      label:
-        kind === "expense" && !state.transaction
-          ? "Set the date and repeat schedule"
-          : "Set the date",
-    },
-    ...(mode === "bitcoin"
-      ? []
-      : [{ id: "details", label: "Add a description" }]),
-    { id: "review", label: "Review and confirm" },
-  ];
-  const [step, setStep] = useState(steps[0].id);
-  const stepIndex = steps.findIndex((item) => item.id === step);
-  const stepHeading = useRef<HTMLHeadingElement>(null);
-  const [reviewData, setReviewData] = useState<FormData | null>(null);
   useModalDialog(ref);
+  // showModal() focuses the first control; a new entry should start at the amount.
   useEffect(() => {
-    if (isTransaction) {
-      stepHeading.current?.focus();
-      const body = ref.current?.querySelector(".form-grid");
-      if (body) body.scrollTop = 0;
-    }
-  }, [step, isTransaction]);
-  function chooseAndAdvance(nextStep: string) {
-    setError("");
-    setReviewData(null);
-    setStep(nextStep);
-  }
-  function goBack() {
-    setReviewData(null);
-    setError("");
-    setStep(steps[stepIndex - 1].id);
-  }
-  function advance(form: HTMLFormElement) {
-    setError("");
-    const controls = form.querySelectorAll<
-      HTMLInputElement | HTMLTextAreaElement
-    >(`[data-step="${step}"] input, [data-step="${step}"] textarea`);
-    for (const control of controls) {
-      if (!control.reportValidity()) return;
-    }
-    const data = new FormData(form);
-    try {
-      if (
-        step === "category" &&
-        !categories.some(
-          (c) => c.kind === kind && String(c.id) === data.get("category_id"),
-        )
+    amountInput.current?.focus();
+  }, []);
+  const amountUnit = account?.currency === "BITCOIN" ? "BITCOIN" : "USD";
+  const defaultDescription =
+    kind === "transfer"
+      ? destination
+        ? `Transfer to ${destination.name}`
+        : "Transfer"
+      : "";
+  /** Every field is on one screen, so everything is checked together on save. */
+  function validateTransaction(data: FormData) {
+    if (
+      kind !== "transfer" &&
+      !categories.some(
+        (c) => c.kind === kind && String(c.id) === data.get("category_id"),
       )
-        throw new Error("Choose a category to continue.");
-      if (step === "accounts") {
-        if (!sources.some((a) => String(a.id) === source))
-          throw new Error("Choose an available account to continue.");
-      }
-      if (step === "destination" && !destination)
-        throw new Error("Choose a destination account to continue.");
-      if (step === "amount") {
-        validateTransactionAmount(
-          String(data.get("amount") || ""),
-          account?.currency === "BITCOIN" ? "BITCOIN" : "USD",
-        );
-        if (crossCurrency)
-          validateTransactionAmount(
-            received,
-            destination.currency === "BITCOIN" ? receivedUnit : "USD",
-          );
-      }
-      if (step === "details" && !String(data.get("description") || "").trim())
-        throw new Error("Enter a description to continue.");
-      const next = steps[stepIndex + 1];
-      if (next.id === "review") setReviewData(data);
-      setStep(next.id);
-    } catch (e) {
-      setError((e as Error).message);
-    }
+    )
+      throw new Error("Choose a category.");
+    if (!sources.some((a) => String(a.id) === source))
+      throw new Error(
+        kind === "transfer"
+          ? "Choose the account the money comes from."
+          : "Choose an account.",
+      );
+    if (kind === "transfer" && !destination)
+      throw new Error("Choose a destination account.");
+    validateTransactionAmount(String(data.get("amount") || ""), amountUnit);
+    if (crossCurrency)
+      validateTransactionAmount(
+        received,
+        destination.currency === "BITCOIN" ? receivedUnit : "USD",
+      );
+    const date = String(data.get("date") || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("Choose a date.");
+    if (!state.recurring && !state.bill && date > today())
+      throw new Error(
+        "A recorded transaction cannot be dated in the future. Choose Upcoming for planned expenses.",
+      );
   }
-  const reviewValue = (name: string) => String(reviewData?.get(name) || "");
-  const typeLabels: Record<string, string> = {
-    expense: "Expense",
-    income: "Income",
-    bitcoin: "Bitcoin buy",
-    savings: "Move to savings",
-    investing: "Fund investment account",
-    transfer: "Transfer",
-  };
-  const reviewRows: [string, string][] = [
-    ["Transaction type", typeLabels[mode]],
-  ];
-  if (kind === "expense") {
-    reviewRows.push([
-      "Payment",
-      state.recurring || state.bill ? "Upcoming" : "Paid",
-    ]);
-  }
-  if (kind !== "transfer") {
-    reviewRows.push([
-      "Category",
-      categories.find((c) => String(c.id) === reviewValue("category_id"))
-        ?.name || "",
-    ]);
-  }
-  reviewRows.push([
-    kind === "transfer" ? "From account" : "Account",
-    account ? `${account.name} · ${currency}` : "",
-  ]);
-  if (kind === "transfer") {
-    reviewRows.push([
-      "To account",
-      destination
-        ? `${destination.name} · ${destination.currency === "BITCOIN" ? "bitcoin" : "USD"}`
-        : "",
-    ]);
-  }
-  reviewRows.push(["Amount", `${reviewValue("amount")} ${currency}`]);
-  if (crossCurrency) {
-    reviewRows.push([
-      "Received amount",
-      `${received} ${destination.currency === "BITCOIN" ? (receivedUnit === "BTC" ? "BTC" : "bitcoin") : "USD"}`,
-    ]);
-  }
-  reviewRows.push([
-    state.recurring || state.bill ? "Next due date" : "Date",
-    reviewValue("date"),
-  ]);
-  if (kind === "expense" && !state.transaction) {
-    reviewRows.push([
-      "Repeats",
-      saveRecurring
-        ? repeatOptions.find(
-            (option) => option.value === reviewValue("frequency"),
-          )?.label || "Once"
-        : "Once",
-    ]);
-  }
-  if (mode !== "bitcoin") {
-    reviewRows.push(
-      ["Description", reviewValue("description")],
-      ["Notes", reviewValue("notes") || "None"],
-    );
-  }
-  const displayReviewRows: [string, string][] =
-    mode === "bitcoin"
-      ? [
-          ["Dollars", formatMoney(reviewValue("amount").trim(), "USD")],
-          ["Bitcoin", formatMoney(received.trim(), "BITCOIN")],
-          [
-            "Bitcoin per dollar",
-            formatBitcoinPerDollar(
-              received.trim(),
-              reviewValue("amount").trim(),
-            ),
-          ],
-          ["From", account?.name || ""],
-          ["To", destination?.name || ""],
-          ["Date", reviewValue("date")],
-        ]
-      : kind === "expense"
-        ? [
-            [
-              "Amount",
-              formatMoney(
-                reviewValue("amount").trim(),
-                account?.currency === "BITCOIN" ? "BITCOIN" : "USD",
-              ),
-            ],
-            [
-              "Category",
-              categories.find(
-                (c) => String(c.id) === reviewValue("category_id"),
-              )?.name || "",
-            ],
-            ["Account", account?.name || ""],
-            [
-              state.recurring || state.bill ? "Next due date" : "Date",
-              reviewValue("date"),
-            ],
-            ["Payment", state.recurring || state.bill ? "Upcoming" : "Paid"],
-            [
-              "Repeats",
-              saveRecurring
-                ? repeatOptions.find(
-                    (option) => option.value === reviewValue("frequency"),
-                  )?.label || "Once"
-                : "Once",
-            ],
-          ]
-        : reviewRows;
-
   function changeMode(next: string) {
     setMode(next);
     if (!account || !isTransactionSource(account, next)) {
@@ -455,6 +368,9 @@ export function EntryDialog({
     setDestinationId("");
     setReceived("");
     setReceivedUnit("BITCOIN");
+    setCategoryId("");
+    categoryPicked.current = false;
+    setRemember(false);
   }
   const available = accounts.filter((a) => !a.archived);
   const accountOptions = available.map((a) => (
@@ -465,17 +381,21 @@ export function EntryDialog({
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (lock.current) return;
-    if (isTransaction && step !== "review") {
-      advance(event.currentTarget);
-      return;
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    const keepOpen = another.current;
+    another.current = false;
+    if (isTransaction) {
+      try {
+        validateTransaction(data);
+      } catch (e) {
+        setError((e as Error).message);
+        return;
+      }
     }
-    if (isTransaction && !reviewData) return;
     lock.current = true;
     setBusy(true);
     setError("");
-    const data = isTransaction
-      ? reviewData!
-      : new FormData(event.currentTarget);
     const v = (key: string) => String(data.get(key) || "");
     try {
       let message = "Saved to your ledger.";
@@ -512,7 +432,11 @@ export function EntryDialog({
           kind,
           account_id: Number(source),
           amount: v("amount"),
-          description: v("description"),
+          description:
+            v("description").trim() ||
+            defaultDescription ||
+            categories.find((c) => String(c.id) === v("category_id"))?.name ||
+            "",
           notes: v("notes"),
           category_id: kind === "transfer" ? null : Number(v("category_id")),
           destination_id: kind === "transfer" ? Number(destinationId) : null,
@@ -549,6 +473,25 @@ export function EntryDialog({
             state.transaction ? "PUT" : "POST",
             payload,
           );
+        }
+      }
+      if (state.type === "transaction" && remember && chosenCategory) {
+        // The entry is already saved; a rule that fails to save must not undo it.
+        try {
+          await api("/settings/payee-rules", "PUT", {
+            payee_rules: upsertRule(
+              payeeRules,
+              {
+                match: description.trim().slice(0, 80),
+                category_id: chosenCategory.id,
+                account_id: kind === "expense" ? Number(source) : null,
+              },
+              kindCategoryIds,
+            ),
+          });
+          message += ` “${description.trim()}” will be filed under ${chosenCategory.name} from now on.`;
+        } catch (e) {
+          message += ` The rule could not be saved: ${(e as Error).message}`;
         }
       }
       if (state.type === "deleteTransaction") {
@@ -599,7 +542,24 @@ export function EntryDialog({
         );
         message = `Imported ${result.imported} transactions; skipped ${result.duplicates} duplicates.`;
       }
-      onSaved(message);
+      if (keepOpen && onSavedAnother) {
+        // Keep the type, category, account and date; clear what changes per entry.
+        setDescription("");
+        setRemember(false);
+        categoryPicked.current = Boolean(categoryId);
+        for (const name of ["amount", "notes"]) {
+          const field = form.elements.namedItem(name);
+          if (
+            field instanceof HTMLInputElement ||
+            field instanceof HTMLTextAreaElement
+          )
+            if (field.type !== "hidden") field.value = "";
+        }
+        setReceived("");
+        setSavedCount((count) => count + 1);
+        onSavedAnother(message);
+        amountInput.current?.focus();
+      } else onSaved(message);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -626,36 +586,38 @@ export function EntryDialog({
                 ? "Add an asset"
                 : state.type === "account" && state.accountKind === "loan"
                   ? "Add a debt"
-                  : newExpense
-                    ? "Add expense"
-                    : state.bill
-                      ? state.bill.frequency === "once"
-                        ? "Edit planned expense"
-                        : "Edit recurring bill"
-                      : state.recurring
-                        ? state.oneTime
-                          ? "Plan an expense"
-                          : "Add recurring bill"
-                        : state.repeat
-                          ? "Repeat expense"
-                          : state.transaction && state.type === "transaction"
-                            ? "Edit transaction"
-                            : state.type === "transaction" && mode === "bitcoin"
-                              ? "Bitcoin buy"
-                              : state.type === "transaction" &&
-                                  mode === "savings"
-                                ? "Move money to savings"
+                  : typeChoice
+                    ? "Add transaction"
+                    : state.repeat
+                      ? "Repeat expense"
+                      : newExpense
+                        ? "Add expense"
+                        : state.bill
+                          ? state.bill.frequency === "once"
+                            ? "Edit planned expense"
+                            : "Edit recurring bill"
+                          : state.recurring
+                            ? state.oneTime
+                              ? "Plan an expense"
+                              : "Add recurring bill"
+                            : state.repeat
+                              ? "Repeat expense"
+                              : state.transaction &&
+                                  state.type === "transaction"
+                                ? "Edit transaction"
                                 : state.type === "transaction" &&
-                                    mode === "investing"
-                                  ? "Add investment funds"
+                                    mode === "bitcoin"
+                                  ? "Bitcoin buy"
                                   : state.type === "transaction" &&
-                                      state.kind === "income"
-                                    ? "Record income"
+                                      mode === "savings"
+                                    ? "Move money to savings"
                                     : state.type === "transaction" &&
-                                        mode === "expense" &&
-                                        step !== "type"
-                                      ? "Record expense"
-                                      : titles[state.type]}
+                                        mode === "investing"
+                                      ? "Add investment funds"
+                                      : state.type === "transaction" &&
+                                          state.kind === "income"
+                                        ? "Record income"
+                                        : titles[state.type]}
             </h2>
           </div>
           <Button
@@ -866,180 +828,49 @@ export function EntryDialog({
           )}
           {state.type === "transaction" && (
             <>
-              <div className="transaction-progress full-width">
-                <p>
-                  Step {stepIndex + 1} of {steps.length}
+              {savedCount > 0 && !error && (
+                <p className="entry-saved full-width" role="status">
+                  Saved {savedCount} {savedCount === 1 ? "entry" : "entries"}.
+                  Ready for the next one.
                 </p>
-                <h3 ref={stepHeading} tabIndex={-1}>
-                  {steps[stepIndex].label}
-                </h3>
-                <progress
-                  aria-label="Transaction progress"
-                  value={stepIndex + 1}
-                  max={steps.length}
-                />
-              </div>
-              <div
-                className="transaction-step full-width"
-                data-step="type"
-                hidden={step !== "type"}
-              >
-                {!newExpense && !state.recurring && !state.bill && (
-                  <ChoiceField
-                    label="Transaction type"
-                    value={mode}
-                    onChange={changeMode}
-                    onSelect={(next) =>
-                      chooseAndAdvance(
-                        ["expense", "income"].includes(next)
-                          ? "category"
-                          : "accounts",
-                      )
-                    }
-                    options={[
-                      { value: "expense", label: "Expense" },
-                      { value: "income", label: "Income" },
-                      { value: "bitcoin", label: "Bitcoin buy" },
-                      { value: "savings", label: "Move to savings" },
-                      { value: "investing", label: "Fund investment account" },
-                      { value: "transfer", label: "Transfer" },
-                    ]}
-                  />
-                )}
-              </div>
-              <div
-                className="transaction-step full-width"
-                data-step="payment"
-                hidden={step !== "payment"}
-              >
-                {newExpense && (
-                  <>
-                    <ChoiceField
-                      label="Payment"
-                      onSelect={() => chooseAndAdvance("category")}
-                      value={paymentTiming}
-                      hint={
-                        paymentTiming === "upcoming"
-                          ? "Record payment when paid."
-                          : undefined
-                      }
-                      onChange={(next) => {
-                        setPaymentTiming(next);
-                        if (next === "paid" && entryDate > today())
-                          setEntryDate(today());
-                      }}
-                      options={[
-                        { value: "paid", label: "Paid" },
-                        { value: "upcoming", label: "Upcoming" },
-                      ]}
-                    />
-                  </>
-                )}
-              </div>
-              <div
-                className="transaction-step full-width"
-                data-step="category"
-                hidden={step !== "category"}
-              >
-                {kind !== "transfer" && (
-                  <ChoiceField
-                    label="Category"
-                    onSelect={() => chooseAndAdvance("accounts")}
-                    name="category_id"
-                    required
-                    key={kind}
-                    defaultValue={
-                      preset?.category_id || state.category_id || ""
-                    }
-                    onChange={(next) => {
-                      const suggested = suggestedAccount(next);
-                      if (suggested) setSource(String(suggested.id));
-                    }}
-                    options={categories
-                      .filter((c) => c.kind === kind)
-                      .map((c) => ({
-                        value: c.id,
-                        label: c.name,
-                      }))}
-                  />
-                )}
-              </div>
-              <div
-                className="transaction-step full-width"
-                data-step="accounts"
-                hidden={step !== "accounts"}
-              >
+              )}
+              {typeChoice && (
                 <ChoiceField
-                  label={kind === "transfer" ? "From account" : "Account"}
-                  value={source}
-                  onSelect={() =>
-                    chooseAndAdvance(
-                      kind === "transfer" ? "destination" : "amount",
-                    )
+                  label="Transaction type"
+                  value={mode}
+                  onChange={changeMode}
+                  options={[
+                    { value: "expense", label: "Expense" },
+                    { value: "income", label: "Income" },
+                    { value: "transfer", label: "Transfer" },
+                    { value: "bitcoin", label: "Bitcoin buy" },
+                    { value: "savings", label: "Move to savings" },
+                    { value: "investing", label: "Fund investment account" },
+                  ]}
+                />
+              )}
+              {newExpense && (
+                <ChoiceField
+                  label="Payment"
+                  value={paymentTiming}
+                  hint={
+                    paymentTiming === "upcoming"
+                      ? "Saved as planned spending. Confirm it from Expenses when it is paid."
+                      : undefined
                   }
                   onChange={(next) => {
-                    setSource(next);
-                    setDestinationId("");
-                    setReceived("");
+                    setPaymentTiming(next);
+                    if (next === "paid" && entryDate > today())
+                      setEntryDate(today());
                   }}
-                  required
-                  options={sources.map((a) => ({
-                    value: a.id,
-                    label: `${a.name} · ${a.currency === "BITCOIN" ? "bitcoin" : "USD"}`,
-                  }))}
+                  options={[
+                    { value: "paid", label: "Paid" },
+                    { value: "upcoming", label: "Upcoming" },
+                  ]}
                 />
-                {!sources.length && (
-                  <p className="alert" role="status">
-                    {mode === "bitcoin"
-                      ? "Add an active USD checking account in Accounts before recording a Bitcoin buy."
-                      : "Add an eligible active account in Accounts before continuing."}
-                  </p>
-                )}
-              </div>
+              )}
               <div
-                className="transaction-step full-width"
-                data-step="destination"
-                hidden={step !== "destination"}
-              >
-                {kind === "transfer" && (
-                  <>
-                    <ChoiceField
-                      label={
-                        mode === "bitcoin" ? "Bitcoin wallet" : "To account"
-                      }
-                      onSelect={() => chooseAndAdvance("amount")}
-                      name="destination_id"
-                      required
-                      value={destination ? destinationId : ""}
-                      onChange={(next) => {
-                        setDestinationId(next);
-                        setReceived("");
-                      }}
-                      options={destinations.map((a) => ({
-                        value: a.id,
-                        label: `${a.name} · ${a.currency === "BITCOIN" ? "bitcoin" : a.currency}`,
-                      }))}
-                    />
-                    {!destinations.length && (
-                      <p className="alert full-width" role="status">
-                        Create{" "}
-                        {mode === "bitcoin"
-                          ? "a bitcoin wallet"
-                          : mode === "savings"
-                            ? "a savings account"
-                            : mode === "investing"
-                              ? "a brokerage, stock or ETF account"
-                              : "another account"}{" "}
-                        in Accounts first, then record this transfer.
-                      </p>
-                    )}
-                  </>
-                )}
-              </div>
-              <div
-                className={`transaction-step full-width${mode === "bitcoin" ? " bitcoin-buy-amounts" : ""}`}
-                data-step="amount"
-                hidden={step !== "amount"}
+                className={`entry-amounts full-width${kind === "transfer" && crossCurrency ? " entry-amounts-pair" : ""}`}
               >
                 <Field
                   label={
@@ -1048,94 +879,244 @@ export function EntryDialog({
                   hint={
                     mode === "bitcoin"
                       ? "Actual dollars exchanged. Record fees separately."
-                      : newExpense
-                        ? currency === "bitcoin"
-                          ? "Whole bitcoin units."
-                          : undefined
-                        : "Enter the original amount. Bitcoin must be a whole number."
+                      : currency === "bitcoin"
+                        ? "Whole bitcoin units."
+                        : undefined
                   }
                 >
                   <input
+                    ref={amountInput}
+                    className="amount-input"
                     name="amount"
                     defaultValue={preset?.amount}
                     inputMode="decimal"
+                    autoComplete="off"
+                    placeholder={amountUnit === "USD" ? "0.00" : "0"}
                     required
                   />
                 </Field>
-                {kind === "transfer" && (
-                  <>
-                    {crossCurrency && (
-                      <>
-                        {destination.currency === "BITCOIN" &&
-                          mode !== "bitcoin" && (
-                            <ChoiceField
-                              label="Bitcoin entry unit"
-                              value={receivedUnit}
-                              onChange={(value) => {
-                                const next = value as "BTC" | "BITCOIN";
-                                try {
-                                  if (received) {
-                                    const native = bitcoinInput(
-                                      received,
-                                      receivedUnit,
-                                    );
-                                    setReceived(
-                                      next === "BTC"
-                                        ? bitcoinAsBtc(native)
-                                        : native,
-                                    );
-                                  }
-                                } catch (error) {
-                                  setError((error as Error).message);
-                                  return;
-                                }
-                                setReceivedUnit(next);
-                                setError("");
-                              }}
-                              options={[
-                                { value: "BITCOIN", label: "bitcoin · ₿" },
-                                { value: "BTC", label: "Legacy BTC · decimal" },
-                              ]}
-                            />
-                          )}
-                        <Field
-                          label={
-                            mode === "bitcoin"
-                              ? "Bitcoin"
-                              : `Received amount · ${destination.currency === "BITCOIN" ? (receivedUnit === "BTC" ? "legacy BTC" : "bitcoin") : "USD"}`
-                          }
-                          hint={
-                            mode === "bitcoin"
-                              ? "Whole bitcoin units."
-                              : "Enter the amount actually received, not an estimated conversion."
-                          }
-                        >
-                          <input
-                            name="destination_amount"
-                            maxLength={50}
-                            inputMode="decimal"
-                            value={received}
-                            onChange={(e) => setReceived(e.target.value)}
-                            required
-                            placeholder={
-                              receivedUnit === "BTC" &&
-                              destination.currency === "BITCOIN"
-                                ? "0.00125000"
-                                : ""
-                            }
-                          />
-                        </Field>
-                      </>
-                    )}
-                  </>
+                {kind === "transfer" && crossCurrency && (
+                  <Field
+                    label={
+                      mode === "bitcoin"
+                        ? "Bitcoin"
+                        : `Received amount · ${destination.currency === "BITCOIN" ? (receivedUnit === "BTC" ? "legacy BTC" : "bitcoin") : "USD"}`
+                    }
+                    hint={
+                      mode === "bitcoin"
+                        ? "Whole bitcoin units."
+                        : "Enter the amount actually received, not an estimated conversion."
+                    }
+                  >
+                    <input
+                      className="amount-input"
+                      name="destination_amount"
+                      maxLength={50}
+                      inputMode="decimal"
+                      autoComplete="off"
+                      value={received}
+                      onChange={(e) => setReceived(e.target.value)}
+                      required
+                      placeholder={
+                        destination.currency !== "BITCOIN"
+                          ? "0.00"
+                          : receivedUnit === "BTC"
+                            ? "0.00125000"
+                            : "0"
+                      }
+                    />
+                  </Field>
                 )}
               </div>
-              <div
-                className="transaction-step full-width"
-                data-step="schedule"
-                hidden={step !== "schedule"}
-              >
-                <div className="transaction-date full-width">
+              {mode !== "bitcoin" && (
+                <div className="entry-description full-width">
+                  <Field
+                    label="Description · optional"
+                    hint={
+                      kind === "transfer" || payees.length
+                        ? undefined
+                        : "Left blank, the category name is used."
+                    }
+                  >
+                    <input
+                      name="description"
+                      value={description}
+                      onChange={(e) => describe(e.target.value)}
+                      autoComplete="off"
+                      placeholder={
+                        kind === "income"
+                          ? "Who paid you?"
+                          : "What was this for?"
+                      }
+                      maxLength={500}
+                    />
+                  </Field>
+                  {payees.length > 0 && (
+                    <div
+                      className="payee-suggestions"
+                      role="group"
+                      aria-label={
+                        description.trim()
+                          ? "Matching past entries"
+                          : "Frequent entries"
+                      }
+                    >
+                      <span>{description.trim() ? "Matches" : "Frequent"}</span>
+                      {payees.map((payee) => (
+                        <button
+                          type="button"
+                          key={payee.description}
+                          onClick={() => applyPayee(payee)}
+                          title="Fill the category, account and last amount"
+                        >
+                          {payee.description}
+                          <small>
+                            {formatMoney(
+                              payee.amount,
+                              payee.currency === "USD" ? "USD" : "BITCOIN",
+                            )}
+                          </small>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              {kind === "transfer" &&
+                crossCurrency &&
+                destination.currency === "BITCOIN" &&
+                mode !== "bitcoin" && (
+                  <ChoiceField
+                    label="Bitcoin entry unit"
+                    value={receivedUnit}
+                    onChange={(value) => {
+                      const next = value as "BTC" | "BITCOIN";
+                      try {
+                        if (received) {
+                          const native = bitcoinInput(received, receivedUnit);
+                          setReceived(
+                            next === "BTC" ? bitcoinAsBtc(native) : native,
+                          );
+                        }
+                      } catch (error) {
+                        setError((error as Error).message);
+                        return;
+                      }
+                      setReceivedUnit(next);
+                      setError("");
+                    }}
+                    options={[
+                      { value: "BITCOIN", label: "bitcoin · ₿" },
+                      { value: "BTC", label: "Legacy BTC · decimal" },
+                    ]}
+                  />
+                )}
+              {kind !== "transfer" && (
+                <ChoiceField
+                  label="Category"
+                  name="category_id"
+                  required
+                  value={categoryId}
+                  onChange={(next) => {
+                    setCategoryId(next);
+                    categoryPicked.current = true;
+                    const suggested = suggestedAccount(next);
+                    if (suggested) setSource(String(suggested.id));
+                  }}
+                  options={kindCategories.map((c) => ({
+                    value: c.id,
+                    label: c.name,
+                  }))}
+                />
+              )}
+              {kind !== "transfer" &&
+                chosenCategory &&
+                description.trim().length >= 2 &&
+                !ruleAlreadySaved && (
+                  <label className="check full-width entry-rule">
+                    <input
+                      type="checkbox"
+                      checked={remember}
+                      onChange={(e) => setRemember(e.target.checked)}
+                    />
+                    Always file “{description.trim()}” under{" "}
+                    {chosenCategory.name}
+                  </label>
+                )}
+              <ChoiceField
+                label={
+                  kind === "transfer"
+                    ? "From account"
+                    : kind === "income"
+                      ? "Received into"
+                      : "Paid from"
+                }
+                value={source}
+                onChange={(next) => {
+                  setSource(next);
+                  setDestinationId("");
+                  setReceived("");
+                }}
+                required
+                options={sources.map((a) => ({
+                  value: a.id,
+                  label: `${a.name} · ${a.currency === "BITCOIN" ? "bitcoin" : "USD"}`,
+                }))}
+              />
+              {!sources.length && (
+                <p className="alert full-width" role="status">
+                  {mode === "bitcoin"
+                    ? "Add an active USD checking account in Accounts before recording a Bitcoin buy."
+                    : "Add an eligible active account in Accounts first."}
+                </p>
+              )}
+              {kind === "transfer" && (
+                <>
+                  <ChoiceField
+                    label={mode === "bitcoin" ? "Bitcoin wallet" : "To account"}
+                    name="destination_id"
+                    required
+                    value={destination ? destinationId : ""}
+                    onChange={(next) => {
+                      setDestinationId(next);
+                      setReceived("");
+                    }}
+                    options={destinations.map((a) => ({
+                      value: a.id,
+                      label: `${a.name} · ${a.currency === "BITCOIN" ? "bitcoin" : a.currency}`,
+                    }))}
+                  />
+                  {!destinations.length && (
+                    <p className="alert full-width" role="status">
+                      Create{" "}
+                      {mode === "bitcoin"
+                        ? "a bitcoin wallet"
+                        : mode === "savings"
+                          ? "a savings account"
+                          : mode === "investing"
+                            ? "a brokerage, stock or ETF account"
+                            : "another account"}{" "}
+                      in Accounts first, then record this transfer.
+                    </p>
+                  )}
+                </>
+              )}
+              <div className="transaction-date full-width">
+                <Field
+                  label={
+                    state.recurring || state.bill ? "Next due date" : "Date"
+                  }
+                >
+                  <input
+                    name="date"
+                    type="date"
+                    value={entryDate}
+                    onChange={(e) => setEntryDate(e.target.value)}
+                    required
+                    max={state.recurring || state.bill ? undefined : today()}
+                  />
+                </Field>
+                {!state.recurring && !state.bill && (
                   <ChoiceField
                     label="Quick date"
                     value={
@@ -1153,80 +1134,37 @@ export function EntryDialog({
                       { value: "yesterday", label: "Yesterday" },
                     ]}
                   />
-                  <Field
-                    label={
-                      state.recurring || state.bill ? "Next due date" : "Date"
-                    }
-                  >
-                    <input
-                      name="date"
-                      type="date"
-                      value={entryDate}
-                      onChange={(e) => setEntryDate(e.target.value)}
-                      required
-                      max={state.recurring || state.bill ? undefined : today()}
-                    />
-                  </Field>
-                </div>
-                {newExpense && (
-                  <>
-                    <ChoiceField
-                      label="Repeats"
-                      name="frequency"
-                      value={frequency}
-                      onChange={setFrequency}
-                      options={repeatOptions}
-                    />
-                  </>
-                )}
-                {kind === "expense" && !state.transaction && !newExpense && (
-                  <div className="full-width recurring-options">
-                    {!state.recurring && !state.bill && (
-                      <label className="check">
-                        <input
-                          type="checkbox"
-                          checked={saveRecurring}
-                          onChange={(event) =>
-                            setSaveRecurring(event.target.checked)
-                          }
-                        />
-                        Save as a recurring bill
-                      </label>
-                    )}
-                    {saveRecurring && (
-                      <>
-                        <ChoiceField
-                          label="Repeats"
-                          name="frequency"
-                          defaultValue={
-                            state.bill?.frequency ||
-                            (state.oneTime ? "once" : "monthly")
-                          }
-                          options={
-                            state.recurring || state.bill
-                              ? repeatOptions.map((option) =>
-                                  option.value === "once"
-                                    ? {
-                                        ...option,
-                                        label: "Once · planned expense",
-                                      }
-                                    : option,
-                                )
-                              : repeatOptions.filter(
-                                  (option) => option.value !== "once",
-                                )
-                          }
-                        />
-                        <p className="hint">
-                          {state.recurring || state.bill
-                            ? "This is planned spending. Confirm payment when paid to include it in your budget's actual spending."
-                            : "This records the expense now and saves the next bill. Confirm future payments from Expenses."}
-                        </p>
-                      </>
-                    )}
-                  </div>
                 )}
               </div>
+              {newExpense && (
+                <ChoiceField
+                  label="Repeats"
+                  name="frequency"
+                  value={frequency}
+                  onChange={setFrequency}
+                  options={repeatOptions}
+                  hint={
+                    frequency === "once"
+                      ? undefined
+                      : paymentTiming === "paid"
+                        ? "Records this expense now and saves the next bill to confirm later."
+                        : "Each occurrence is recorded when you confirm its payment."
+                  }
+                />
+              )}
+              {state.bill && (
+                <ChoiceField
+                  label="Repeats"
+                  name="frequency"
+                  defaultValue={state.bill.frequency}
+                  options={repeatOptions.map((option) =>
+                    option.value === "once"
+                      ? { ...option, label: "Once · planned expense" }
+                      : option,
+                  )}
+                  hint="This is planned spending. Confirm payment when paid to include it in your budget's actual spending."
+                />
+              )}
               {mode === "bitcoin" ? (
                 <>
                   <input type="hidden" name="description" value="Bitcoin buy" />
@@ -1237,28 +1175,12 @@ export function EntryDialog({
                   />
                 </>
               ) : (
-                <div
-                  className="transaction-step full-width"
-                  data-step="details"
-                  hidden={step !== "details"}
-                >
-                  <Field label="Description">
-                    <input
-                      name="description"
-                      defaultValue={
-                        preset?.description ||
-                        (state.intent === "savings"
-                          ? "Savings contribution"
-                          : state.intent === "investing"
-                            ? "Investment contribution"
-                            : "")
-                      }
-                      placeholder="What was this for?"
-                      required
-                      maxLength={500}
-                    />
-                  </Field>
-                  <div className="full-width">
+                <>
+                  <details
+                    className="entry-notes full-width"
+                    open={Boolean(preset?.notes)}
+                  >
+                    <summary>Add a note</summary>
                     <Field label="Notes · optional">
                       <textarea
                         name="notes"
@@ -1267,55 +1189,8 @@ export function EntryDialog({
                         rows={2}
                       />
                     </Field>
-                  </div>
-                </div>
-              )}
-              {step === "review" && reviewData && (
-                <section
-                  className={`transaction-review full-width${mode === "bitcoin" || kind === "expense" ? " transaction-review-compact" : ""}`}
-                  aria-label="Transaction review"
-                >
-                  {mode !== "bitcoin" && kind !== "expense" && (
-                    <p>Check the details below before confirming.</p>
-                  )}
-                  <dl>
-                    {displayReviewRows.map(([label, value]) => (
-                      <div key={label}>
-                        <dt>{label}</dt>
-                        <dd>{value}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                  {kind === "expense" && (
-                    <div className="transaction-review-description">
-                      <strong>{reviewValue("description")}</strong>
-                      {reviewValue("notes") && <p>{reviewValue("notes")}</p>}
-                    </div>
-                  )}
-                  <p className="hint">
-                    {state.recurring || state.bill
-                      ? "This saves planned spending. It will be recorded as an expense when you confirm payment."
-                      : saveRecurring &&
-                          kind === "expense" &&
-                          !state.transaction
-                        ? "This records the expense and saves the next recurring bill."
-                        : state.transaction
-                          ? "Confirm to save these changes to your ledger."
-                          : "Confirm to record this transaction in your ledger."}
-                  </p>
-                  {mode !== "bitcoin" &&
-                    kind !== "expense" &&
-                    !newExpense &&
-                    !state.recurring &&
-                    !state.bill && (
-                      <p className="hint full-width">
-                        Fiat purchasing power uses a saved rate for the
-                        transaction date. Without one, the original amount is
-                        recorded and its cross-currency equivalent stays
-                        unavailable.
-                      </p>
-                    )}
-                </section>
+                  </details>
+                </>
               )}
             </>
           )}
@@ -1496,16 +1371,24 @@ export function EntryDialog({
           >
             Cancel
           </Button>
-          {isTransaction && stepIndex > 0 && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={goBack}
-              disabled={busy}
-            >
-              Back
-            </Button>
-          )}
+          {isTransaction &&
+            onSavedAnother &&
+            !state.transaction &&
+            !state.bill &&
+            !state.recurring && (
+              // Not a submit button: pressing Enter in the form must use the primary action.
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busy}
+                onClick={(event) => {
+                  another.current = true;
+                  event.currentTarget.form?.requestSubmit();
+                }}
+              >
+                Save and add another
+              </Button>
+            )}
           <Button
             variant={
               state.type === "deleteTransaction" ? "destructive" : "default"
@@ -1516,15 +1399,19 @@ export function EntryDialog({
             {busy
               ? "Saving…"
               : isTransaction
-                ? step === "review"
-                  ? state.recurring || state.bill
-                    ? "Confirm and save plan"
-                    : state.transaction
-                      ? "Confirm changes"
-                      : "Confirm and record"
-                  : steps[stepIndex + 1]?.id === "review"
-                    ? "Review transaction"
-                    : "Continue"
+                ? state.transaction || state.bill
+                  ? "Save changes"
+                  : state.recurring
+                    ? "Save planned expense"
+                    : `Record ${
+                        mode === "expense"
+                          ? "expense"
+                          : mode === "income"
+                            ? "income"
+                            : mode === "bitcoin"
+                              ? "bitcoin buy"
+                              : "transfer"
+                      }`
                 : state.type === "import"
                   ? "Import CSV"
                   : state.type === "deleteTransaction"

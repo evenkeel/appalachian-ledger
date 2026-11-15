@@ -83,7 +83,12 @@ class PriceQuote(Base):
 
     @property
     def day(self):
-        return self.observed_at[:10]
+        # Reports compare this with the local calendar date, not the UTC one.
+        try:
+            observed = datetime.fromisoformat(self.observed_at.replace("Z", "+00:00"))
+        except ValueError:
+            return self.observed_at[:10]
+        return (observed.astimezone() if observed.tzinfo else observed).date().isoformat()
 
 
 class PriceSync(Base):
@@ -281,3 +286,22 @@ class PlanningScenario(Base):
     assumptions: Mapped[str] = mapped_column(Text)
     created_at: Mapped[str] = mapped_column(default=now)
     updated_at: Mapped[str] = mapped_column(default=now)
+
+
+class SavingsGoal(Base):
+    __tablename__ = "savings_goals"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(80))
+    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"))
+    # Stored in the linked account's currency.
+    target_minor: Mapped[int] = mapped_column(BigInteger)
+    target_date: Mapped[str | None] = mapped_column(String(10))
+    created_at: Mapped[str] = mapped_column(default=now)
+
+
+class EntryReview(Base):
+    """Journal entries are immutable, so "reviewed" lives beside them."""
+
+    __tablename__ = "entry_reviews"
+    entry_id: Mapped[int] = mapped_column(ForeignKey("journal_entries.id"), primary_key=True)
+    reviewed_at: Mapped[str] = mapped_column(default=now)

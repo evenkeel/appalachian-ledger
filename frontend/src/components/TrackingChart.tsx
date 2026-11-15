@@ -44,6 +44,22 @@ export function TrackingChart({
       ]),
     ),
   }));
+  const hasValues = data.some((point) =>
+    series.some(({ key }) => {
+      const value = (point as Record<string, unknown>)[key];
+      return typeof value === "number" && value !== 0;
+    }),
+  );
+  if (!hasValues)
+    return (
+      <div
+        className="chart tracking-chart chart-empty"
+        role="img"
+        aria-label={title}
+      >
+        Nothing recorded in this period yet.
+      </div>
+    );
   return (
     <div className="chart tracking-chart" role="img" aria-label={title}>
       <ResponsiveContainer width="100%" height="100%">
@@ -60,13 +76,13 @@ export function TrackingChart({
                 year: "2-digit",
               })
             }
-            tick={{ fill: "var(--muted)", fontSize: 11 }}
+            tick={{ fill: "var(--muted)", fontSize: 12 }}
             tickLine={false}
             axisLine={false}
           />
           <YAxis
             tickFormatter={formatChartTick}
-            tick={{ fill: "var(--muted)", fontSize: 11 }}
+            tick={{ fill: "var(--muted)", fontSize: 12 }}
             tickLine={false}
             axisLine={false}
             width={60}

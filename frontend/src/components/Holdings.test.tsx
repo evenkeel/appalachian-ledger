@@ -74,8 +74,9 @@ test("record income opens the correct type, category list, and selected month", 
       onSaved={() => {}}
     />,
   );
-  expect(screen.getByRole("radio", { name: "Income" })).toBeChecked();
-  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  expect(
+    screen.getByRole("heading", { name: "Record income" }),
+  ).toBeInTheDocument();
   expect(screen.getByRole("radio", { name: "Salary" })).toBeInTheDocument();
   expect(
     screen.queryByRole("radio", { name: "Groceries" }),

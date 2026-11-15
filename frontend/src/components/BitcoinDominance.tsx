@@ -293,7 +293,7 @@ function DominanceHistoryModal({
                   tickLine={false}
                   minTickGap={24}
                   interval="preserveStartEnd"
-                  tick={{ fill: "var(--muted)", fontSize: 10 }}
+                  tick={{ fill: "var(--muted)", fontSize: 12 }}
                   tickFormatter={(day: string) =>
                     new Date(`${day}T12:00:00`).toLocaleDateString(
                       undefined,
@@ -311,7 +311,7 @@ function DominanceHistoryModal({
                   width={44}
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fill: "var(--muted)", fontSize: 10 }}
+                  tick={{ fill: "var(--muted)", fontSize: 12 }}
                   tickFormatter={(value: number) => `${value}%`}
                 />
                 <Tooltip

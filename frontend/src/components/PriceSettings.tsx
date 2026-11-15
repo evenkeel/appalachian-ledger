@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import type { Preferences, Rate } from "../lib/types";
 import { Money } from "./Money";
@@ -86,19 +86,30 @@ export function PriceSettings({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [start, setStart] = useState("");
+  const savedSource = preferences.rate_source,
+    savedAutomatic = preferences.automatic_prices ?? false;
   useEffect(() => {
-    setSource(preferences.rate_source);
-    setAutomatic(preferences.automatic_prices ?? false);
+    setSource(savedSource);
+    setAutomatic(savedAutomatic);
     setReview(null);
-  }, [preferences]);
+  }, [savedSource, savedAutomatic]);
+  const pollFailed = useRef(false);
   useEffect(() => {
     let active = true;
     async function load() {
       try {
         const result = await api<PriceStatus>("/prices/status");
-        if (active) setStatus(result);
+        if (!active) return;
+        setStatus(result);
+        // A recovered poll withdraws its own earlier error, not one from a save.
+        if (pollFailed.current) {
+          pollFailed.current = false;
+          setError("");
+        }
       } catch (e) {
-        if (active) setError((e as Error).message);
+        if (!active) return;
+        pollFailed.current = true;
+        setError((e as Error).message);
       }
     }
     void load();

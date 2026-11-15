@@ -154,7 +154,16 @@ export function CashflowCockpit({
     month: "long",
     year: "numeric",
   });
+  // Months before the first recorded activity are not part of the average.
+  const active = (row: Report["history"][number]) =>
+    (["USD", "BITCOIN"] as const).some((currency) =>
+      [row.dual?.[currency].income, row.dual?.[currency].expenses].some(
+        (value) => value != null && Number(value) !== 0,
+      ),
+    );
+  const firstActive = (report.history ?? []).findIndex(active);
   const completeMonths = (report.history ?? [])
+    .slice(Math.max(firstActive, 0))
     .filter(
       (row) =>
         row.month <= report.month &&

@@ -59,9 +59,15 @@ export function PaymentDialog({
   let principal: string | null = null,
     hasInterest = false;
   try {
+    // Decided from the interest field alone, so a half-typed amount ("250.")
+    // cannot unmount the category choice.
+    hasInterest = minor(interest, debt.currency) > 0n;
+  } catch {
+    /* Validation is reported when saving. */
+  }
+  try {
     const charge = minor(interest, debt.currency),
       total = minor(amount, debt.currency);
-    hasInterest = charge > 0n;
     if (total >= charge && amount)
       principal = original(total - charge, debt.currency);
   } catch {

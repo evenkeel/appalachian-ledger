@@ -3,6 +3,7 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   ArrowLeftRight,
+  Check,
   Pencil,
   Repeat2,
   Trash2,
@@ -17,6 +18,7 @@ export function TransactionTable({
   onEdit,
   onDelete,
   onRepeat,
+  onReview,
   compact = false,
   showConversions = true,
 }: {
@@ -24,6 +26,8 @@ export function TransactionTable({
   onEdit?: (row: Transaction) => void;
   onDelete?: (row: Transaction) => void;
   onRepeat?: (row: Transaction) => void;
+  /** Shown only for rows waiting in the review queue. */
+  onReview?: (row: Transaction) => void;
   compact?: boolean;
   showConversions?: boolean;
 }) {
@@ -114,6 +118,13 @@ export function TransactionTable({
                   {!compact && (
                     <td>
                       <span className="tag">{row.category}</span>
+                      {row.review_reasons?.map((reason) => (
+                        <span className="tag review-tag" key={reason}>
+                          {reason === "imported"
+                            ? "Imported"
+                            : "Catch-all category"}
+                        </span>
+                      ))}
                     </td>
                   )}
                   <td
@@ -210,6 +221,16 @@ export function TransactionTable({
                         className="row-actions"
                         onClick={(event) => event.stopPropagation()}
                       >
+                        {onReview && !!row.review_reasons?.length && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            aria-label={`Mark ${row.description} as reviewed`}
+                            onClick={() => onReview(row)}
+                          >
+                            <Check size={14} /> Looks right
+                          </Button>
+                        )}
                         {row.kind === "expense" && onRepeat && (
                           <Button
                             variant="ghost"

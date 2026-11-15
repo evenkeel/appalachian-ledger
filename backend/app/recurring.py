@@ -6,7 +6,7 @@ from datetime import date, timedelta
 from sqlalchemy import select
 from fastapi import HTTPException
 from . import accounting as ledger
-from .models import RecurringBill, BillOccurrence, Category
+from .models import RecurringBill, BillOccurrence, Category, JournalEntry
 from .money import to_minor, original
 from .schemas import TransactionInput
 
@@ -64,10 +64,17 @@ def save(db, data, bill=None):
         raise ValueError("Record payments on today or an earlier date")
     if bill and data.record_now:
         raise ValueError("Use Record to pay an existing bill")
-    if bill and db.scalar(
-        select(BillOccurrence.id).where(BillOccurrence.bill_id == bill.id, BillOccurrence.due_date == str(tx.date))
-    ):
-        raise ValueError("That bill occurrence was already recorded. Choose a new due date.")
+    occurrence = bill and db.scalar(
+        select(BillOccurrence).where(BillOccurrence.bill_id == bill.id, BillOccurrence.due_date == str(tx.date))
+    )
+    if occurrence:
+        reversed_entry = db.scalar(select(JournalEntry.id).where(JournalEntry.reverses_id == occurrence.entry_id))
+        replaced = db.scalar(select(JournalEntry.id).where(JournalEntry.replaces_id == occurrence.entry_id))
+        if reversed_entry is None or replaced is not None:
+            raise ValueError("That bill occurrence was already recorded. Choose a new due date.")
+        # Its payment was deleted, so the occurrence can be scheduled and recorded again.
+        db.delete(occurrence)
+        db.flush()
     schedule_changed = bill is None or bill.next_due != str(tx.date) or bill.frequency != data.frequency
     bill = bill or RecurringBill()
     bill.account_id, bill.category_id = account.id, category.id

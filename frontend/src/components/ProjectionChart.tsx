@@ -14,11 +14,14 @@ import { formatChartTick } from "./Charts";
 export function ProjectionChart({
   title,
   unit,
+  connectNulls = false,
   points,
   series,
 }: {
   title: string;
   unit: Denomination;
+  /** Join a series across labels where only other series have values. */
+  connectNulls?: boolean;
   points: { label: string; values: Record<string, string | null> }[];
   series: { key: string; label: string; color: string }[];
 }) {
@@ -43,12 +46,12 @@ export function ProjectionChart({
           <CartesianGrid stroke="var(--border)" vertical={false} />
           <XAxis
             dataKey="label"
-            tick={{ fill: "var(--muted)", fontSize: 11 }}
+            tick={{ fill: "var(--muted)", fontSize: 12 }}
             minTickGap={24}
           />
           <YAxis
             tickFormatter={formatChartTick}
-            tick={{ fill: "var(--muted)", fontSize: 11 }}
+            tick={{ fill: "var(--muted)", fontSize: 12 }}
             width={65}
           />
           <Tooltip
@@ -79,7 +82,7 @@ export function ProjectionChart({
               name={label}
               stroke={color}
               dot={points.length === 1 ? { r: 4 } : false}
-              connectNulls={false}
+              connectNulls={connectNulls}
               isAnimationActive={false}
             />
           ))}

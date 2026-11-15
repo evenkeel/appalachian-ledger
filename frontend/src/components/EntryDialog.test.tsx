@@ -51,12 +51,13 @@ beforeEach(() => {
   };
 });
 
-const next = () =>
-  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-const back = () =>
-  fireEvent.click(screen.getByRole("button", { name: "Back" }));
-const choose = (name: string) =>
-  fireEvent.click(screen.getByRole("radio", { name }));
+const choose = (name: string, group?: string) =>
+  fireEvent.click(
+    (group
+      ? within(screen.getByRole("group", { name: group }))
+      : screen
+    ).getByRole("radio", { name }),
+  );
 const fill = (name: string | RegExp, value: string) =>
   fireEvent.change(
     screen.getByLabelText(name, {
@@ -66,81 +67,25 @@ const fill = (name: string | RegExp, value: string) =>
       target: { value },
     },
   );
-const review = () =>
-  fireEvent.click(screen.getByRole("button", { name: "Review transaction" }));
-const confirm = () =>
-  fireEvent.click(screen.getByRole("button", { name: "Confirm and record" }));
-const summary = () =>
-  within(screen.getByRole("region", { name: "Transaction review" }));
+const press = (name: string) =>
+  fireEvent.click(screen.getByRole("button", { name }));
+const expense = { type: "transaction", kind: "expense" } as const;
 
-function expenseToDetails({ upcoming = false, repeats = "Once" } = {}) {
-  if (upcoming) choose("Upcoming");
-  else next();
-  choose("Groceries");
-  next();
-  fill(/^Amount · USD/, "25.50");
-  next();
-  choose(repeats);
-  next();
-  fill("Description", "Weekly groceries");
-}
-
-function bitcoinToAmount() {
-  render(
-    <EntryDialog
-      {...props}
-      state={{ type: "transaction", intent: "bitcoin" }}
-    />,
-  );
-  next();
-  expect(
-    screen.getByRole("group", { name: "From account" }),
-  ).toBeInTheDocument();
-  expect(
-    screen.queryByRole("group", { name: "Bitcoin wallet" }),
-  ).not.toBeInTheDocument();
-  next();
-  expect(
-    screen.getByRole("radio", { name: "Cold wallet · bitcoin" }),
-  ).toBeChecked();
-  next();
-}
-
-test("expense entry shows one step at a time and records only after reviewing and confirming", async () => {
-  render(
-    <EntryDialog {...props} state={{ type: "transaction", kind: "expense" }} />,
-  );
-  expect(
-    screen.getByRole("heading", { name: "Has this expense been paid?" }),
-  ).toHaveFocus();
+test("an expense is entered on one screen and saved with a single action", async () => {
+  render(<EntryDialog {...props} state={expense} />);
+  expect(screen.getByRole("heading", { name: "Add expense" })).toBeVisible();
   expect(screen.getByRole("radio", { name: "Paid" })).toBeChecked();
+  expect(screen.getByRole("radio", { name: "Checking · USD" })).toBeChecked();
+  expect(screen.getByRole("radio", { name: "Once" })).toBeChecked();
+  expect(screen.getByRole("textbox", { name: /^Amount · USD/ })).toHaveFocus();
   expect(
-    screen.queryByRole("radio", { name: "Groceries" }),
+    screen.queryByRole("group", { name: "Transaction type" }),
   ).not.toBeInTheDocument();
-  expect(
-    screen.queryByRole("textbox", { name: /Amount/ }),
-  ).not.toBeInTheDocument();
-  expect(
-    screen.queryByRole("button", { name: /Confirm/ }),
-  ).not.toBeInTheDocument();
-  expenseToDetails();
+  fill(/^Amount · USD/, "25.50");
+  choose("Groceries");
+  fill(/^Description/, "Weekly groceries");
   fill("Notes · optional", "Farmers market");
-  review();
-  expect(api).not.toHaveBeenCalled();
-  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
-  for (const value of [
-    "Paid",
-    "Groceries",
-    "Checking",
-    "$25.50",
-    "2026-01-01",
-    "Once",
-    "Weekly groceries",
-    "Farmers market",
-  ]) {
-    expect(summary().getByText(value, { exact: true })).toBeInTheDocument();
-  }
-  confirm();
+  press("Record expense");
   await waitFor(() => expect(props.onSaved).toHaveBeenCalledOnce());
   expect(api).toHaveBeenCalledExactlyOnceWith("/transactions", "POST", {
     kind: "expense",
@@ -155,78 +100,41 @@ test("expense entry shows one step at a time and records only after reviewing an
   });
 });
 
-test("Back preserves fields and a revised draft must be reviewed again", async () => {
-  render(
-    <EntryDialog {...props} state={{ type: "transaction", kind: "expense" }} />,
-  );
-  expenseToDetails();
-  fill("Notes · optional", "Keep this note");
-  review();
-  back();
-  expect(screen.getByRole("textbox", { name: "Description" })).toHaveValue(
-    "Weekly groceries",
-  );
-  back();
-  expect(screen.getByRole("radio", { name: "Once" })).toBeChecked();
-  back();
-  expect(screen.getByRole("textbox", { name: /^Amount · USD/ })).toHaveValue(
-    "25.50",
-  );
-  fill(/^Amount · USD/, "41.75");
-  next();
-  next();
-  expect(screen.getByRole("textbox", { name: "Notes · optional" })).toHaveValue(
-    "Keep this note",
-  );
-  review();
-  expect(summary().getByText("$41.75")).toBeInTheDocument();
-  expect(summary().queryByText("$25.50")).not.toBeInTheDocument();
-  expect(api).not.toHaveBeenCalled();
-  confirm();
+test("a blank description falls back to the category name", async () => {
+  render(<EntryDialog {...props} state={expense} />);
+  fill(/^Amount · USD/, "9");
+  choose("Groceries");
+  press("Record expense");
   await waitFor(() =>
     expect(api).toHaveBeenCalledWith(
       "/transactions",
       "POST",
-      expect.objectContaining({ amount: "41.75", notes: "Keep this note" }),
+      expect.objectContaining({ description: "Groceries", notes: "" }),
     ),
   );
 });
 
-test("required fields block Continue and submitting an early step cannot save", () => {
-  const { container } = render(
-    <EntryDialog {...props} state={{ type: "transaction", kind: "expense" }} />,
-  );
+test("missing or invalid fields are reported together and nothing is saved", () => {
+  const { container } = render(<EntryDialog {...props} state={expense} />);
   fireEvent.submit(container.querySelector("form")!);
-  expect(
-    screen.getByRole("heading", { name: "Choose a category" }),
-  ).toBeInTheDocument();
-  next();
-  expect(
-    screen.getByRole("heading", { name: "Choose a category" }),
-  ).toBeInTheDocument();
+  expect(screen.getByRole("alert")).toHaveTextContent("Choose a category");
   choose("Groceries");
-  next();
-  next();
-  expect(
-    screen.getByRole("heading", { name: "Enter the amount" }),
-  ).toBeInTheDocument();
+  press("Record expense");
+  expect(screen.getByRole("alert")).toHaveTextContent("USD amount");
   fill(/^Amount · USD/, "0");
-  next();
+  press("Record expense");
   expect(screen.getByRole("alert")).toHaveTextContent("greater than zero");
   fill(/^Amount · USD/, "12.345");
-  next();
+  press("Record expense");
   expect(screen.getByRole("alert")).toHaveTextContent("two decimal places");
   fill(/^Amount · USD/, "12.34");
-  next();
-  next();
-  review();
-  expect(
-    screen.getByRole("heading", { name: "Add a description" }),
-  ).toBeInTheDocument();
+  fill("Date", "2999-01-01");
+  press("Record expense");
+  expect(screen.getByRole("alert")).toHaveTextContent("in the future");
   expect(api).not.toHaveBeenCalled();
 });
 
-test("a failed confirmation keeps the reviewed data and repeated submits cannot duplicate a save", async () => {
+test("a failed save keeps the draft and repeated submits cannot duplicate a save", async () => {
   let rejectSave!: (reason: Error) => void;
   vi.mocked(api).mockImplementationOnce(
     () =>
@@ -234,47 +142,85 @@ test("a failed confirmation keeps the reviewed data and repeated submits cannot 
         rejectSave = reject;
       }),
   );
-  const { container } = render(
-    <EntryDialog {...props} state={{ type: "transaction", kind: "expense" }} />,
-  );
-  expenseToDetails();
-  review();
+  const { container } = render(<EntryDialog {...props} state={expense} />);
+  fill(/^Amount · USD/, "25.50");
+  choose("Groceries");
   fireEvent.submit(container.querySelector("form")!);
   fireEvent.submit(container.querySelector("form")!);
   expect(api).toHaveBeenCalledOnce();
-  expect(screen.getByRole("button", { name: "Back" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
   rejectSave(new Error("Server unavailable"));
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "Server unavailable",
   );
-  expect(summary().getByText("$25.50")).toBeInTheDocument();
-  confirm();
+  expect(screen.getByRole("textbox", { name: /^Amount · USD/ })).toHaveValue(
+    "25.50",
+  );
+  expect(screen.getByRole("radio", { name: "Groceries" })).toBeChecked();
+  press("Record expense");
   await waitFor(() => expect(props.onSaved).toHaveBeenCalledOnce());
   expect(api).toHaveBeenCalledTimes(2);
 });
 
-test("Bitcoin buy has only dollars and whole bitcoin fields, then a compact review without a description step", async () => {
-  bitcoinToAmount();
+test("Save and add another keeps the form open with its choices and clears the amount", async () => {
+  const onSavedAnother = vi.fn();
+  render(
+    <EntryDialog {...props} onSavedAnother={onSavedAnother} state={expense} />,
+  );
+  fill(/^Amount · USD/, "4.25");
+  choose("Groceries");
+  fill(/^Description/, "Coffee beans");
+  press("Save and add another");
+  await waitFor(() => expect(onSavedAnother).toHaveBeenCalledOnce());
+  expect(props.onSaved).not.toHaveBeenCalled();
+  expect(screen.getByRole("status")).toHaveTextContent("Saved 1 entry");
+  expect(screen.getByRole("textbox", { name: /^Amount · USD/ })).toHaveValue(
+    "",
+  );
+  expect(screen.getByRole("textbox", { name: /^Description/ })).toHaveValue("");
+  expect(screen.getByRole("radio", { name: "Groceries" })).toBeChecked();
+  fill(/^Amount · USD/, "7");
+  press("Record expense");
+  await waitFor(() => expect(props.onSaved).toHaveBeenCalledOnce());
+  expect(api).toHaveBeenCalledTimes(2);
+});
+
+function bitcoinBuy() {
+  render(
+    <EntryDialog
+      {...props}
+      state={{ type: "transaction", intent: "bitcoin" }}
+    />,
+  );
+  expect(
+    within(screen.getByRole("group", { name: "From account" })).getByRole(
+      "radio",
+      { name: "Checking · USD" },
+    ),
+  ).toBeChecked();
+  expect(
+    within(screen.getByRole("group", { name: "Bitcoin wallet" })).getByRole(
+      "radio",
+      { name: "Cold wallet · bitcoin" },
+    ),
+  ).toBeChecked();
+}
+
+test("Bitcoin buy has only dollars and whole bitcoin fields and no description", async () => {
+  bitcoinBuy();
   expect(
     screen.queryByRole("group", { name: "Bitcoin entry unit" }),
   ).not.toBeInTheDocument();
   expect(screen.queryByText(/Legacy BTC/)).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("textbox", { name: /^Description/ }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("group", { name: "Category" }),
+  ).not.toBeInTheDocument();
   fill(/^Dollars/, "100.99");
   fill(/^Bitcoin/, "123456");
-  next();
-  review();
-  expect(
-    screen.queryByRole("textbox", { name: "Description" }),
-  ).not.toBeInTheDocument();
-  expect(summary().getByText("Bitcoin per dollar")).toBeInTheDocument();
-  expect(summary().getByText("₿1,222.46 / $1")).toBeInTheDocument();
-  expect(summary().getByText("Cold wallet")).toBeInTheDocument();
-  expect(summary().getByText("Checking")).toBeInTheDocument();
-  expect(summary().getByText("$100.99")).toBeInTheDocument();
-  expect(summary().getByText("₿123,456")).toBeInTheDocument();
-  expect(summary().getAllByRole("term")).toHaveLength(6);
-  expect(api).not.toHaveBeenCalled();
-  confirm();
+  press("Record bitcoin buy");
   await waitFor(() => expect(props.onSaved).toHaveBeenCalledOnce());
   expect(api).toHaveBeenCalledWith(
     "/transactions",
@@ -292,29 +238,33 @@ test("Bitcoin buy has only dollars and whole bitcoin fields, then a compact revi
   );
 });
 
-test("Bitcoin buy requires whole units and preserves exact large quantities", () => {
-  bitcoinToAmount();
+test("Bitcoin buy requires whole units and preserves exact large quantities", async () => {
+  bitcoinBuy();
   fill(/^Dollars/, "100");
   fill(/^Bitcoin/, "0.000000001");
-  next();
+  press("Record bitcoin buy");
   expect(screen.getByRole("alert")).toHaveTextContent(
     "whole number of bitcoin units",
   );
   expect(screen.getByRole("textbox", { name: /^Bitcoin/ })).toHaveValue(
     "0.000000001",
   );
-  fill(/^Bitcoin/, "9000000000000001");
-  next();
-  review();
-  expect(summary().getByText("₿9,000,000,000,000,001")).toBeInTheDocument();
   expect(api).not.toHaveBeenCalled();
+  fill(/^Bitcoin/, "9000000000000001");
+  press("Record bitcoin buy");
+  await waitFor(() =>
+    expect(api).toHaveBeenCalledWith(
+      "/transactions",
+      "POST",
+      expect.objectContaining({ destination_amount: "9000000000000001" }),
+    ),
+  );
 });
 
 test("general transfers retain exact conversion between entry units", () => {
   render(<EntryDialog {...props} state={{ type: "transaction" }} />);
   choose("Transfer");
-  next();
-  choose("Cold wallet · bitcoin");
+  choose("Cold wallet · bitcoin", "To account");
   choose("Legacy BTC · decimal");
   fill(/Received amount/, "90000000.00000001");
   choose("bitcoin · ₿");
@@ -327,11 +277,10 @@ test("general transfers retain exact conversion between entry units", () => {
   );
 });
 
-test("date shortcuts and the editable date stay synchronized for a Bitcoin buy", async () => {
-  bitcoinToAmount();
+test("date shortcuts and the editable date stay synchronized", async () => {
+  bitcoinBuy();
   fill(/^Dollars/, "10");
   fill(/^Bitcoin/, "1000");
-  next();
   choose("Today");
   expect(screen.getByLabelText("Date")).toHaveValue(today());
   expect(screen.getByRole("radio", { name: "Today" })).toBeChecked();
@@ -340,14 +289,8 @@ test("date shortcuts and the editable date stay synchronized for a Bitcoin buy",
   fill("Date", today(-2));
   expect(screen.getByRole("radio", { name: "Today" })).not.toBeChecked();
   expect(screen.getByRole("radio", { name: "Yesterday" })).not.toBeChecked();
-  review();
-  expect(summary().getByText(today(-2))).toBeInTheDocument();
-  back();
-  expect(screen.getByLabelText("Date")).toHaveValue(today(-2));
   choose("Yesterday");
-  review();
-  expect(summary().getByText(today(-1))).toBeInTheDocument();
-  confirm();
+  press("Record bitcoin buy");
   await waitFor(() =>
     expect(api).toHaveBeenCalledWith(
       "/transactions",
@@ -357,37 +300,27 @@ test("date shortcuts and the editable date stay synchronized for a Bitcoin buy",
   );
 });
 
-test("savings funding skips category and received amount, then confirms a same-currency transfer", async () => {
+test("savings funding has no category or received amount and saves a same-currency transfer", async () => {
   render(
     <EntryDialog
       {...props}
       state={{ type: "transaction", intent: "savings" }}
     />,
   );
-  next();
-  expect(
-    screen.getByRole("heading", { name: "Choose the from account" }),
-  ).toBeInTheDocument();
-  expect(
-    screen.queryByRole("group", { name: "To account" }),
-  ).not.toBeInTheDocument();
-  next();
   expect(
     within(screen.getByRole("group", { name: "To account" })).getByRole(
       "radio",
       { name: "Savings · USD" },
     ),
   ).toBeChecked();
-  next();
+  expect(
+    screen.queryByRole("group", { name: "Category" }),
+  ).not.toBeInTheDocument();
   expect(
     screen.queryByRole("textbox", { name: /Received amount/ }),
   ).not.toBeInTheDocument();
   fill(/Amount · USD/, "250");
-  next();
-  next();
-  review();
-  expect(summary().queryByText("Category")).not.toBeInTheDocument();
-  confirm();
+  press("Record transfer");
   await waitFor(() =>
     expect(api).toHaveBeenCalledWith(
       "/transactions",
@@ -397,12 +330,13 @@ test("savings funding skips category and received amount, then confirms a same-c
         destination_id: 3,
         destination_amount: null,
         amount: "250",
+        description: "Savings contribution",
       }),
     ),
   );
 });
 
-test("changing type updates the steps and empty account choices cannot advance", () => {
+test("changing type swaps the fields in place and a missing destination blocks saving", () => {
   render(
     <EntryDialog
       {...props}
@@ -410,22 +344,23 @@ test("changing type updates the steps and empty account choices cannot advance",
       state={{ type: "transaction" }}
     />,
   );
+  expect(
+    screen.getByRole("heading", { name: "Add transaction" }),
+  ).toBeVisible();
+  expect(screen.getByRole("group", { name: "Category" })).toBeInTheDocument();
   choose("Bitcoin buy");
   expect(
-    screen.getByRole("heading", { name: "Choose the from account" }),
-  ).toBeInTheDocument();
-  next();
+    screen.queryByRole("group", { name: "Category" }),
+  ).not.toBeInTheDocument();
   expect(screen.getByRole("status")).toHaveTextContent(
     "Create a bitcoin wallet",
   );
-  next();
+  fill(/^Dollars/, "10");
+  press("Record bitcoin buy");
   expect(screen.getByRole("alert")).toHaveTextContent("destination account");
-  back();
-  back();
   choose("Expense");
-  expect(
-    screen.getByRole("heading", { name: "Choose a category" }),
-  ).toBeInTheDocument();
+  expect(screen.getByRole("group", { name: "Category" })).toBeInTheDocument();
+  expect(screen.getByRole("group", { name: "Payment" })).toBeInTheDocument();
   expect(api).not.toHaveBeenCalled();
 });
 
@@ -437,7 +372,7 @@ test.each([
   ["Every 6 months", "semiannual"],
   ["Yearly", "yearly"],
 ])(
-  "upcoming expense reviews its %s schedule and saves only on confirmation",
+  "an upcoming expense saves its %s schedule without recording a payment",
   async (label, frequency) => {
     render(
       <EntryDialog
@@ -450,23 +385,13 @@ test.each([
         }}
       />,
     );
-    choose("Upcoming");
+    expect(screen.getByRole("radio", { name: "Upcoming" })).toBeChecked();
     choose("Groceries");
-    next();
     fill(/^Amount · USD/, "85");
-    next();
     fill("Next due date", "2027-02-01");
     choose(label);
-    next();
-    fill("Description", "Planned groceries");
-    review();
-    expect(summary().getByText("Upcoming")).toBeInTheDocument();
-    expect(summary().getByText(label, { exact: true })).toBeInTheDocument();
-    expect(summary().getByText("2027-02-01")).toBeInTheDocument();
-    expect(api).not.toHaveBeenCalled();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Confirm and save plan" }),
-    );
+    fill(/^Description/, "Planned groceries");
+    press("Save planned expense");
     await waitFor(() =>
       expect(api).toHaveBeenCalledExactlyOnceWith(
         "/recurring-bills",
@@ -486,41 +411,34 @@ test.each([
   },
 );
 
-test("a paid repeating expense records the expense and the next bill together", async () => {
-  render(
-    <EntryDialog {...props} state={{ type: "transaction", kind: "expense" }} />,
-  );
-  expenseToDetails({ repeats: "Monthly" });
-  review();
-  expect(summary().getByText("Monthly")).toBeInTheDocument();
-  confirm();
-  await waitFor(() =>
-    expect(api).toHaveBeenCalledExactlyOnceWith(
-      "/recurring-bills",
-      "POST",
-      expect.objectContaining({ frequency: "monthly", record_now: true }),
-    ),
-  );
-});
+test.each([expense, { type: "transaction" } as const])(
+  "a paid repeating expense records the expense and the next bill together",
+  async (state) => {
+    render(<EntryDialog {...props} state={state} />);
+    fill(/^Amount · USD/, "25.50");
+    choose("Groceries");
+    choose("Monthly");
+    press("Record expense");
+    await waitFor(() =>
+      expect(api).toHaveBeenCalledExactlyOnceWith(
+        "/recurring-bills",
+        "POST",
+        expect.objectContaining({ frequency: "monthly", record_now: true }),
+      ),
+    );
+  },
+);
 
 test("switching an upcoming draft back to paid preserves its amount and restores date limits", () => {
-  render(
-    <EntryDialog {...props} state={{ type: "transaction", kind: "expense" }} />,
-  );
-  expenseToDetails({ upcoming: true });
-  back();
+  render(<EntryDialog {...props} state={expense} />);
+  fill(/^Amount · USD/, "25.50");
+  choose("Upcoming");
   fill("Next due date", "2099-01-01");
-  back();
-  back();
-  back();
-  back();
+  expect(screen.getByLabelText("Next due date")).not.toHaveAttribute("max");
   choose("Paid");
-  next();
-  next();
   expect(screen.getByRole("textbox", { name: /^Amount · USD/ })).toHaveValue(
     "25.50",
   );
-  next();
   expect(screen.getByLabelText("Date")).toHaveValue(today());
   expect(screen.getByLabelText("Date")).toHaveAttribute("max", today());
 });
@@ -548,7 +466,7 @@ const previous: Transaction = {
 };
 
 test.each([false, true])(
-  "prefilled expense review preserves data for edit=%s",
+  "a prefilled expense preserves its data for edit=%s",
   async (editing) => {
     render(
       <EntryDialog
@@ -560,24 +478,22 @@ test.each([false, true])(
         }
       />,
     );
-    next();
+    expect(
+      screen.getByRole("heading", {
+        name: editing ? "Edit transaction" : "Repeat expense",
+      }),
+    ).toBeVisible();
     expect(screen.getByRole("radio", { name: "Groceries" })).toBeChecked();
-    next();
-    next();
     expect(screen.getByRole("textbox", { name: /^Amount · USD/ })).toHaveValue(
       "72.31",
     );
-    next();
     expect(screen.getByLabelText("Date")).toHaveValue(
       editing ? previous.date : today(),
     );
-    next();
-    review();
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: editing ? "Confirm changes" : "Confirm and record",
-      }),
-    );
+    expect(
+      screen.getByRole("textbox", { name: "Notes · optional" }),
+    ).toHaveValue("Weekly shop");
+    press(editing ? "Save changes" : "Record expense");
     await waitFor(() =>
       expect(api).toHaveBeenCalledExactlyOnceWith(
         editing ? "/transactions/42" : "/transactions",
@@ -595,20 +511,16 @@ test.each([false, true])(
   },
 );
 
-test("expense category applies its default before the account step and allows an override", () => {
+test("an expense category applies its default account and allows an override", () => {
   render(
-    <EntryDialog
-      {...props}
-      paymentDefaults={{ "5": 3 }}
-      state={{ type: "transaction", kind: "expense" }}
-    />,
+    <EntryDialog {...props} paymentDefaults={{ "5": 3 }} state={expense} />,
   );
-  next();
+  expect(screen.getByRole("radio", { name: "Checking · USD" })).toBeChecked();
   choose("Groceries");
   expect(screen.getByRole("radio", { name: "Savings · USD" })).toBeChecked();
   choose("Checking · USD");
-  back();
   expect(screen.getByRole("radio", { name: "Checking · USD" })).toBeChecked();
+  expect(screen.getByRole("radio", { name: "Groceries" })).toBeChecked();
 });
 
 test.each([false, true])(
@@ -626,8 +538,6 @@ test.each([false, true])(
         }}
       />,
     );
-    next();
-    next();
     expect(
       screen.getByRole("radio", {
         name: explicitAccount ? "Checking · USD" : "Savings · USD",
@@ -645,15 +555,13 @@ test("archived payment defaults are ignored", () => {
       state={{ type: "transaction", kind: "expense", category_id: 5 }}
     />,
   );
-  next();
-  next();
   expect(screen.getByRole("radio", { name: "Checking · USD" })).toBeChecked();
   expect(
     screen.queryByRole("radio", { name: "Savings · USD" }),
   ).not.toBeInTheDocument();
 });
 
-test("income categories do not change the payment account", () => {
+test("income categories do not change the receiving account", () => {
   render(
     <EntryDialog
       {...props}
@@ -662,9 +570,16 @@ test("income categories do not change the payment account", () => {
       state={{ type: "transaction", kind: "income" }}
     />,
   );
-  next();
   choose("Salary");
-  expect(screen.getByRole("radio", { name: "Checking · USD" })).toBeChecked();
+  expect(
+    within(screen.getByRole("group", { name: "Received into" })).getByRole(
+      "radio",
+      { name: "Checking · USD" },
+    ),
+  ).toBeChecked();
+  expect(
+    screen.getByRole("button", { name: "Record income" }),
+  ).toBeInTheDocument();
 });
 
 test.each([false, true])(
@@ -796,73 +711,116 @@ test("Bitcoin buy source selection excludes property, non-checking accounts, and
     />,
   );
   choose("Bitcoin buy");
-  expect(screen.getAllByRole("radio")).toHaveLength(1);
-  expect(screen.getByRole("radio", { name: "Checking · USD" })).toBeChecked();
+  const from = within(screen.getByRole("group", { name: "From account" }));
+  expect(from.getAllByRole("radio")).toHaveLength(1);
+  expect(from.getByRole("radio", { name: "Checking · USD" })).toBeChecked();
+  const to = within(screen.getByRole("group", { name: "Bitcoin wallet" }));
+  expect(to.getAllByRole("radio")).toHaveLength(1);
   expect(
-    screen.queryByRole("group", { name: "Bitcoin wallet" }),
-  ).not.toBeInTheDocument();
-  next();
-  expect(screen.getAllByRole("radio")).toHaveLength(1);
-  expect(
-    screen.getByRole("radio", { name: "Cold wallet · bitcoin" }),
+    to.getByRole("radio", { name: "Cold wallet · bitcoin" }),
   ).toBeInTheDocument();
 });
 
-test("one click on each single-choice step advances, including already-selected options", () => {
-  render(<EntryDialog {...props} state={{ type: "transaction" }} />);
-  choose("Expense");
-  expect(
-    screen.getByRole("heading", { name: "Choose a category" }),
-  ).toHaveFocus();
-  choose("Groceries");
-  expect(
-    screen.getByRole("heading", { name: "Choose the account" }),
-  ).toHaveFocus();
-  choose("Checking · USD");
-  expect(
-    screen.getByRole("heading", { name: "Enter the amount" }),
-  ).toHaveFocus();
-  expect(api).not.toHaveBeenCalled();
-  back();
-  expect(screen.getByRole("radio", { name: "Checking · USD" })).toBeChecked();
-  choose("Checking · USD");
-  expect(
-    screen.getByRole("heading", { name: "Enter the amount" }),
-  ).toHaveFocus();
-});
+const spotify: Transaction = {
+  ...previous,
+  id: 50,
+  description: "Spotify",
+  amount: "11.99",
+  account_id: 3,
+  account: "Savings",
+  date: "2026-01-03",
+};
+const learned = {
+  ...props,
+  categories: [
+    ...props.categories,
+    { id: 7, name: "Subscriptions", kind: "expense" as const },
+  ],
+  history: [
+    { ...spotify, category_id: 7, category: "Subscriptions" },
+    { ...previous, id: 51, date: "2025-12-07" },
+    previous,
+  ],
+};
 
-test("selecting Bitcoin buy immediately updates the flow and selecting accounts advances", () => {
-  render(<EntryDialog {...props} state={{ type: "transaction" }} />);
-  choose("Bitcoin buy");
-  expect(
-    screen.getByRole("heading", { name: "Choose the from account" }),
-  ).toHaveFocus();
-  choose("Checking · USD");
-  expect(
-    screen.getByRole("heading", { name: "Choose the bitcoin wallet" }),
-  ).toHaveFocus();
-  choose("Cold wallet · bitcoin");
-  expect(screen.getByRole("textbox", { name: /^Dollars/ })).toBeInTheDocument();
-  expect(api).not.toHaveBeenCalled();
-});
-
-test("Paid selection advances and expense review uses six compact fields", () => {
-  render(
-    <EntryDialog {...props} state={{ type: "transaction", kind: "expense" }} />,
+test("a frequent payee fills the description, category, account and last amount in one click", async () => {
+  render(<EntryDialog {...learned} state={expense} />);
+  const frequent = within(
+    screen.getByRole("group", { name: "Frequent entries" }),
   );
-  choose("Paid");
+  // Most used first.
+  expect(frequent.getAllByRole("button").map((b) => b.textContent)).toEqual([
+    "Groceries$72.31",
+    "Spotify$11.99",
+  ]);
+  fireEvent.click(frequent.getByRole("button", { name: /Spotify/ }));
+  expect(screen.getByRole("textbox", { name: /^Description/ })).toHaveValue(
+    "Spotify",
+  );
+  expect(screen.getByRole("radio", { name: "Subscriptions" })).toBeChecked();
+  expect(screen.getByRole("radio", { name: "Savings · USD" })).toBeChecked();
+  expect(screen.getByRole("textbox", { name: /^Amount · USD/ })).toHaveValue(
+    "11.99",
+  );
+  press("Record expense");
+  await waitFor(() =>
+    expect(api).toHaveBeenCalledWith(
+      "/transactions",
+      "POST",
+      expect.objectContaining({
+        description: "Spotify",
+        category_id: 7,
+        account_id: 3,
+        amount: "11.99",
+      }),
+    ),
+  );
+});
+
+test("typing narrows suggestions and never overwrites an amount or a hand-picked category", () => {
+  render(<EntryDialog {...learned} state={expense} />);
+  fill(/^Amount · USD/, "5");
   choose("Groceries");
-  choose("Checking · USD");
-  fill(/^Amount · USD/, "25.50");
-  next();
-  next();
-  fill("Description", "Weekly groceries");
-  review();
-  expect(summary().getAllByRole("term")).toHaveLength(6);
-  expect(
-    screen.getByRole("region", { name: "Transaction review" }),
-  ).toHaveClass("transaction-review-compact");
-  expect(summary().getByText("Weekly groceries")).toBeInTheDocument();
-  expect(summary().queryByText("None")).not.toBeInTheDocument();
-  expect(api).not.toHaveBeenCalled();
+  fill(/^Description/, "spot");
+  const matches = within(
+    screen.getByRole("group", { name: "Matching past entries" }),
+  );
+  expect(matches.getAllByRole("button")).toHaveLength(1);
+  fill(/^Description/, "Spotify");
+  // Typed in full: the category chosen by hand stays.
+  expect(screen.getByRole("radio", { name: "Groceries" })).toBeChecked();
+  expect(screen.getByRole("textbox", { name: /^Amount · USD/ })).toHaveValue(
+    "5",
+  );
+});
+
+test("a saved rule categorises as you type and a new rule is stored with the entry", async () => {
+  render(
+    <EntryDialog
+      {...learned}
+      history={[]}
+      payeeRules={[{ match: "netflix", category_id: 7, account_id: 3 }]}
+      state={expense}
+    />,
+  );
+  fill(/^Amount · USD/, "15.49");
+  fill(/^Description/, "NETFLIX.COM 1234");
+  expect(screen.getByRole("radio", { name: "Subscriptions" })).toBeChecked();
+  expect(screen.getByRole("radio", { name: "Savings · USD" })).toBeChecked();
+  fireEvent.click(
+    screen.getByRole("checkbox", {
+      name: "Always file “NETFLIX.COM 1234” under Subscriptions",
+    }),
+  );
+  press("Record expense");
+  await waitFor(() => expect(props.onSaved).toHaveBeenCalledOnce());
+  expect(api).toHaveBeenCalledWith("/settings/payee-rules", "PUT", {
+    payee_rules: [
+      { match: "netflix", category_id: 7, account_id: 3 },
+      { match: "NETFLIX.COM 1234", category_id: 7, account_id: 3 },
+    ],
+  });
+  expect(props.onSaved.mock.calls[0][0]).toContain(
+    "will be filed under Subscriptions",
+  );
 });

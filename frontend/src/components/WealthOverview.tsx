@@ -7,6 +7,7 @@ import type { Report } from "../lib/types";
 import { Money } from "./Money";
 import { DualHistoryChart } from "./DualHistoryChart";
 import { Button } from "./ui/button";
+import { ChangeBadge, TrendArea } from "./Visuals";
 
 export type OverviewUnit = "BITCOIN" | "USD";
 
@@ -90,6 +91,12 @@ export function NetWorth({
   dominance?: ReactNode;
   debtGauge?: ReactNode;
 }) {
+  const unit = useReportingUnit("USD");
+  const trend = report.history.map((point) => ({
+    month: point.month,
+    value: point.dual?.[unit].net_worth ?? null,
+  }));
+  const known = trend.filter((point) => point.value !== null);
   return (
     <section className="panel net-worth" aria-label="Total net worth">
       <div className="net-worth-top">
@@ -102,12 +109,34 @@ export function NetWorth({
             }}
             label="net worth"
           />
-          <small className="valuation-date">
-            Estimated · {report.history.at(-1)?.date ?? report.month}
-          </small>
+          <div className="net-worth-meta">
+            {known.length > 1 && (
+              <ChangeBadge
+                from={known[0].value}
+                to={known.at(-1)!.value}
+                unit={unit}
+                since={new Date(
+                  `${known[0].month}-15T12:00:00`,
+                ).toLocaleDateString(undefined, {
+                  month: "short",
+                  year: "numeric",
+                })}
+              />
+            )}
+            <small className="valuation-date">
+              Estimated · {report.history.at(-1)?.date ?? report.month}
+            </small>
+          </div>
         </div>
         {dominance}
       </div>
+      <TrendArea
+        points={trend}
+        unit={unit}
+        label="Net worth"
+        color={unit === "USD" ? "var(--blue)" : "var(--accent)"}
+        height={132}
+      />
       <div className="net-worth-bottom">
         <div className="net-worth-context">
           <div className="net-worth-breakdown">

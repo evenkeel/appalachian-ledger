@@ -61,7 +61,44 @@ export interface CostHistoryData {
   payments: CostPayment[];
   months: CostMonth[];
 }
+export interface PayeeRule {
+  match: string;
+  category_id: number;
+  account_id: number | null;
+}
+export interface SafeToSpend {
+  month: string;
+  amount: string | null;
+  per_day: string | null;
+  days_left: number;
+  income: string | null;
+  spent: string | null;
+  set_aside: string;
+  bills_due: string;
+  bills_count: number;
+  goals: string;
+  complete: boolean;
+}
+export interface Goal {
+  id: number;
+  name: string;
+  account_id: number;
+  account: string;
+  currency: "USD" | "BITCOIN";
+  target: string;
+  saved: string;
+  remaining: string;
+  percent: string;
+  complete: boolean;
+  target_date: string | null;
+  months_left: number | null;
+  monthly_needed: string | null;
+  overdue: boolean;
+  shares_account: boolean;
+}
 export interface Transaction {
+  /** Why this entry is waiting in the review queue; empty when nothing is doubtful. */
+  review_reasons?: ("imported" | "catch_all_category")[];
   purchase_cost?: PurchaseCost | null;
   id: number;
   date: string;
@@ -175,6 +212,7 @@ export interface History {
   }[];
 }
 export interface Report {
+  safe_to_spend?: SafeToSpend | null;
   debt_gauge?: DebtGaugeData;
   dual?: Record<"BITCOIN" | "USD", DualValues>;
   lifestyle_baseline?: string | null;
@@ -221,6 +259,7 @@ export interface Asset {
 export type CardScope = "accounts" | "assets" | "bills" | "overview-balances";
 export type CardOrders = Partial<Record<CardScope, string[]>>;
 export interface Preferences {
+  payee_rules?: PayeeRule[];
   category_payment_defaults?: Record<string, number>;
   card_orders?: CardOrders;
   debt_limits?: DebtLimits | null;

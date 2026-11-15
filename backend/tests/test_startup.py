@@ -27,6 +27,8 @@ def test_direct_api_start_upgrades_an_existing_ledger(owner):
     with engine.begin() as connection:
         connection.execute(text("ALTER TABLE accounts DROP COLUMN exclude_from_liquid_usd"))
         connection.execute(text("DROP TABLE planning_scenarios"))
+        connection.execute(text("DROP TABLE savings_goals"))
+        connection.execute(text("DROP TABLE entry_reviews"))
         connection.execute(text("ALTER TABLE categories DROP COLUMN spending_type"))
         connection.execute(text("UPDATE alembic_version SET version_num='0009_expense_costs'"))
     with TestClient(app) as restarted:
@@ -46,7 +48,7 @@ def test_direct_api_start_upgrades_an_existing_ledger(owner):
         assert flow["expenses"] == "25.00" and flow["spending"]["fixed"] == "25.00"
     ensure_schema()  # An already upgraded ledger is safe to start again.
     with SessionLocal() as db:
-        assert db.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0012_liquid_usd_exclusion"
+        assert db.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0013_goals_and_reviews"
 
 
 def test_api_does_not_start_workers_if_migration_fails(monkeypatch):
