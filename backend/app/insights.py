@@ -7,18 +7,17 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import Field, field_validator
 from sqlalchemy import select
 from .accounting import account as ledger_account
-from .accounting import active_transactions, audit, balance, current_rate, reporting_rate
+from .accounting import active_transactions, audit, balance, current_rate
 from .auth import authenticate
 from .db import get_db
 from .models import Account, Category, EntryReview, RecurringBill, SavingsGoal
 from .money import convert, original, to_minor
-from .reports import flow, month_days
+from .reports import flow, money_moved_out, month_days
 from .schemas import StrictModel
 
 router = APIRouter(prefix="/api", dependencies=[Depends(authenticate)])
 
 GOAL_ACCOUNT_KINDS = {"savings", "checking", "cash", "bitcoin_wallet", "brokerage", "stock", "etf"}
-EVERYDAY_KINDS = {"checking", "cash"}
 
 
 # ---------- Savings goals ----------
@@ -244,26 +243,6 @@ def bills_due(db, today, end, rate):
     return total, count, complete
 
 
-def bitcoin_bought(db, start, end):
-    """Net money moved out of everyday accounts this month: in this ledger, that is bitcoin buying."""
-    total, complete = 0, True
-    for entry in active_transactions(db, start, end):
-        if entry.kind != "transfer" or not entry.destination_id:
-            continue
-        source, destination = db.get(Account, entry.account_id), db.get(Account, entry.destination_id)
-        everyday_source = source.role == "asset" and source.kind in EVERYDAY_KINDS
-        everyday_destination = destination.role == "asset" and destination.kind in EVERYDAY_KINDS
-        # Card payments settle spending that was already counted as an expense.
-        if everyday_source == everyday_destination or "credit_card" in (source.kind, destination.kind):
-            continue
-        usd = convert(entry.amount_minor, source.currency, "USD", reporting_rate(db, entry)["value"])
-        if usd is None:
-            complete = False
-            continue
-        total += to_minor(usd, "USD") * (1 if everyday_source else -1)
-    return total, complete
-
-
 def goals_still_to_fund(db, today, start, rate):
     """This month's share of dated goals, less what has already reached their accounts."""
     goals = [g for g in db.scalars(select(SavingsGoal)) if g.target_date]
@@ -288,26 +267,33 @@ def goals_still_to_fund(db, today, start, rate):
 
 
 def safe_to_spend(db, today=None):
-    """What is left of this month's income after spending, buying bitcoin, and the bills still to come."""
+    """What is left of this month's income after spending, buying bitcoin, other transfers out, and the bills still to come."""
     today = today or date.today()
     start, end = month_days(today.strftime("%Y-%m"))
     quote = current_rate(db)
     rate = quote.usd_per_btc if quote else None
     activity = flow(db, start, end, "USD")
-    bitcoin, bought_complete = bitcoin_bought(db, start, end)
+    moved = money_moved_out(db, start, end)
     bills, bill_count, bills_complete = bills_due(db, today, end, rate)
     goals, goals_complete = goals_still_to_fund(db, today, start, rate)
     complete = (
         activity["income"] is not None
         and activity["expenses"] is not None
-        and bought_complete
+        and moved["complete"]
         and bills_complete
         and goals_complete
     )
     days = (end - today).days + 1
     amount = per_day = None
     if complete:
-        amount = to_minor(activity["income"], "USD") - to_minor(activity["expenses"], "USD") - bitcoin - bills - goals
+        amount = (
+            to_minor(activity["income"], "USD")
+            - to_minor(activity["expenses"], "USD")
+            - moved["bitcoin_usd"]
+            - moved["other_usd"]
+            - bills
+            - goals
+        )
         per_day = int(Decimal(max(amount, 0)) / days)
     return {
         "month": today.strftime("%Y-%m"),
@@ -316,7 +302,9 @@ def safe_to_spend(db, today=None):
         "days_left": days,
         "income": activity["income"],
         "spent": activity["expenses"],
-        "bitcoin_bought": original(bitcoin, "USD"),
+        "bitcoin_bought": original(moved["bitcoin"], "BITCOIN"),
+        "bitcoin_paid_usd": original(moved["bitcoin_usd"], "USD"),
+        "other_moved_usd": original(moved["other_usd"], "USD"),
         "bills_due": original(bills, "USD"),
         "bills_count": bill_count,
         "goals": original(goals, "USD"),

@@ -6,24 +6,30 @@ import {
   Tooltip,
 } from "recharts";
 import { useReportingUnit } from "../lib/monetaryLens";
-import { formatMoney, subtractMoney } from "../lib/money";
+import { formatMoney, subtractMoney, sumMoney } from "../lib/money";
 import type { Report } from "../lib/types";
 
-type Side = "income" | "hub" | "expense" | "kept" | "drawn";
+type Side =
+  "income" | "hub" | "expense" | "stacked" | "moved" | "kept" | "drawn";
 interface FlowNode {
   name: string;
   side: Side;
+  /** Exact decimal in the reporting unit; sizes the ribbon. */
   exact: string;
+  /** Shown instead of `exact`, e.g. the bitcoin actually received. */
+  label?: string;
 }
 const colors: Record<Side, string> = {
   income: "var(--green)",
   hub: "var(--blue)",
-  expense: "var(--accent)",
-  kept: "var(--green)",
+  expense: "var(--amethyst)",
+  stacked: "var(--accent)",
+  moved: "var(--blue)",
+  kept: "var(--muted)",
   drawn: "var(--red)",
 };
 
-/** Income sources flowing through the month into spending categories and what was kept. */
+/** Income flowing through the month into spending, bitcoin stacked, other transfers, and cash left over. */
 export function CashFlowDiagram({ report }: { report: Report }) {
   const unit = useReportingUnit("USD");
   const flow = report.dual?.[unit];
@@ -34,7 +40,14 @@ export function CashFlowDiagram({ report }: { report: Report }) {
     }[];
   const sources = positive(flow?.income_categories),
     uses = positive(flow?.categories);
-  const net = subtractMoney(flow?.income, flow?.expenses);
+  // Bitcoin and other transfers are known in dollars; the bitcoin lens values them in bitcoin.
+  const stacked = report.stacked;
+  const stackedValue =
+    unit === "USD" ? (stacked?.usd ?? "0") : (stacked?.bitcoin ?? "0");
+  const movedValue = unit === "USD" ? (stacked?.other_usd ?? "0") : "0";
+  const totalOut = sumMoney([flow?.expenses ?? null, stackedValue, movedValue]);
+  const out = totalOut.missing ? null : totalOut.total;
+  const net = subtractMoney(flow?.income, out);
   const missing =
     (flow?.income_categories?.length ?? 0) +
     (flow?.categories.length ?? 0) -
@@ -67,7 +80,7 @@ export function CashFlowDiagram({ report }: { report: Report }) {
   if (net && net.startsWith("-"))
     links.push({
       source: add({
-        name: "From savings",
+        name: "From cash on hand",
         side: "drawn",
         exact: net.slice(1),
       }),
@@ -80,10 +93,31 @@ export function CashFlowDiagram({ report }: { report: Report }) {
       target: add({ name: row.name, side: "expense", exact: row.value }),
       value: Number(row.value),
     });
+  if (Number(stackedValue) > 0)
+    links.push({
+      source: hub,
+      target: add({
+        name: "Bitcoin stacked",
+        side: "stacked",
+        exact: stackedValue,
+        label: formatMoney(stacked?.bitcoin ?? null, "BITCOIN"),
+      }),
+      value: Number(stackedValue),
+    });
+  if (Number(movedValue) > 0)
+    links.push({
+      source: hub,
+      target: add({
+        name: "Other transfers out",
+        side: "moved",
+        exact: movedValue,
+      }),
+      value: Number(movedValue),
+    });
   if (net && Number(net) > 0)
     links.push({
       source: hub,
-      target: add({ name: "Kept", side: "kept", exact: net }),
+      target: add({ name: "Left in cash", side: "kept", exact: net }),
       value: Number(net),
     });
   return (
@@ -93,7 +127,10 @@ export function CashFlowDiagram({ report }: { report: Report }) {
         role="img"
         aria-label={`Cash flow for ${report.month}: ${nodes
           .filter((node) => node.side !== "hub")
-          .map((node) => `${node.name} ${formatMoney(node.exact, unit)}`)
+          .map(
+            (node) =>
+              `${node.name} ${node.label ?? formatMoney(node.exact, unit)}`,
+          )
           .join(", ")}`}
         style={{ height: Math.max(300, nodes.length * 34) }}
       >
@@ -103,7 +140,7 @@ export function CashFlowDiagram({ report }: { report: Report }) {
             nodePadding={18}
             nodeWidth={12}
             iterations={32}
-            margin={{ top: 12, right: 170, bottom: 12, left: 170 }}
+            margin={{ top: 12, right: 220, bottom: 12, left: 170 }}
             link={{ stroke: "var(--muted)", strokeOpacity: 0.22 }}
             node={(props) => {
               const { x, y, width, height } = props;
@@ -133,7 +170,7 @@ export function CashFlowDiagram({ report }: { report: Report }) {
                       {payload.name}
                       <tspan fill="var(--muted)">
                         {"  "}
-                        {formatMoney(payload.exact, unit)}
+                        {payload.label ?? formatMoney(payload.exact, unit)}
                       </tspan>
                     </text>
                   )}
@@ -150,6 +187,7 @@ export function CashFlowDiagram({ report }: { report: Report }) {
                         target?: FlowNode;
                         name?: string;
                         exact?: string;
+                        label?: string;
                       };
                     }
                   | undefined;
@@ -158,13 +196,16 @@ export function CashFlowDiagram({ report }: { report: Report }) {
                 const end =
                   data.source?.side === "hub" ? data.target : data.source;
                 const name = end?.name ?? data.name;
-                const exact = end?.exact ?? data.exact;
+                const shown =
+                  end?.label ??
+                  data.label ??
+                  formatMoney(end?.exact ?? data.exact, unit);
                 return name ? (
                   <div className="chart-tooltip">
                     <strong>{name}</strong>
                     <div>
                       <span>{report.month}</span>
-                      <span>{formatMoney(exact, unit)}</span>
+                      <span>{shown}</span>
                     </div>
                   </div>
                 ) : null;

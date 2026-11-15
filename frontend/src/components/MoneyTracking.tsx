@@ -25,11 +25,19 @@ import { TransactionTable } from "./TransactionTable";
 
 export function QuickEntries({
   onAdd,
+  accounts,
 }: {
   onAdd: (state: DialogState) => void;
+  /** When given, savings and investing shortcuts appear only if such accounts exist. */
+  accounts?: Account[];
 }) {
+  const has = (kinds: string[]) =>
+    !accounts || accounts.some((a) => !a.archived && kinds.includes(a.kind));
   return (
     <div className="quick-entries" aria-label="Quick entries">
+      <Button onClick={() => onAdd({ type: "transaction", intent: "bitcoin" })}>
+        <Bitcoin size={17} /> Bitcoin buy
+      </Button>
       <Button
         variant="outline"
         onClick={() => onAdd({ type: "transaction", kind: "expense" })}
@@ -39,24 +47,22 @@ export function QuickEntries({
       <Button variant="outline" onClick={() => onAdd({ type: "transfer" })}>
         <ArrowLeftRight size={17} /> Transfer
       </Button>
-      <Button
-        variant="outline"
-        onClick={() => onAdd({ type: "transaction", intent: "bitcoin" })}
-      >
-        <Bitcoin size={17} /> Bitcoin buy
-      </Button>
-      <Button
-        variant="outline"
-        onClick={() => onAdd({ type: "transaction", intent: "savings" })}
-      >
-        <PiggyBank size={17} /> Move to savings
-      </Button>
-      <Button
-        variant="outline"
-        onClick={() => onAdd({ type: "transaction", intent: "investing" })}
-      >
-        <TrendingUp size={17} /> Add investment funds
-      </Button>
+      {has(["savings"]) && (
+        <Button
+          variant="outline"
+          onClick={() => onAdd({ type: "transaction", intent: "savings" })}
+        >
+          <PiggyBank size={17} /> Move to savings
+        </Button>
+      )}
+      {has(["brokerage", "stock", "etf"]) && (
+        <Button
+          variant="outline"
+          onClick={() => onAdd({ type: "transaction", intent: "investing" })}
+        >
+          <TrendingUp size={17} /> Add investment funds
+        </Button>
+      )}
     </div>
   );
 }
@@ -287,7 +293,7 @@ export function MoneyTracking({
   }
   return (
     <div className="money-tracking">
-      <QuickEntries onAdd={onAdd} />
+      <QuickEntries onAdd={onAdd} accounts={accounts} />
       <section className="panel tracking-controls">
         {!budgetMode && (
           <div

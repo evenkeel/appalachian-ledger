@@ -84,6 +84,60 @@ def month_sequence(end, count):
     return [f"{i // 12:04d}-{i % 12 + 1:02d}" for i in range(max(1970 * 12, index - count + 1), index + 1)]
 
 
+EVERYDAY_KINDS = {"checking", "cash"}
+
+
+def money_moved_out(db, start, end):
+    """Net money moved from everyday accounts this month, net of anything moved back.
+
+    Returns a dict: ``bitcoin`` (whole bitcoin units stacked, BIP 177), ``bitcoin_usd``
+    (dollars those buys cost), ``other_usd`` (savings, investing and debt payments),
+    and ``complete`` (False when a dollar amount has no exchange rate).
+    """
+    moved = {"bitcoin": 0, "bitcoin_usd": 0, "other_usd": 0, "complete": True}
+    for entry in active_transactions(db, start, end):
+        if entry.kind != "transfer" or not entry.destination_id:
+            continue
+        source, destination = db.get(Account, entry.account_id), db.get(Account, entry.destination_id)
+        everyday_source = source.role == "asset" and source.kind in EVERYDAY_KINDS
+        everyday_destination = destination.role == "asset" and destination.kind in EVERYDAY_KINDS
+        # Card payments settle spending that was already counted as an expense.
+        if everyday_source == everyday_destination or "credit_card" in (source.kind, destination.kind):
+            continue
+        other = destination if everyday_source else source
+        sign = 1 if everyday_source else -1
+        is_bitcoin = other.currency == "BITCOIN"
+        if is_bitcoin:
+            moved["bitcoin"] += sign * ((entry.destination_minor or 0) if everyday_source else entry.amount_minor)
+        # Prefer the dollars actually recorded on either side of the transfer.
+        if source.currency == "USD":
+            usd_minor = entry.amount_minor
+        elif destination.currency == "USD" and entry.destination_minor is not None:
+            usd_minor = entry.destination_minor
+        else:
+            usd = convert(entry.amount_minor, source.currency, "USD", reporting_rate(db, entry)["value"])
+            if usd is None:
+                moved["complete"] = False
+                continue
+            usd_minor = to_minor(usd, "USD")
+        moved["bitcoin_usd" if is_bitcoin else "other_usd"] += sign * usd_minor
+    return moved
+
+
+def stacked(db, start, end, income_usd):
+    """Bitcoin stacked in a period, and the share of dollar income that went into it."""
+    moved = money_moved_out(db, start, end)
+    rate = None
+    if moved["complete"] and income_usd is not None and Decimal(income_usd) > 0:
+        rate = str((Decimal(moved["bitcoin_usd"]) / 100 * 100 / Decimal(income_usd)).quantize(Decimal(".1")))
+    return {
+        "bitcoin": original(moved["bitcoin"], "BITCOIN"),
+        "usd": original(moved["bitcoin_usd"], "USD") if moved["complete"] else None,
+        "other_usd": original(moved["other_usd"], "USD") if moved["complete"] else None,
+        "stack_rate": rate,
+    }
+
+
 def flow(db, start, end, denomination, source=None):
     entries = active_transactions(db, start, end)
     income, expense, categories, income_categories = [], [], {}, {}
@@ -263,11 +317,14 @@ def dashboard(db, month, months=6, denomination="BITCOIN"):
         records = accounts_report(db, str(day), denomination, day < date.today())
         a, liabilities_at_date, n = totals(records)
         point_rate = rate_for(db, day) if day < date.today() else current_rate(db, day)
+        dual = dual_values(db, records, first, day)
         history.append(
             {
                 "month": key,
+                "stacked": stacked(db, first, day, dual["USD"]["income"]),
+                "bitcoin_held": ownership(records)["bitcoin_held"],
                 "allocation": allocation(records),
-                "dual": dual_values(db, records, first, day),
+                "dual": dual,
                 "usd_per_btc": point_rate.usd_per_btc if point_rate else None,
                 "date": str(day),
                 "assets": a,
@@ -300,9 +357,11 @@ def dashboard(db, month, months=6, denomination="BITCOIN"):
             "USD": amount,
             "BITCOIN": convert(to_minor(amount, "USD"), "USD", "BITCOIN", point["usd_per_btc"]) if amount else None,
         }
+    dual = dual_values(db, accounts, start, end)
     return {
         "month": month,
-        "dual": dual_values(db, accounts, start, end),
+        "dual": dual,
+        "stacked": stacked(db, start, end, dual["USD"]["income"]),
         "lifestyle_baseline": baseline["month"] if baseline else None,
         "denomination": denomination,
         "assets": assets,

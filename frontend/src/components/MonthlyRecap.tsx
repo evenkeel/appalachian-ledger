@@ -1,5 +1,5 @@
 import { useReportingUnit } from "../lib/monetaryLens";
-import { formatMoney, subtractMoney } from "../lib/money";
+import { formatMoney, percentChange, subtractMoney } from "../lib/money";
 import type { BudgetOverview, Report, Transaction } from "../lib/types";
 import { ChangeBadge, StatTile } from "./Visuals";
 
@@ -29,7 +29,7 @@ export function MonthlyRecap({
   const inProgress =
     report.month ===
     `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
-  const kept = subtractMoney(now.income, now.expenses);
+  const stacked = current.stacked;
   const value = (row: Transaction) =>
     row.currency === unit ? row.amount : unit === "USD" ? row.usd : row.bitcoin;
   const expenses = transactions.filter(
@@ -59,6 +59,16 @@ export function MonthlyRecap({
         .sort((a, b) => Number(b.change) - Number(a.change))[0];
   const overBudget = budgets.filter((b) => b.remaining_usd?.startsWith("-"));
   const highlights: string[] = [];
+  // The core comparison: what a month of living cost in bitcoin, against the month before.
+  const bitcoinNow = current.dual?.BITCOIN.expenses,
+    bitcoinBefore = previous?.dual?.BITCOIN.expenses;
+  const bitcoinChange = inProgress
+    ? null
+    : percentChange(bitcoinBefore, bitcoinNow);
+  if (bitcoinChange !== null && previous)
+    highlights.push(
+      `Your spending cost ${formatMoney(bitcoinNow, "BITCOIN")}, ${Math.abs(bitcoinChange) < 0.5 ? "about the same bitcoin as" : `${Math.abs(bitcoinChange).toFixed(0)}% ${bitcoinChange < 0 ? "less" : "more"} bitcoin than`} ${monthName(previous.month, false)}.`,
+    );
   if (top && spent > 0)
     highlights.push(
       `${top.name} was the largest category at ${formatMoney(top.value, unit)}, ${Math.round((Number(top.value) / spent) * 100)}% of spending.`,
@@ -91,9 +101,9 @@ export function MonthlyRecap({
                 : "First month on record"}
           </span>
         </div>
-        {now.savings_rate !== null && (
+        {stacked?.stack_rate != null && (
           <span className="recap-rate">
-            <strong>{now.savings_rate}%</strong> of income kept
+            <strong>{stacked.stack_rate}%</strong> of income stacked
           </span>
         )}
       </div>
@@ -128,22 +138,30 @@ export function MonthlyRecap({
           >
             {formatMoney(now.expenses, unit)}
           </StatTile>
-          <StatTile label="Kept" tone={kept?.startsWith("-") ? "bad" : "good"}>
-            {formatMoney(kept, unit)}
+          <StatTile
+            label="Bitcoin stacked"
+            tone="accent"
+            hint={
+              stacked?.usd != null ? (
+                <small>for {formatMoney(stacked.usd, "USD")}</small>
+              ) : undefined
+            }
+          >
+            {formatMoney(stacked?.bitcoin ?? null, "BITCOIN")}
           </StatTile>
           <StatTile
-            label="Net worth"
+            label="Bitcoin held"
             hint={
               previous ? (
                 <ChangeBadge
-                  from={before?.net_worth}
-                  to={now.net_worth}
-                  unit={unit}
+                  from={previous.bitcoin_held}
+                  to={current.bitcoin_held}
+                  unit="BITCOIN"
                 />
               ) : undefined
             }
           >
-            {formatMoney(now.net_worth, unit)}
+            {formatMoney(current.bitcoin_held ?? null, "BITCOIN")}
           </StatTile>
         </div>
         {highlights.length > 0 && (

@@ -23,7 +23,7 @@ import {
   Menu,
   Moon,
   Plus,
-  PiggyBank,
+  Bitcoin,
   Receipt,
   ScrollText,
   Search,
@@ -83,7 +83,7 @@ const navigation = [
   { name: "Expenses", icon: Receipt, group: "Money" },
   { name: "Transactions", icon: ScrollText, group: "Money" },
   { name: "Budgets", icon: Target, group: "Plan" },
-  { name: "Savings & investing", icon: PiggyBank, group: "Plan" },
+  { name: "Stacking", icon: Bitcoin, group: "Plan" },
   { name: "Retirement", icon: Hourglass, group: "Plan" },
   { name: "Assets & liabilities", icon: Building2, group: "Wealth" },
   { name: "Reports", icon: BarChart3, group: "Wealth" },
@@ -97,7 +97,7 @@ const pageSummary: Record<Page, string> = {
   Expenses: "Where the money went, and what is coming due.",
   Transactions: "Every entry in your ledger, searchable.",
   Budgets: "Planned spending against what you actually spent.",
-  "Savings & investing": "Bitcoin buys, savings, and investment funding.",
+  Stacking: "Bitcoin bought, held and planned. Bitcoin is your saving.",
   Retirement: "Hypothetical scenarios built from your own assumptions.",
   "Assets & liabilities": "Property, valued assets, and longer-term debt.",
   Reports: "Account history, cash flow, and monthly comparisons.",
@@ -694,7 +694,7 @@ export default function App() {
                         "Income",
                         "Transactions",
                         "Budgets",
-                        "Savings & investing",
+                        "Stacking",
                         "Reports",
                       ] as Page[]
                     ).includes(page) && (
@@ -847,7 +847,9 @@ export default function App() {
                   <>
                     <OverviewView
                       transactions={transactions}
-                      utilities={<QuickEntries onAdd={setDialog} />}
+                      utilities={
+                        <QuickEntries onAdd={setDialog} accounts={accounts} />
+                      }
                       spendingPace={
                         <SpendingPaceCard
                           month={report.month}
@@ -1280,17 +1282,7 @@ export default function App() {
                     </p>
                   </>
                 )}
-                {page === "Savings & investing" && accounts.length > 0 && (
-                  <Goals
-                    accounts={accounts}
-                    revision={revision}
-                    onSaved={(message) => {
-                      setNotice(message);
-                      refresh();
-                    }}
-                  />
-                )}
-                {(page === "Budgets" || page === "Savings & investing") && (
+                {(page === "Budgets" || page === "Stacking") && (
                   <MoneyTracking
                     key={page}
                     budgetMode={page === "Budgets"}
@@ -1302,6 +1294,16 @@ export default function App() {
                     transactions={transactions}
                     budgets={budgets}
                     onAdd={setDialog}
+                    onSaved={(message) => {
+                      setNotice(message);
+                      refresh();
+                    }}
+                  />
+                )}
+                {page === "Stacking" && accounts.length > 0 && (
+                  <Goals
+                    accounts={accounts}
+                    revision={revision}
                     onSaved={(message) => {
                       setNotice(message);
                       refresh();

@@ -29,17 +29,27 @@ test("spending above income remains visible beyond the needle scale", () => {
   expect(screen.getByText("153.2%")).toBeInTheDocument();
 });
 
-test("cash deficit and negative savings use both-currency USD totals", () => {
+test("spending pressure uses both-currency USD totals; stacking replaces dollar savings", () => {
   render(
     <CashflowCockpit
-      report={report("80", "100")}
+      report={{
+        ...report("80", "100"),
+        stacked: {
+          bitcoin: "250000",
+          usd: "20.00",
+          other_usd: "0.00",
+          stack_rate: "25.0",
+        },
+      }}
       categories={[]}
       onSaved={vi.fn()}
     />,
   );
   expect(screen.getByText("125.0%")).toBeInTheDocument();
-  expect(screen.getByText("Cash shortfall")).toBeInTheDocument();
-  expect(screen.getByText("-25.0%")).toBeInTheDocument();
+  expect(screen.getByText("Bitcoin stacked")).toBeInTheDocument();
+  expect(screen.getByText("₿250,000")).toBeInTheDocument();
+  expect(screen.getByText("25.0%")).toBeInTheDocument();
+  expect(screen.queryByText(/Savings rate|Cash surplus/)).toBeNull();
   expect(screen.queryByText("Spending Mix")).not.toBeInTheDocument();
 });
 
