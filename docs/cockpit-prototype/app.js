@@ -1,0 +1,506 @@
+/* Clickable prototype of the cockpit. Static: no server, no storage, fictional data. */
+(function () {
+  const S = { screen: "cockpit", data: "six", cond: "calm", theme: "night", lens: "USD", acks: {}, drawer: null, drill: null, sel: 0 };
+  const P = PROTO, D = P.six;
+  const sum = (a) => a.reduce((x, y) => x + y, 0);
+  const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+
+  /* ---------- Icons ---------- */
+  const I = {
+    advisory: `<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.4" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M8 7.2v4M8 4.7v.2" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>`,
+    caution: `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.9 14.7 13.6H1.3Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M8 6.3v3.4M8 11.6v.2" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>`,
+    warning: `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.3 1.4h5.4l3.9 3.9v5.4l-3.9 3.9H5.3l-3.9-3.9V5.3Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M8 4.6v4.2M8 11.1v.2" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>`,
+    ok: `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3.2L13 4.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  };
+  const ic = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+  const NAV = [
+    ["cockpit", "Cockpit", ic(`<path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-6"/><path d="M4 17h16"/>`)],
+    ["log", "Log", ic(`<path d="M8 6h12M8 12h12M8 18h12"/><path d="M4 6h.01M4 12h.01M4 18h.01"/>`)],
+    ["spending", "Spending", ic(`<path d="M3 17l5-6 4 3 5-8 4 5"/><path d="M3 21h18"/>`)],
+    ["bills", "Bills", ic(`<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><path d="M12 12l6-5"/>`)],
+    ["stack", "Stack", ic(`<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/><path d="M3 17.5l9 5 9-5" opacity=".5"/>`)],
+    ["accounts", "Accounts", ic(`<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 15h2"/>`)],
+    ["horizon", "Horizon", ic(`<path d="M2 16h20"/><path d="M6 16a6 6 0 0 1 12 0"/><path d="M12 5v2M5 8l1.4 1.4M19 8l-1.4 1.4M5 20h14"/>`)],
+    ["learn", "Learn", ic(`<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/>`)],
+    ["system", "System", ic(`<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>`)],
+  ];
+  const CRUMB = { cockpit: "Cockpit", log: "Flight log · every entry", spending: "Spending · where it goes", bills: "Bills · what is due", stack: "Stack · your bitcoin", accounts: "Accounts", horizon: "Horizon · retirement", learn: "Ground school · learn", system: "Design system · prototype" };
+
+  /* ---------- Logo ---------- */
+  const ridges = (bottom, front = "var(--mark-front)") =>
+    `<path fill="var(--mark-back)" d="M0 24C5 22 8.5 15.5 14 13.5C18 12 20.5 9.5 24.5 7.5C29 5.3 33 8 37 11.5C42 15.8 50 21 60 25.5V${bottom}H0Z"/>
+     <path fill="var(--mark-mid)" d="M17 27C24 23.5 30 19.5 35.5 14.5C38.8 11.5 42 10.6 45.5 13C50 16 55 19.8 60 22V${bottom}H17Z"/>
+     <path fill="${front}" d="M0 28C6 27 11 21.5 17.5 20.5C24 19.5 27.5 25 33.5 24.6C38.5 24.2 41 21.8 45 22.2C50 22.7 55 26 60 27.5V${bottom}H0Z"/>`;
+  const mark = (w) => `<svg viewBox="0 4 60 26" width="${w}" height="${(w * 26) / 60}" aria-hidden="true">${ridges(30)}</svg>`;
+  let tileN = 0;
+  const tile = (size) => {
+    const id = "tile" + ++tileN;
+    return `<svg viewBox="0 0 48 48" width="${size}" height="${size}" aria-hidden="true"><defs><clipPath id="${id}"><rect width="48" height="48" rx="11"/></clipPath></defs>
+      <g clip-path="url(#${id})"><rect width="48" height="48" fill="#f8f7f3"/><g transform="translate(-1 11) scale(.8334)">${ridges(46, "#304e5d")}</g></g></svg>`;
+  };
+  const stacked = (w, serif) => `<svg viewBox="0 0 200 118" width="${w}" height="${(w * 118) / 200}" role="img" aria-label="Appalachian Bitcoin">
+      <g transform="translate(0 -13.3) scale(3.3334)">${ridges(30)}</g>
+      <text x="0" y="112" textLength="200" lengthAdjust="spacing" fill="currentColor" style="font-family:${serif ? "Georgia,'Times New Roman',serif" : "var(--font-ui)"};font-size:${serif ? 21 : 13.5}px;${serif ? "font-weight:700" : "letter-spacing:.2em"}">${serif ? "Appalachian Bitcoin" : `APPALACHIAN <tspan font-weight="700">BITCOIN</tspan>`}</text></svg>`;
+
+  /* ---------- Model ---------- */
+  function model() {
+    const lens = S.lens, t = S.cond === "trouble";
+    const fmt = (v) => (lens === "USD" ? F.usd(v) : F.btc(v));
+    if (S.data === "day3") {
+      const ex = P.day3.expenses;
+      let run = 0;
+      return {
+        day3: true, lens: "USD", fmt: F.usd, checking: P.day3.checking, expenses: ex, log: ex.slice().reverse(),
+        pace: { cur: [0].concat(ex.map((e) => (run += e.cents))), prev: null, from: 16 }, spent: sum(ex.map((e) => e.cents)),
+        cats: ex.map((e) => [e.cat, e.cents]), alerts: [],
+      };
+    }
+    const extra = t ? [{ day: 8, name: "Tires", cat: "Auto", acct: "Visa", cents: 45420, kind: "expense" }] : [];
+    const ex = D.expenses.concat(extra).sort((a, b) => a.day - b.day);
+    const missing = t ? new Set(["Hardware store", "Transit pass"]) : new Set();
+    const rate = (day) => 850 - day * 0.42;
+    const sat = (e) => (missing.has(e.name) ? null : Math.round((e.cents / 100) * rate(e.day)));
+    const conv = (cents, mo) => (lens === "USD" ? cents : Math.round((cents / 100) * P.RATE[mo]));
+    const val = (e) => (lens === "USD" ? e.cents : sat(e) ?? Math.round((e.cents / 100) * rate(e.day)));
+
+    // Runway
+    const checking = D.checking[S.cond];
+    const bills = (t ? [D.overdue] : []).concat(D.bills).map((b) => ({ ...b }));
+    const events = bills.map((b) => ({ ...b, origDay: b.day, overdue: b.day < 0, day: Math.max(0, b.day), pay: false }))
+      .concat(D.paydays.map((p) => ({ ...p, pay: true })))
+      .sort((a, b) => a.day - b.day || a.pay - b.pay); // same day: bills first (conservative)
+    let bal = checking, low = checking, lowDay = 0, dueBefore = 0, shortDay = null;
+    const firstPay = D.paydays[0].day;
+    const steps = events.map((e) => {
+      bal += e.pay ? e.cents : -e.cents;
+      if (!e.pay && e.day <= firstPay) dueBefore += e.cents;
+      if (bal < low && e.day <= firstPay) (low = bal), (lowDay = e.day);
+      if (bal < 0 && shortDay === null && e.day <= firstPay) shortDay = e.day;
+      return { ...e, after: bal };
+    });
+    let b2 = checking, covered = 60;
+    for (const e of bills.concat(D.bills.map((b) => ({ ...b, day: b.day + 30 }))).sort((a, b) => a.day - b.day)) {
+      b2 -= e.cents;
+      if (b2 < 0) { covered = Math.max(0, e.day) - 1; break; }
+    }
+    const runway = { start: checking, steps, low, lowDay, shortDay, dueBefore, covered, firstPay, maxBill: Math.max(...bills.map((b) => b.cents)) };
+
+    // Spending
+    const catNames = [...new Set(ex.map((e) => e.cat))];
+    const catNow = Object.fromEntries(catNames.map((c) => [c, sum(ex.filter((e) => e.cat === c).map(val))]));
+    const spentUsd = sum(ex.map((e) => e.cents)), spent = sum(ex.map(val));
+    const daily = Array.from({ length: 19 }, (_, i) => sum(ex.filter((e) => e.day === i + 1).map(val)));
+    let c1 = 0, c2 = 0;
+    const cur = daily.map((v) => (c1 += v)), prev = D.octDaily.map((v) => (c2 += conv(v, "oct")));
+    const prior = prev[18];
+    const steps2 = catNames.map((c) => ({ name: c, was: conv(D.octCats[c] || 0, "oct"), now: catNow[c] }))
+      .map((s) => ({ ...s, change: s.now - s.was })).filter((s) => s.change !== 0).sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
+    const priorCats = sum(catNames.map((c) => conv(D.octCats[c] || 0, "oct")));
+    let run = priorCats;
+    for (const s of steps2) { s.start = run; run += s.change; s.end = run; }
+    const bridge = { prior: priorCats, current: run, steps: steps2 };
+
+    // Month flow
+    const stackUsd = sum(D.other.filter((o) => o.kind === "stack").map((o) => o.cents));
+    const stackBtc = sum(D.other.filter((o) => o.kind === "stack").map((o) => o.bitcoin));
+    const incomeUsd = sum(D.income.map((i) => i[1])), movesUsd = sum(D.moves.map((i) => i[1]));
+    const restUsd = incomeUsd - spentUsd - stackUsd - movesUsd;
+    const cv = (c) => conv(c, "nov");
+    const flow = {
+      sources: D.income.map(([name, v]) => ({ name, v: cv(v) })),
+      dests: [{ name: "Bitcoin stacked", v: lens === "USD" ? stackUsd : stackBtc, kind: "stack", label: lens === "USD" ? `${F.btc(stackBtc)} · ${F.usd(stackUsd)}` : F.btc(stackBtc), note: "2 buys · actual amounts received" }]
+        .concat(catNames.map((c) => ({ name: c, v: catNow[c], kind: "spend", drill: true })).sort((a, b) => b.v - a.v))
+        .concat(D.moves.map(([name, v]) => ({ name: "To " + name.toLowerCase(), v: cv(v), kind: "move" })))
+        .concat([{ name: "Still in checking", v: 0, kind: "rest", note: "Not assigned yet. Dollars waiting, not savings." }]),
+    };
+    const assigned = sum(flow.dests.map((d) => d.v));
+    flow.dests[flow.dests.length - 1].v = Math.max(0, sum(flow.sources.map((s) => s.v)) - assigned);
+
+    const card = { ...D.card, balance: D.card.balance[S.cond] };
+    card.util = (card.balance / card.limit) * 100;
+    const m = {
+      lens, fmt, t, checking, bills, runway, expenses: ex, sat, missing, rate,
+      pace: { cur, prev, from: 1 }, spent, spentUsd, prior: priorCats, bridge, flow, catNow, catNames,
+      stack: { ...D.stack, buys: D.other.filter((o) => o.kind === "stack"), stackUsd, stackBtc, rate: (stackUsd / incomeUsd) * 100 },
+      incomeUsd, movesUsd, restUsd, two: D.twoSystems, card, mortgage: D.mortgage,
+      log: ex.concat(D.other).sort((a, b) => b.day - a.day),
+    };
+    m.alerts = alerts(m);
+    return m;
+  }
+
+  /* ---------- Annunciator ---------- */
+  const LAMPS = [["overdue", "Bill overdue"], ["cash", "Cash short"], ["card", "Card due"], ["pace", "Spend pace"], ["util", "Credit use"], ["allow", "Allowance"], ["price", "Price feed"], ["conv", "Missing price"], ["backup", "Backup"], ["stack", "No stack yet"]];
+  const RANK = { warning: 3, caution: 2, advisory: 1 };
+  function alerts(m) {
+    if (!m.t) return [];
+    const r = m.runway, pct = ((m.spentUsd - 179255) / 179255) * 100;
+    return [
+      { id: "overdue", level: "warning", sev: 3, title: "Car registration was due Nov 16", why: "3 days past due. Late fees start small and grow, and a lapse is harder to undo than a payment.", act: "Record payment", go: "bills", inst: "radar" },
+      { id: "cash", level: "warning", sev: -r.low, title: `Checking runs short on ${F.date(r.shortDay)}`, why: `The Visa payment lands ${r.firstPay - r.shortDay} days before your ${F.date(r.firstPay)} paycheck. Bills due by then total ${F.usd(r.dueBefore)}; checking holds ${F.usd(m.checking)}. The gap is ${F.usd(-r.low)}.`, act: "Move money from reserve", go: "accounts", inst: "runway" },
+      { id: "pace", level: "caution", sev: pct, title: `Spending is ${pct.toFixed(0)}% ahead of October`, why: `${F.usd(m.spentUsd - 179255)} more than through October 19. The largest new cost is Auto (${F.usd(45420)}).`, act: "See what changed", go: "spending", inst: "pace" },
+      { id: "util", level: "caution", sev: m.card.util, title: `${m.card.name} is at ${m.card.util.toFixed(0)}% of its limit`, why: `${F.usd(m.card.balance)} of ${F.usd(m.card.limit)}. A balance this high costs interest and leaves little headroom. Your caution threshold is 30%.`, act: "Plan a payment", go: "accounts", inst: "debt" },
+      { id: "backup", level: "caution", sev: 34, title: "Last encrypted backup was 34 days ago", why: "This ledger lives only on this machine. A backup is the only copy that survives a failed disk.", act: "Back up now", go: "system" },
+      { id: "conv", level: "advisory", sev: 2, title: "2 expenses have no purchase-date bitcoin price", why: "Their bitcoin cost is shown as missing, never guessed. Totals that include them are marked partial until a dated price is saved.", act: "Review missing prices", go: "log", inst: "log" },
+    ];
+  }
+  const isAcked = (a) => S.acks[a.id] && S.acks[a.id].level === a.level && a.sev <= S.acks[a.id].sev;
+  const flag = (m, inst) => {
+    const a = m.alerts.filter((x) => x.inst === inst).sort((x, y) => RANK[y.level] - RANK[x.level])[0];
+    return a ? { cls: ` flag-${a.level}`, chip: `<button class="flagchip ${a.level}" data-open="${a.id}">${I[a.level]}${a.level}</button>` } : { cls: "", chip: "" };
+  };
+
+  function annunciator(m) {
+    const lit = Object.fromEntries(m.alerts.map((a) => [a.id, a]));
+    const n = m.alerts.length;
+    const state = n
+      ? `<span class="annun-state">${n} active</span>`
+      : `<span class="annun-state ok">${I.ok} All normal</span>`;
+    return `<section class="annun" aria-label="Annunciator panel">${state}<div class="lamps" role="list">${LAMPS.map(([id, label]) => {
+      const a = lit[id];
+      return a
+        ? `<button role="listitem" class="lamp on l-${a.level}${isAcked(a) ? " acked" : ""}" data-open="${id}" aria-label="${a.level}: ${label}. ${esc(a.title)}${isAcked(a) ? " (acknowledged)" : ""}">${I[a.level]}<span>${label}</span></button>`
+        : `<span role="listitem" class="lamp" aria-label="${label}: normal">${label}</span>`;
+    }).join("")}</div></section>`;
+  }
+  function master(m) {
+    const open = m.alerts.filter((a) => a.level !== "advisory");
+    const un = open.filter((a) => !isAcked(a));
+    const top = un.some((a) => a.level === "warning") ? "warn" : un.length ? "caution" : "";
+    const cls = top ? ` is-${top}` : open.length ? " is-acked" : "";
+    const txt = top ? `Master ${top === "warn" ? "warning" : "caution"}` : open.length ? `${open.length} acknowledged` : "Master caution";
+    return `<button class="master${cls}" data-master aria-label="${txt}. ${un.length} unacknowledged.">${top === "warn" ? I.warning : I.caution}<span class="txt">${txt}</span>${un.length ? `<span class="num">${un.length}</span>` : ""}</button>`;
+  }
+  function drawer(m) {
+    if (S.drawer === null) return "";
+    const list = m.alerts.slice().sort((a, b) => RANK[b.level] - RANK[a.level]);
+    return `<div class="scrim" data-close></div><aside class="drawer" role="dialog" aria-label="Active alerts" aria-modal="true">
+      <header><h2>Annunciator · ${list.length} active</h2>${list.some((a) => !isAcked(a)) ? `<button class="btn sm" data-ackall>Acknowledge all</button>` : ""}<button class="btn sm ghost" data-close aria-label="Close">Close <kbd>Esc</kbd></button></header>
+      <div class="body">${list.length ? list.map((a) => `<article class="alert ${a.level}${S.drawer === a.id ? " focus" : ""}">
+        <span class="flagchip ${a.level}">${I[a.level]}${a.level}${isAcked(a) ? " · acknowledged" : ""}</span>
+        <h3>${esc(a.title)}</h3><p>${esc(a.why)}</p>
+        <div class="acts"><button class="btn primary" data-go="${a.go}">${a.act} →</button>${isAcked(a) ? "" : `<button class="btn ghost" data-ack="${a.id}">Acknowledge</button>`}</div>
+        ${isAcked(a) ? `<p class="hint">Stays lit until fixed. Comes back to your attention if it gets worse.</p>` : ""}</article>`).join("")
+        : `<p class="sub">${I.ok} All normal. Nothing needs you.</p>`}
+        <p class="hint">Thresholds are adjustable in Settings → Warning lights.</p></div></aside>`;
+  }
+
+  /* ---------- Instruments ---------- */
+  const inst = (cls, name, plain, body, opts = {}) =>
+    `<section class="inst ${cls}${opts.flag ? opts.flag.cls : ""}" aria-label="${name}: ${plain}"><div class="inst-h"><span class="inst-name">${name}</span><span class="inst-plain">${plain}</span>${opts.flag ? opts.flag.chip : ""}${opts.link && !(opts.flag && opts.flag.chip) ? `<button class="inst-link" data-go="${opts.link[0]}">${opts.link[1]} →</button>` : ""}</div>${body}</section>`;
+
+  function iRunway(m, cls) {
+    const r = m.runway, f = flag(m, "runway"), short = r.low < 0;
+    return inst(cls, "Runway", "checking against known bills", `
+      <div class="split" style="align-items:flex-end;flex-wrap:wrap">
+        <div style="flex:1 1 240px"><div class="lead" style="font-weight:700;${short ? "color:var(--warn)" : ""}">${short ? `Short before payday` : `Covered through payday`}</div>
+        <div class="sub">${short ? `Checking runs out on ${F.date(r.shortDay)}, ${r.firstPay - r.shortDay} days before the ${F.date(r.firstPay)} paycheck.` : `Known bills are covered for <b class="num">${r.covered} days</b>, even if no paycheck arrives.`}</div></div>
+        <div class="kv" style="flex:2 1 330px">
+          <div><span>In checking</span><b>${F.usd(m.checking)}</b></div>
+          <div><span>Due before payday</span><b>${F.usd(r.dueBefore)}</b></div>
+          <div><span>${short ? "Shortfall" : "Free after bills"}</span><b style="${short ? "color:var(--warn)" : ""}">${F.usd(Math.abs(r.low))}</b></div>
+        </div>
+      </div>
+      <div class="chart" data-chart="runway" style="height:150px"></div>
+      <div class="key"><span><i style="background:var(--usd)"></i>Balance after known bills</span><span><i style="background:var(--plan)"></i>Planned paycheck, not recorded yet</span><span class="dim">Circle size = bill amount</span></div>`,
+      { flag: f, link: ["bills", "Bills"] });
+  }
+
+  function iStack(m, cls) {
+    const s = m.stack, gain = s.held - s.monthStart;
+    return inst(cls, "Stack", "bitcoin held", `
+      <div class="split">
+        <div class="chart" data-chart="tape" style="width:74px;height:158px;flex:none"></div>
+        <div style="flex:1;display:grid;gap:6px;align-content:start">
+          <div class="num hero btc">${F.btc(s.held)}</div>
+          <div class="sub"><b class="num btc">▲ ${F.btc(gain)}</b> this month</div>
+          <div class="sub num">${s.buys.length} buys · ${F.usd(s.stackUsd)} · ${s.rate.toFixed(1)}% of income</div>
+          <div class="chart" data-chart="spark" style="height:52px"></div>
+        </div>
+      </div>
+      <ul class="rows" style="flex:1;align-content:start">${s.wallets.map(([n, v]) => `<li style="grid-template-columns:1fr auto"><span>${n}</span><span class="num">${F.btc(v)}</span></li>`).join("")}</ul>
+      <div class="sub" style="border-top:1px solid var(--hairline);padding-top:8px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><span class="num">${F.btc(D.price.perDollar)} per $1</span><span class="dim">${D.price.source} · ${D.price.when}</span></div>`,
+      { link: ["stack", "Stack"] });
+  }
+
+  function iTwo(m, cls) {
+    const t = m.two, n = t.months.length, du = (t.usd[n - 1] / t.usd[0] - 1) * 100, db = (t.bitcoin[n - 1] / t.bitcoin[0] - 1) * 100;
+    return inst(cls, "Two systems", "the same life, priced two ways", `
+      <div class="lead">Since ${t.months[0]}, a month of your life costs <b class="num">${F.pct(du)}</b> in dollars and <b class="num btc">${F.pct(db)}</b> in bitcoin.</div>
+      <div class="chart" data-chart="dual" style="flex:1;min-height:132px"></div>
+      <div class="kv"><div><span>${t.months[n - 1]} in dollars</span><b>${F.usd(t.usd[n - 1])}</b></div><div><span>${t.months[n - 1]} in bitcoin</span><b class="btc">${F.btc(t.bitcoin[n - 1])}</b></div></div>
+      <div class="hint">Full months only. Each expense is priced in bitcoin on the day it was paid. It can go the other way; this shows what happened.</div>`,
+      { link: ["learn", "Why"] });
+  }
+
+  function iMonth(m, cls) {
+    const out = m.spentUsd + m.stack.stackUsd + m.movesUsd, w = (v) => `flex:${v} 0 0`;
+    return inst(cls, "This month", "in and out · Nov 1–19", `
+      <div class="kv"><div><span>In</span><b>${F.usd(m.incomeUsd)}</b></div><div><span>Out</span><b>${F.usd(out)}</b></div></div>
+      <div class="stackbar" role="img" aria-label="Out: spending ${F.usd(m.spentUsd)}, bitcoin ${F.usd(m.stack.stackUsd)}, other moves ${F.usd(m.movesUsd)}, still in checking ${F.usd(m.restUsd)}">
+        <i style="${w(m.spentUsd)};background:var(--usd)" data-tip="Spending ${F.usd(m.spentUsd)}"></i><i style="${w(m.stack.stackUsd)};background:var(--btc)" data-tip="Bitcoin stacked ${F.btc(m.stack.stackBtc)} for ${F.usd(m.stack.stackUsd)}"></i><i style="${w(m.movesUsd)};background:var(--ink-3)" data-tip="Other moves ${F.usd(m.movesUsd)}"></i><i style="${w(Math.max(m.restUsd, 0))};background:var(--bezel)" data-tip="Still in checking ${F.usd(m.restUsd)}"></i></div>
+      <ul class="rows">
+        <li style="grid-template-columns:12px 1fr auto"><i style="width:9px;height:9px;border-radius:2px;background:var(--usd)"></i><span>Spending</span><span class="num">${F.usd(m.spentUsd)}</span></li>
+        <li style="grid-template-columns:12px 1fr auto"><i style="width:9px;height:9px;border-radius:2px;background:var(--btc)"></i><span><b class="btc">Bitcoin stacked</b></span><span class="num btc">${F.btc(m.stack.stackBtc)}</span></li>
+        <li style="grid-template-columns:12px 1fr auto"><i style="width:9px;height:9px;border-radius:2px;background:var(--ink-3)"></i><span>Other moves</span><span class="num">${F.usd(m.movesUsd)}</span></li>
+        <li style="grid-template-columns:12px 1fr auto"><i style="width:9px;height:9px;border-radius:2px;background:var(--bezel)"></i><span class="dim">Still in checking</span><span class="num dim">${F.usd(m.restUsd)}</span></li>
+      </ul>`, { link: ["spending", "Flow"] });
+  }
+
+  function iPace(m, cls, h = 118) {
+    const f = flag(m, "pace"), has = !!m.pace.prev, d = has ? m.spent - m.prior : 0, pct = has ? (d / m.prior) * 100 : 0;
+    return inst(cls, "Spend pace", has ? "vs October, same days" : "this month so far", `
+      <div class="split" style="align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:4px 12px">
+        <span class="num read">${m.fmt(m.spent)}</span>
+        ${has ? `<span class="sub num"><b style="color:var(--ink)">${F.pct(pct)}</b> · ${d >= 0 ? "+" : "−"}${m.fmt(Math.abs(d))} vs Oct 19</span>` : `<span class="sub">Tracking since Nov 17</span>`}
+      </div>
+      <div class="chart" data-chart="pace" style="flex:1;min-height:${h}px"></div>
+      ${has ? (m.missing.size && m.lens !== "USD" ? `<div class="hint">Partial: ${m.missing.size} expenses have no saved bitcoin price and use the day's reference here.</div>` : "") : `<div class="hint">Comparison with last month starts December 1. Nothing is estimated before then.</div>`}`,
+      { flag: f, link: ["spending", "Spending"] });
+  }
+
+  function iRadar(m, cls) {
+    const f = flag(m, "radar"), up = m.bills.filter((b) => b.day >= 0), late = m.bills.filter((b) => b.day < 0);
+    const wk = up.filter((b) => b.day <= 7), mo = up.filter((b) => b.day <= 30);
+    return inst(cls, "Bills radar", "what is due", `
+      <div class="kv"><div><span>Next 7 days</span><b>${F.usd(sum(wk.map((b) => b.cents)))}</b></div><div><span>Next 30 days</span><b>${F.usd(sum(mo.map((b) => b.cents)))}</b></div></div>
+      <div class="split" style="flex:1">
+        <div class="chart" data-chart="radar" style="width:128px;height:128px;flex:none;align-self:center"></div>
+        <ul class="rows" style="flex:1;align-content:center">${late.concat(up).slice(0, 3).map((b) => `<li style="grid-template-columns:minmax(0,1fr) auto"><span class="nm">${esc(b.name)}<small class="num ${b.day < 0 ? "overdue" : "dim"}" style="display:block">${b.day < 0 ? `${-b.day} days overdue` : `${F.date(b.day)} · ${b.day} days`}</small></span><span class="num">${F.usd(b.cents)}</span></li>`).join("")}</ul>
+      </div>`, { flag: f, link: ["bills", `All ${up.length + late.length}`] });
+  }
+
+  function iDebt(m, cls) {
+    const f = flag(m, "debt"), c = m.card, mg = m.mortgage;
+    return inst(cls, "Cards & debt", "what you owe", `
+      <div style="display:grid;gap:6px">
+        <div class="split" style="justify-content:space-between;align-items:baseline"><span>${c.name}</span><span class="num lead">${F.usd(c.balance)}</span></div>
+        <div class="bar" role="img" aria-label="${c.util.toFixed(0)}% of limit used; caution threshold 30%"><i style="width:${Math.min(c.util, 100)}%"></i><u style="left:30%" data-tip="Your caution threshold: 30% of limit"></u></div>
+        <div class="sub num" style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><span>${c.util.toFixed(0)}% of ${F.usd0(c.limit)} limit</span><span>Payment ${F.usd(c.statement)} due ${F.date(c.dueDay)}</span></div>
+      </div>
+      <div style="display:grid;gap:4px;border-top:1px solid var(--hairline);padding-top:8px">
+        <div class="split" style="justify-content:space-between;align-items:baseline"><span>${mg.name}</span><span class="num lead">${F.usd(mg.balance)}</span></div>
+        <div class="sub num" style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><span>▼ ${F.usd(mg.history[0] - mg.balance)} since Jun</span><span class="plan">At this pace: paid off 2052</span></div>
+      </div>`, { flag: f, link: ["accounts", "Accounts"] });
+  }
+
+  function iBridge(m, cls) {
+    return inst(cls, "Month bridge", "what changed since October", `
+      <div class="chart" data-chart="bridge"></div>
+      <div class="key"><span><i style="background:${m.lens === "USD" ? "var(--usd)" : "var(--btc)"}"></i>Spent more</span><span><i style="border:1.4px dashed ${m.lens === "USD" ? "var(--usd)" : "var(--btc)"}"></i>Spent less</span><span class="dim">Same days of each month</span></div>`,
+      { link: ["spending", "Explore"] });
+  }
+  function iWatershed(m, cls, h = 270) {
+    return inst(cls, "Watershed", "where November's income flowed · month so far", `<div class="chart" data-chart="watershed" style="height:${h}px"></div>`, { link: ["spending", "Explore"] });
+  }
+  function iAllow(m, cls) {
+    const rows = D.allowances.map(([c, cap]) => {
+      const used = sum(m.expenses.filter((e) => e.cat === c).map((e) => e.cents)), pct = (used / cap) * 100;
+      return `<div style="display:grid;gap:4px"><div class="split" style="justify-content:space-between"><span>${c}</span><span class="num sub">${F.usd(used)} of ${F.usd0(cap)}</span></div>
+        <div class="bar" role="img" aria-label="${pct.toFixed(0)}% of allowance used"><i style="width:${Math.min(pct, 100)}%"></i><u style="left:63%" data-tip="Today: 63% of the month has passed"></u></div></div>`;
+    }).join("");
+    return inst(cls, "Allowances", "dollar budgets", `<div style="display:grid;gap:9px">${rows}</div><div class="hint">The mark is today. A bar past the mark is spending faster than the month.</div>`, { link: ["spending", "Budgets"] });
+  }
+  function iHorizon(m, cls) {
+    const h = D.horizon;
+    return inst(cls, "Horizon", "hypothetical course", `
+      <div class="lead"><b>${h.name}:</b> <span class="plan">funded to age ${h.fundedTo}</span>, retiring at ${h.retireAge}.</div>
+      <div class="chart" data-chart="course" style="height:70px"></div>
+      <div class="kv"><div><span>Life / month</span><b>${F.usd(h.monthlyUsd)}</b></div><div><span>Same, in bitcoin</span><b class="btc">${F.btc(h.monthlyBitcoin)}</b></div></div>
+      <div class="hint">A projection from your saved assumptions. It never touches the ledger.</div>`, { link: ["horizon", "Scenarios"] });
+  }
+  function logRows(m, list, sel, slim) {
+    return list.map((e, i) => {
+      const sign = e.kind === "income" ? "+" : e.kind === "expense" ? "−" : "";
+      const b = e.kind === "stack" ? `<span class="btc">+${F.btc(e.bitcoin)}</span>` : m.day3 ? `<span class="tag miss">no price source</span>` : e.kind === "expense" ? (m.sat(e) === null ? `<span class="tag miss">${I.advisory ? "" : ""}no price saved</span>` : F.btc(m.sat(e))) : `<span class="dim">${F.btc(Math.round((e.cents / 100) * m.rate(e.day)))}</span>`;
+      return `<tr class="${sel === i ? "sel" : ""}"><td class="num dim">Nov ${e.day}</td><td class="w">${esc(e.name)}</td><td class="hide-s"><span class="tag">${e.cat}</span></td>${slim ? "" : `<td class="dim hide-s">${e.acct}</td>`}<td class="num r">${sign}${F.usd(e.cents)}</td><td class="num r">${b}</td></tr>`;
+    }).join("");
+  }
+  function iLog(m, cls, n = 6) {
+    const f = flag(m, "log");
+    return inst(cls, "Flight log", "latest entries", `<div style="overflow:hidden"><table class="log"><thead><tr><th>Date</th><th>Entry</th><th class="hide-s">Category</th><th class="r">Dollars</th><th class="r">Bitcoin that day</th></tr></thead><tbody>${logRows(m, m.log.slice(0, n), -1, true)}</tbody></table></div>`,
+      { flag: f, link: ["log", "Open log"] });
+  }
+
+  /* ---------- Day-one instruments ---------- */
+  function iPreflight(cls) {
+    const steps = [
+      [true, "Add your checking account", "Lit: Checking, Spend pace, Flight log"],
+      [false, "Set your next paycheck", "Lights: Runway", "Set payday"],
+      [false, "Add recurring bills", "Lights: Runway, Bills radar", "Add bills"],
+      [false, "Record your bitcoin", "Lights: Stack", "Add bitcoin"],
+      [false, "Choose a price source", "Lights: bitcoin cost on every expense", "Choose"],
+      [false, "Make an encrypted backup", "Arms: Backup light", "Back up"],
+    ];
+    return inst(cls, "Pre-flight", "1 of 6 done", `<div class="meter"><i style="width:16.7%;background:var(--ok)"></i></div>
+      <ol class="check">${steps.map(([done, t, sub, act]) => `<li class="${done ? "done" : ""}"><span class="box">${done ? I.ok : ""}</span><span class="t">${t}<small>${sub}</small></span>${act ? `<button class="btn sm">${act}</button>` : ""}</li>`).join("")}</ol>`);
+  }
+  const iInop = (cls, name, plain, needs, act) =>
+    `<section class="inst inop ${cls}" aria-label="${name}: not set up"><div class="inst-h"><span class="inst-name" style="color:var(--ink-3)">${name}</span><span class="inst-plain">${plain}</span></div><div class="sub" style="flex:1">${needs}</div><div><button class="btn sm">${act}</button></div></section>`;
+  const iWait = (cls, name, plain, have, need, unit, note) =>
+    `<section class="inst inop ${cls}" aria-label="${name}: collecting data"><div class="inst-h"><span class="inst-name" style="color:var(--ink-3)">${name}</span><span class="inst-plain">${plain}</span></div>
+      <div class="wait"><div class="sub">Collecting data — <b class="num">${have} of ${need}</b> ${unit}</div><div class="meter"><i style="width:${(have / need) * 100}%"></i></div><div class="hint">${note}</div></div></section>`;
+
+  function cockpit(m) {
+    if (m.day3) {
+      return `<div class="panel">
+        ${inst("c4", "Checking", "Everyday checking", `<div class="num hero">${F.usd(m.checking)}</div><div class="sub num">Opened with $2,140.00 on Nov 17 · ${F.usd(m.spent)} spent since</div>
+          <ul class="rows">${m.cats.map(([c, v]) => `<li style="grid-template-columns:1fr auto"><span>${c}</span><span class="num">${F.usd(v)}</span></li>`).join("")}</ul>`, { link: ["accounts", "Accounts"] })}
+        ${iPace(m, "c4", 124)}
+        ${iPreflight("c4")}
+        ${iLog(m, "c8", 3)}
+        ${iInop("c4", "Runway", "checking against known bills", `No bills or payday on file yet, so nothing is known to be due. Add them and this shows whether <b class="num">${F.usd(m.checking)}</b> covers everything before your next paycheck.`, "Add bills and payday")}
+        <div class="band">Powers up with your data</div>
+        ${iInop("c3", "Stack", "bitcoin held", "Record what you hold. Bitcoin is your saving; this is where it shows.", "Add bitcoin")}
+        ${iInop("c3", "Bills radar", "what is due", "Lights when the first bill is added.", "Add a bill")}
+        ${iWait("c3", "Month bridge", "what changed since last month", 3, 30, "days", "Needs one full month to compare against. Ready December 1.")}
+        ${iWait("c3", "Two systems", "the same life, priced two ways", 3, 60, "days", "Needs two full months and a price source. Ready about February 1.")}
+      </div>`;
+    }
+    return `<div class="panel">
+      ${iTwo(m, "c4")}${iRunway(m, "c5")}${iStack(m, "c3")}
+      ${iPace(m, "c3")}${iMonth(m, "c3")}${iRadar(m, "c3")}${iDebt(m, "c3")}
+      <div class="band">Month in detail</div>
+      ${iWatershed(m, "c7")}${iBridge(m, "c5")}
+      ${iLog(m, "c6")}${iAllow(m, "c3")}${iHorizon(m, "c3")}
+    </div>`;
+  }
+
+  /* ---------- Other screens ---------- */
+  function spending(m) {
+    if (m.day3) return `<div class="page"><h1>Spending</h1><p class="intro">Three days in. The pace line works already; comparisons arrive as months complete.</p><div class="grid2">${iPace(m, "c6", 180)}${iWait("c6", "Month bridge", "what changed since last month", 3, 30, "days", "Ready December 1.")}</div></div>`;
+    const drill = S.drill ? m.expenses.filter((e) => e.cat === S.drill) : null;
+    return `<div class="page"><h1>Spending</h1><p class="intro">November 1–19 against the same days of October. Switch <b>$</b> / <b class="btc">₿</b> in the top bar to price everything in bitcoin at each purchase date. Select a category to see the entries behind it.</p>
+      <div class="grid2">${iPace(m, "c5", 190)}${iBridge(m, "c7")}${iWatershed(m, "c12", 300)}
+      ${drill ? inst("c12", S.drill, `${drill.length} entries behind ${m.fmt(m.catNow[S.drill])}`, `<table class="log"><thead><tr><th>Date</th><th>Entry</th><th class="hide-s">Category</th><th class="hide-s">Account</th><th class="r">Dollars</th><th class="r">Bitcoin that day</th></tr></thead><tbody>${logRows(m, drill, -1)}</tbody></table><div><button class="btn sm ghost" data-drill-clear>Clear selection</button></div>`) : `<p class="hint" style="grid-column:1/-1">Select a bridge row or a spending stream to list its entries here.</p>`}
+      </div></div>`;
+  }
+  function log(m) {
+    return `<div class="page"><h1>Flight log</h1><p class="intro">Every entry, newest first. Corrections never edit history: they append a reversal and a replacement.</p>
+      ${inst("", "New entry", "type, Tab, Enter — stays open for the next one", `<div class="entry">
+        <label class="field"><span>Date</span><input value="Nov 19" aria-label="Date"></label>
+        <label class="field"><span>Payee or note</span><input id="payee" value="Mountain Market" aria-label="Payee or note"></label>
+        <label class="field"><span>Category</span><input value="Groceries" aria-label="Category"></label>
+        <label class="field"><span>Account</span><input value="${m.day3 ? "Everyday checking" : "Ridgeline Visa"}" aria-label="Account"></label>
+        <label class="field"><span>Amount</span><input class="num" value="−42.18" aria-label="Amount"></label>
+        <button class="btn primary">Save <kbd>⏎</kbd></button></div>
+        <div class="hint num">${m.day3 ? "No price source yet, so no bitcoin cost is recorded. It is never guessed later." : `= ${F.btc(35516)} at today's reference (${D.price.source}). Saved with the entry, never repriced.`}  ·  <kbd>N</kbd> new  <kbd>J</kbd>/<kbd>K</kbd> move  <kbd>E</kbd> correct  <kbd>/</kbd> search</div>`)}
+      ${inst("", "Entries", `${m.log.length} this month`, `<div style="overflow:hidden"><table class="log"><thead><tr><th>Date</th><th>Entry</th><th class="hide-s">Category</th><th class="hide-s">Account</th><th class="r">Dollars</th><th class="r">Bitcoin that day</th></tr></thead><tbody>${logRows(m, m.log, S.sel)}</tbody></table></div>`)}
+    </div>`;
+  }
+  const STUB = {
+    bills: ["Bills", "The radar at full size, a 30-day calendar strip, recurring bills, and your paycheck schedule. One tap confirms a payment; nothing ever posts by itself."],
+    stack: ["Stack", "Your bitcoin: holdings by wallet, every buy with the price actually paid, the stacking trend, and the Two systems view at full size. Price source and provenance live here."],
+    accounts: ["Accounts", "Checking, cards, reserve, brokerage, property and loans in one place. Bitcoin and dollars are listed in their own units; no combined net worth figure."],
+    horizon: ["Horizon", "The existing retirement planner, restyled: saved scenarios side by side in both systems. Everything here is hypothetical and drawn in amethyst."],
+    learn: ["Ground school", "A short, well-made course on thinking in two monetary systems, using your own ledger as the worked example."],
+  };
+  function stub(k) {
+    return `<div class="page"><h1>${STUB[k][0]}</h1><p class="intro">${STUB[k][1]}</p>${iInop("", "Not in this prototype", "described in docs/cockpit-design.md", "This screen is specified in the design brief and will be built in its increment.", "Back to cockpit").replace("<button", '<button data-go="cockpit"')}</div>`;
+  }
+  function system() {
+    const sw = (v, name, use) => `<div class="sw"><i style="background:var(${v})"></i><div>${name}<small>${use}</small></div></div>`;
+    const lamp = (lvl, label, acked) => `<span class="lamp on l-${lvl}${acked ? " acked" : ""}">${I[lvl]}<span>${label}</span></span>`;
+    return `<div class="page"><h1>Design system</h1><p class="intro">The mark, the colour meanings, the type and the lamp states this prototype is built from.</p>
+      ${inst("", "Logo", "three ridges, redrawn; wordmark set to the mark's width and baseline", `<div class="lockups">
+        ${["night", "day"].map((t) => `<div class="plate ${t}"><div class="lockup">${mark(46)}<span class="wordmark">Appalachian <b>Bitcoin</b></span></div><small>Horizontal · ${t}</small></div>`).join("")}
+        ${["night", "day"].map((t) => `<div class="plate ${t}">${stacked(190)}<small>Stacked · ${t}</small></div>`).join("")}
+        <div class="plate night">${stacked(190, true)}<small>Alternate wordmark · serif</small></div>
+        <div class="plate day"><div class="split" style="align-items:flex-end;gap:16px">${tile(64)}${tile(32)}${tile(16)}</div><small>App icon · 64, 32, 16 px</small></div>
+        <div class="plate night"><div class="split" style="align-items:flex-end;gap:16px">${tile(64)}${tile(32)}${tile(16)}</div><small>App icon on dark</small></div>
+        <div class="plate night"><div class="split" style="align-items:center;gap:16px">${mark(96)}${mark(40)}${mark(22)}</div><small>Mark only</small></div>
+      </div>`)}
+      ${inst("", "Colour", "every colour means one thing", `<div class="swatches">
+        ${sw("--btc", "Copper", "Bitcoin. Saving.")}${sw("--usd", "Mist", "Dollars, neutral readings")}${sw("--plan", "Amethyst", "Planned or hypothetical")}${sw("--ok", "Green", "In range")}
+        ${sw("--adv-fill", "Blue", "Advisory light only")}${sw("--caution-fill", "Amber", "Caution light only")}${sw("--warn-fill", "Red", "Warning light only")}
+        ${sw("--bg", "Night", "Canvas")}${sw("--panel", "Panel", "Instrument face")}${sw("--bezel", "Bezel", "Instrument edge")}${sw("--ink", "Ink", "Primary text")}${sw("--ink-3", "Ink 3", "Labels")}</div>`)}
+      ${inst("", "Type", "B612, designed for aircraft displays; its digits share one width, so numbers align", `<div style="display:grid;gap:6px">
+        <div class="num hero">₿21,932,000 <span class="dim" style="font-size:15px">Hero 34</span></div><div class="num read">$4,812.40 <span class="dim" style="font-size:13px">Readout 24</span></div>
+        <div class="lead">Covered through payday <span class="dim">Lead 15</span></div><div>Known bills are covered for 33 days. <span class="dim">Body 13</span></div>
+        <div class="inst-name">Instrument name <span class="dim" style="letter-spacing:0;text-transform:none;font-weight:400">Label 11, tracked caps</span></div></div>`)}
+      ${inst("", "Lamps", "level is carried by shape, word and colour together", `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px">
+        ${lamp("advisory", "Advisory")}${lamp("caution", "Caution")}${lamp("warning", "Warning")}${lamp("advisory", "Acknowledged", 1)}${lamp("caution", "Acknowledged", 1)}${lamp("warning", "Acknowledged", 1)}<span class="lamp">Normal (dark)</span></div>
+        <div class="hint">Circle = advisory, triangle = caution, octagon = warning. Acknowledged lamps stay lit but hollow until the condition clears.</div>`)}
+      ${inst("", "States", "every instrument has all of these", `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
+        ${iWait("", "Collecting", "partial history", 19, 60, "days", "Shown instead of an empty chart.")}
+        ${iInop("", "Not set up", "missing input", "Says what it needs and offers the one action that lights it.", "Set up")}
+        <section class="inst"><div class="inst-h"><span class="inst-name">Missing price</span></div><div class="num read">$31.00</div><div><span class="tag miss">no price saved</span></div><div class="hint">Never guessed. Totals that include it say “partial”.</div></section>
+        <section class="inst"><div class="inst-h"><span class="inst-name">Loading</span></div><div class="meter" style="height:24px;width:60%"><i style="width:100%;opacity:.25"></i></div><div class="meter" style="width:85%"><i style="width:100%;opacity:.25"></i></div><div class="hint">Skeleton at final size; no layout shift.</div></section>
+        <section class="inst"><div class="inst-h"><span class="inst-name">Offline</span></div><div class="sub">Can't reach your ledger. Showing the last readings from 2:14 PM; entry is paused.</div><div><button class="btn sm">Retry</button></div></section>
+        <section class="inst"><div class="inst-h"><span class="inst-name">Locked</span></div><div class="sub">Session ended. Instruments are blanked, not cached.</div><div><button class="btn sm primary">Unlock</button></div></section></div>`)}
+    </div>`;
+  }
+
+  /* ---------- Render ---------- */
+  let M;
+  function render() {
+    document.documentElement.dataset.theme = S.theme;
+    M = model();
+    const seg = (key, opts) => `<span class="seg" role="group">${opts.map(([v, l]) => `<button data-set="${key}:${v}" aria-pressed="${S[key] === v}">${l}</button>`).join("")}</span>`;
+    const body = S.screen === "cockpit" ? annunciator(M) + cockpit(M) : S.screen === "spending" ? spending(M) : S.screen === "log" ? log(M) : S.screen === "system" ? system() : stub(S.screen);
+    document.getElementById("app").innerHTML = `
+      <div class="proto"><b>PROTOTYPE</b><span>Fictional data</span>${seg("data", [["day3", "Day 3"], ["six", "Month 6"]])}${S.data === "six" ? seg("cond", [["calm", "All calm"], ["trouble", "Trouble"]]) : ""}${seg("theme", [["night", "Night"], ["day", "Day"]])}</div>
+      <div class="shell">
+        <nav class="rail" aria-label="Main"><div class="rail-mark">${tile(34)}</div>
+          ${NAV.slice(0, 8).map(([k, l, i]) => `<button class="nav" data-go="${k}" ${S.screen === k ? 'aria-current="page"' : ""}>${i}<span>${l}</span></button>`).join("")}
+          <div class="grow"></div>${NAV.slice(8).map(([k, l, i]) => `<button class="nav" data-go="${k}" ${S.screen === k ? 'aria-current="page"' : ""}>${i}<span>${l}</span></button>`).join("")}</nav>
+        <div class="main">
+          <header class="glare"><div class="rail-mark" style="padding:0">${tile(32)}</div><div class="lockup">${mark(46)}<span class="wordmark">Appalachian <b>Bitcoin</b></span></div><span class="crumb">${CRUMB[S.screen]}</span><span class="grow"></span>
+            ${M.day3 ? `<button class="price"><span class="q dim">No price source</span><span class="prov">Choose one in pre-flight</span></button>` : `<button class="price" data-tip="${D.price.legacy}\n${D.price.source} · ${D.price.when}"><span class="num q btc">${F.btc(D.price.perDollar)}</span><span class="per">per $1</span><span class="prov">${D.price.source} · ${D.price.when}</span></button>`}
+            <div class="lens" role="group" aria-label="Price analysis in"><button data-set="lens:USD" aria-pressed="${S.lens === "USD"}" aria-label="Dollars">$</button><button class="b" data-set="lens:BITCOIN" aria-pressed="${S.lens === "BITCOIN"}" aria-label="Bitcoin">₿</button></div>
+            ${master(M)}<button class="add" data-go="log" data-focus="payee"><span>Add entry</span><kbd>N</kbd><b aria-hidden="true">+</b></button></header>
+          <main>${body}</main>
+        </div>
+      </div>
+      <nav class="tabbar" aria-label="Main">${[NAV[0], NAV[1]].map(([k, l, i]) => `<button data-go="${k}" ${S.screen === k ? 'aria-current="page"' : ""}>${i}${l}</button>`).join("")}<button data-go="log" aria-label="Add entry"><span class="plus">${ic(`<path d="M12 5v14M5 12h14"/>`)}</span></button>${[NAV[3], NAV[4]].map(([k, l, i]) => `<button data-go="${k}" ${S.screen === k ? 'aria-current="page"' : ""}>${i}${l}</button>`).join("")}</nav>
+      ${drawer(M)}<div class="sr" aria-live="polite">${M.alerts.filter((a) => !isAcked(a) && a.level !== "advisory").map((a) => a.level + ": " + a.title).join(". ")}</div>`;
+    draw();
+  }
+  function draw() {
+    document.querySelectorAll("[data-chart]").forEach((el) => CH[el.dataset.chart](el, M));
+  }
+
+  document.addEventListener("click", (e) => {
+    const el = e.target.closest("[data-set],[data-go],[data-open],[data-close],[data-ack],[data-ackall],[data-master],[data-drill],[data-drill-clear]");
+    if (!el) return;
+    const d = el.dataset;
+    if (d.set) { const [k, v] = d.set.split(":"); S[k] = v; if (k !== "theme" && k !== "lens") { S.acks = {}; S.drawer = null; S.drill = null; } }
+    else if (d.go) { S.screen = d.go; S.drawer = null; window.scrollTo(0, 0); }
+    else if (d.open) S.drawer = d.open;
+    else if ("close" in d) S.drawer = null;
+    else if (d.ack) { const a = M.alerts.find((x) => x.id === d.ack); S.acks[a.id] = { level: a.level, sev: a.sev }; }
+    else if ("ackall" in d || "master" in d) { M.alerts.forEach((a) => (S.acks[a.id] = { level: a.level, sev: a.sev })); S.drawer = S.drawer ?? ""; }
+    else if (d.drill) { S.drill = d.drill; S.screen = "spending"; }
+    else if ("drillClear" in d) S.drill = null;
+    render();
+    if (d.focus) document.getElementById(d.focus)?.select();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && S.drawer !== null) { S.drawer = null; return render(); }
+    if (e.target.matches("input")) return;
+    if (e.key === "n" || e.key === "N") { e.preventDefault(); S.screen = "log"; render(); document.getElementById("payee")?.select(); }
+    if (S.screen === "log" && (e.key === "j" || e.key === "k")) { S.sel = Math.max(0, Math.min(M.log.length - 1, S.sel + (e.key === "j" ? 1 : -1))); render(); }
+  });
+  const tipEl = document.createElement("div");
+  tipEl.className = "tip";
+  tipEl.hidden = true;
+  document.body.appendChild(tipEl);
+  const showTip = (e) => {
+    const t = e.target.closest?.("[data-tip]");
+    if (!t) return (tipEl.hidden = true);
+    tipEl.textContent = t.dataset.tip;
+    tipEl.hidden = false;
+    const r = t.getBoundingClientRect(), w = tipEl.offsetWidth;
+    tipEl.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, r.left + r.width / 2 - w / 2)) + "px";
+    tipEl.style.top = (r.top > 70 ? r.top - tipEl.offsetHeight - 8 : r.bottom + 8) + "px";
+  };
+  document.addEventListener("mouseover", showTip);
+  document.addEventListener("focusin", showTip);
+  document.addEventListener("focusout", () => (tipEl.hidden = true));
+  let rz;
+  window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(draw, 80); });
+  const q = new URLSearchParams(location.search);
+  for (const k of ["screen", "data", "cond", "theme", "lens"]) if (q.get(k)) S[k] = q.get(k);
+  document.fonts?.ready.then(render);
+  render();
+})();
