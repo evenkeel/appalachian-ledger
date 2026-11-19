@@ -1,10 +1,10 @@
-/* Appalachian Bitcoin — cockpit design tokens (prototype).
+/* Appalachian Bitcoin — dashboard design tokens (prototype).
    Colour carries meaning:
      copper   = bitcoin (saving)
      mist/ink = dollars and neutral readings
      amethyst = planned or hypothetical, never a recorded fact
      green    = in range
-     blue / amber / red = annunciator only (advisory / caution / warning) */
+     blue / amber / red = alert lights only (advisory / caution / warning) */
 
 @font-face {
   font-family: "B612";
@@ -87,7 +87,7 @@
   --shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
   --mark-back: #a9c1cf;
   --mark-mid: #db8046;
-  --mark-front: #3b6073;
+  --mark-front: #3f6a80;
   --tile: #f8f7f3;
 }
 

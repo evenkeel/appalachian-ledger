@@ -1,6 +1,6 @@
-/* Clickable prototype of the cockpit. Static: no server, no storage, fictional data. */
+/* Clickable prototype of the dashboard. Static: no server, no storage, fictional data. */
 (function () {
-  const S = { screen: "cockpit", data: "six", cond: "calm", theme: "night", lens: "USD", acks: {}, drawer: null, drill: null, sel: 0 };
+  const S = { screen: "cockpit", data: "six", cond: "calm", theme: "night", lens: "USD", acks: {}, drawer: null, drill: null, sel: 0, paid: [], boom: null };
   const P = PROTO, D = P.six;
   const sum = (a) => a.reduce((x, y) => x + y, 0);
   const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
@@ -14,33 +14,38 @@
   };
   const ic = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
   const NAV = [
-    ["cockpit", "Cockpit", ic(`<path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-6"/><path d="M4 17h16"/>`)],
-    ["log", "Log", ic(`<path d="M8 6h12M8 12h12M8 18h12"/><path d="M4 6h.01M4 12h.01M4 18h.01"/>`)],
+    ["cockpit", "Dashboard", ic(`<path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-6"/><path d="M4 17h16"/>`)],
+    ["log", "Activity", ic(`<path d="M8 6h12M8 12h12M8 18h12"/><path d="M4 6h.01M4 12h.01M4 18h.01"/>`)],
     ["spending", "Spending", ic(`<path d="M3 17l5-6 4 3 5-8 4 5"/><path d="M3 21h18"/>`)],
-    ["bills", "Bills", ic(`<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><path d="M12 12l6-5"/>`)],
+    ["bills", "Bills", ic(`<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>`)],
     ["stack", "Stack", ic(`<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/><path d="M3 17.5l9 5 9-5" opacity=".5"/>`)],
     ["accounts", "Accounts", ic(`<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 15h2"/>`)],
-    ["horizon", "Horizon", ic(`<path d="M2 16h20"/><path d="M6 16a6 6 0 0 1 12 0"/><path d="M12 5v2M5 8l1.4 1.4M19 8l-1.4 1.4M5 20h14"/>`)],
+    ["horizon", "Retirement", ic(`<path d="M2 16h20"/><path d="M6 16a6 6 0 0 1 12 0"/><path d="M12 5v2M5 8l1.4 1.4M19 8l-1.4 1.4M5 20h14"/>`)],
     ["learn", "Learn", ic(`<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/>`)],
     ["system", "System", ic(`<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>`)],
   ];
-  const CRUMB = { cockpit: "Cockpit", log: "Flight log · every entry", spending: "Spending · where it goes", bills: "Bills · what is due", stack: "Stack · your bitcoin", accounts: "Accounts", horizon: "Horizon · retirement", learn: "Ground school · learn", system: "Design system · prototype" };
+  const CRUMB = { cockpit: "Dashboard", log: "Transactions", spending: "Spending", bills: "Bills", stack: "Stack · your bitcoin", accounts: "Accounts", horizon: "Retirement", learn: "Learn", system: "Design system · prototype" };
 
   /* ---------- Logo ---------- */
-  const ridges = (bottom, front = "var(--mark-front)") =>
-    `<path fill="var(--mark-back)" d="M0 24C5 22 8.5 15.5 14 13.5C18 12 20.5 9.5 24.5 7.5C29 5.3 33 8 37 11.5C42 15.8 50 21 60 25.5V${bottom}H0Z"/>
-     <path fill="var(--mark-mid)" d="M17 27C24 23.5 30 19.5 35.5 14.5C38.8 11.5 42 10.6 45.5 13C50 16 55 19.8 60 22V${bottom}H17Z"/>
-     <path fill="${front}" d="M0 28C6 27 11 21.5 17.5 20.5C24 19.5 27.5 25 33.5 24.6C38.5 24.2 41 21.8 45 22.2C50 22.7 55 26 60 27.5V${bottom}H0Z"/>`;
-  const mark = (w) => `<svg viewBox="0 4 60 26" width="${w}" height="${(w * 26) / 60}" aria-hidden="true">${ridges(30)}</svg>`;
+  // Three rolling mountains: light blue behind, orange (bitcoin) beside it, dark blue in front.
+  const BASE = 64;
+  const peak = (px, py, x0, x1) => {
+    const h = BASE - py, f = (n) => +n.toFixed(2);
+    return `M${x0},${BASE}C${f(x0 + (px - x0) * 0.55)},${f(BASE - h * 0.72)} ${f(px - (px - x0) * 0.3)},${py} ${px},${py}C${f(px + (x1 - px) * 0.3)},${py} ${f(x1 - (x1 - px) * 0.55)},${f(BASE - h * 0.72)} ${x1},${BASE}Z`;
+  };
+  const MOUNTAINS = [["var(--mark-back)", peak(40, 4, 2, 92)], ["var(--mark-mid)", peak(84, 17, 46, 118)], ["var(--mark-front)", peak(58, 37, 12, 106)]];
+  // Each nearer mountain is separated from the one behind by a thin gap in the background colour.
+  const peaks = (gap, front) => MOUNTAINS.map(([c, d], i) => `<path fill="${i === 2 && front ? front : c}" d="${d}"${i ? ` stroke="${gap}" stroke-width="2.4" paint-order="stroke" stroke-linejoin="round"` : ""}/>`).join("");
+  const mark = (w) => `<svg viewBox="0 2 120 62" width="${w}" height="${(w * 62) / 120}" aria-hidden="true">${peaks("var(--gap, var(--bg))")}</svg>`;
   let tileN = 0;
   const tile = (size) => {
     const id = "tile" + ++tileN;
     return `<svg viewBox="0 0 48 48" width="${size}" height="${size}" aria-hidden="true"><defs><clipPath id="${id}"><rect width="48" height="48" rx="11"/></clipPath></defs>
-      <g clip-path="url(#${id})"><rect width="48" height="48" fill="#f8f7f3"/><g transform="translate(-1 11) scale(.8334)">${ridges(46, "#304e5d")}</g></g></svg>`;
+      <g clip-path="url(#${id})"><rect width="48" height="48" fill="#f8f7f3"/><g transform="translate(-3.6 18.6) scale(.46)">${peaks("#f8f7f3", "#304e5d")}</g></g></svg>`;
   };
-  const stacked = (w, serif) => `<svg viewBox="0 0 200 118" width="${w}" height="${(w * 118) / 200}" role="img" aria-label="Appalachian Bitcoin">
-      <g transform="translate(0 -13.3) scale(3.3334)">${ridges(30)}</g>
-      <text x="0" y="112" textLength="200" lengthAdjust="spacing" fill="currentColor" style="font-family:${serif ? "Georgia,'Times New Roman',serif" : "var(--font-ui)"};font-size:${serif ? 21 : 13.5}px;${serif ? "font-weight:700" : "letter-spacing:.2em"}">${serif ? "Appalachian Bitcoin" : `APPALACHIAN <tspan font-weight="700">BITCOIN</tspan>`}</text></svg>`;
+  const stacked = (w, serif) => `<svg viewBox="0 0 200 132" width="${w}" height="${(w * 132) / 200}" role="img" aria-label="Appalachian Bitcoin">
+      <g transform="translate(0 -3.3) scale(1.6667)">${peaks("var(--gap, var(--bg))")}</g>
+      <text x="0" y="126" textLength="200" lengthAdjust="spacing" fill="currentColor" style="font-family:${serif ? "Georgia,'Times New Roman',serif" : "var(--font-ui)"};font-size:${serif ? 21 : 13.5}px;${serif ? "font-weight:700" : "letter-spacing:.2em"}">${serif ? "Appalachian Bitcoin" : `APPALACHIAN <tspan font-weight="700">BITCOIN</tspan>`}</text></svg>`;
 
   /* ---------- Model ---------- */
   function model() {
@@ -64,8 +69,11 @@
     const val = (e) => (lens === "USD" ? e.cents : bitcoinAt(e) ?? Math.round((e.cents / 100) * rate(e.day)));
 
     // Runway
-    const checking = D.checking[S.cond];
-    const bills = (t ? [D.overdue] : []).concat(D.bills).map((b) => ({ ...b }));
+    const paid = new Set(S.paid);
+    const allBills = (t ? [D.overdue] : []).concat(D.bills);
+    const paidCents = sum(allBills.filter((b) => paid.has(b.name)).map((b) => b.cents));
+    const checking = D.checking[S.cond] - paidCents;
+    const bills = allBills.filter((b) => !paid.has(b.name)).map((b) => ({ ...b }));
     const events = bills.map((b) => ({ ...b, origDay: b.day, overdue: b.day < 0, day: Math.max(0, b.day), pay: false }))
       .concat(D.paydays.map((p) => ({ ...p, pay: true })))
       .sort((a, b) => a.day - b.day || a.pay - b.pay); // same day: bills first (conservative)
@@ -83,7 +91,7 @@
       b2 -= e.cents;
       if (b2 < 0) { covered = Math.max(0, e.day) - 1; break; }
     }
-    const runway = { start: checking, steps, low, lowDay, shortDay, dueBefore, covered, firstPay, maxBill: Math.max(...bills.map((b) => b.cents)) };
+    const runway = { start: checking, steps, low, lowDay, shortDay, dueBefore, covered, firstPay, maxBill: Math.max(1, ...bills.map((b) => b.cents)) };
 
     // Spending
     const catNames = [...new Set(ex.map((e) => e.cat))];
@@ -119,7 +127,7 @@
     const card = { ...D.card, balance: D.card.balance[S.cond] };
     card.util = (card.balance / card.limit) * 100;
     const m = {
-      lens, fmt, t, checking, bills, runway, expenses: ex, bitcoinAt, missing, rate,
+      lens, fmt, t, checking, bills, runway, boom: S.boom, destroyed: { n: 6 + paid.size, cents: 121450 + paidCents }, expenses: ex, bitcoinAt, missing, rate,
       pace: { cur, prev, from: 1 }, spent, spentUsd, prior: priorCats, bridge, flow, catNow, catNames,
       stack: { ...D.stack, buys: D.other.filter((o) => o.kind === "stack"), stackUsd, stackBtc, rate: (stackUsd / incomeUsd) * 100 },
       incomeUsd, movesUsd, restUsd, two: D.twoSystems, card, mortgage: D.mortgage,
@@ -135,14 +143,15 @@
   function alerts(m) {
     if (!m.t) return [];
     const r = m.runway, pct = ((m.spentUsd - 179255) / 179255) * 100;
+    const late = m.bills.filter((b) => b.day < 0);
     return [
-      { id: "overdue", level: "warning", sev: 3, title: "Car registration was due Nov 16", why: "3 days past due. Late fees start small and grow, and a lapse is harder to undo than a payment.", act: "Record payment", go: "bills", inst: "radar" },
-      { id: "cash", level: "warning", sev: -r.low, title: `Checking runs short on ${F.date(r.shortDay)}`, why: `The Visa payment lands ${r.firstPay - r.shortDay} days before your ${F.date(r.firstPay)} paycheck. Bills due by then total ${F.usd(r.dueBefore)}; checking holds ${F.usd(m.checking)}. The gap is ${F.usd(-r.low)}.`, act: "Move money from reserve", go: "accounts", inst: "runway" },
+      late.length && { id: "overdue", level: "warning", sev: 3, title: "Car registration was due Nov 16", why: "3 days past due. Late fees start small and grow, and a lapse is harder to undo than a payment.", act: "Destroy it (record payment)", go: "cockpit", inst: "bills" },
+      r.low < 0 && { id: "cash", level: "warning", sev: -r.low, title: `Checking runs short on ${F.date(r.shortDay)}`, why: `The Visa payment lands ${r.firstPay - r.shortDay} days before your ${F.date(r.firstPay)} paycheck. Bills due by then total ${F.usd(r.dueBefore)}; checking holds ${F.usd(m.checking)}. The gap is ${F.usd(-r.low)}.`, act: "Move money from reserve", go: "accounts", inst: "runway" },
       { id: "pace", level: "caution", sev: pct, title: `Spending is ${pct.toFixed(0)}% ahead of October`, why: `${F.usd(m.spentUsd - 179255)} more than through October 19. The largest new cost is Auto (${F.usd(45420)}).`, act: "See what changed", go: "spending", inst: "pace" },
       { id: "util", level: "caution", sev: m.card.util, title: `${m.card.name} is at ${m.card.util.toFixed(0)}% of its limit`, why: `${F.usd(m.card.balance)} of ${F.usd(m.card.limit)}. A balance this high costs interest and leaves little headroom. Your caution threshold is 30%.`, act: "Plan a payment", go: "accounts", inst: "debt" },
       { id: "backup", level: "caution", sev: 34, title: "Last encrypted backup was 34 days ago", why: "This ledger lives only on this machine. A backup is the only copy that survives a failed disk.", act: "Back up now", go: "system" },
       { id: "conv", level: "advisory", sev: 2, title: "2 expenses have no purchase-date bitcoin price", why: "Their bitcoin cost is shown as missing, never guessed. Totals that include them are marked partial until a dated price is saved.", act: "Review missing prices", go: "log", inst: "log" },
-    ];
+    ].filter(Boolean);
   }
   const isAcked = (a) => S.acks[a.id] && S.acks[a.id].level === a.level && a.sev <= S.acks[a.id].sev;
   const flag = (m, inst) => {
@@ -156,7 +165,7 @@
     const state = n
       ? `<span class="annun-state">${n} active</span>`
       : `<span class="annun-state ok">${I.ok} All normal</span>`;
-    return `<section class="annun" aria-label="Annunciator panel">${state}<div class="lamps" role="list">${LAMPS.map(([id, label]) => {
+    return `<section class="annun" aria-label="Alerts">${state}<div class="lamps" role="list">${LAMPS.map(([id, label]) => {
       const a = lit[id];
       return a
         ? `<button role="listitem" class="lamp on l-${a.level}${isAcked(a) ? " acked" : ""}" data-open="${id}" aria-label="${a.level}: ${label}. ${esc(a.title)}${isAcked(a) ? " (acknowledged)" : ""}">${I[a.level]}<span>${label}</span></button>`
@@ -168,21 +177,21 @@
     const un = open.filter((a) => !isAcked(a));
     const top = un.some((a) => a.level === "warning") ? "warn" : un.length ? "caution" : "";
     const cls = top ? ` is-${top}` : open.length ? " is-acked" : "";
-    const txt = top ? `Master ${top === "warn" ? "warning" : "caution"}` : open.length ? `${open.length} acknowledged` : "Master caution";
+    const txt = top ? (top === "warn" ? "Warnings" : "Cautions") : open.length ? `${open.length} acknowledged` : "No alerts";
     return `<button class="master${cls}" data-master aria-label="${txt}. ${un.length} unacknowledged.">${top === "warn" ? I.warning : I.caution}<span class="txt">${txt}</span>${un.length ? `<span class="num">${un.length}</span>` : ""}</button>`;
   }
   function drawer(m) {
     if (S.drawer === null) return "";
     const list = m.alerts.slice().sort((a, b) => RANK[b.level] - RANK[a.level]);
     return `<div class="scrim" data-close></div><aside class="drawer" role="dialog" aria-label="Active alerts" aria-modal="true">
-      <header><h2>Annunciator · ${list.length} active</h2>${list.some((a) => !isAcked(a)) ? `<button class="btn sm" data-ackall>Acknowledge all</button>` : ""}<button class="btn sm ghost" data-close aria-label="Close">Close <kbd>Esc</kbd></button></header>
+      <header><h2>Alerts · ${list.length} active</h2>${list.some((a) => !isAcked(a)) ? `<button class="btn sm" data-ackall>Acknowledge all</button>` : ""}<button class="btn sm ghost" data-close aria-label="Close">Close <kbd>Esc</kbd></button></header>
       <div class="body">${list.length ? list.map((a) => `<article class="alert ${a.level}${S.drawer === a.id ? " focus" : ""}">
         <span class="flagchip ${a.level}">${I[a.level]}${a.level}${isAcked(a) ? " · acknowledged" : ""}</span>
         <h3>${esc(a.title)}</h3><p>${esc(a.why)}</p>
         <div class="acts"><button class="btn primary" data-go="${a.go}">${a.act} →</button>${isAcked(a) ? "" : `<button class="btn ghost" data-ack="${a.id}">Acknowledge</button>`}</div>
         ${isAcked(a) ? `<p class="hint">Stays lit until fixed. Comes back to your attention if it gets worse.</p>` : ""}</article>`).join("")
         : `<p class="sub">${I.ok} All normal. Nothing needs you.</p>`}
-        <p class="hint">Thresholds are adjustable in Settings → Warning lights.</p></div></aside>`;
+        <p class="hint">Thresholds are adjustable in Settings → Alerts.</p></div></aside>`;
   }
 
   /* ---------- Instruments ---------- */
@@ -191,7 +200,7 @@
 
   function iRunway(m, cls) {
     const r = m.runway, f = flag(m, "runway"), short = r.low < 0;
-    return inst(cls, "Runway", "checking against known bills", `
+    return inst(cls, "Cash ahead", "checking after known bills", `
       <div class="split" style="align-items:flex-end;flex-wrap:wrap">
         <div style="flex:1 1 240px"><div class="lead" style="font-weight:700;${short ? "color:var(--warn)" : ""}">${short ? `Short before payday` : `Covered through payday`}</div>
         <div class="sub">${short ? `Checking runs out on ${F.date(r.shortDay)}, ${r.firstPay - r.shortDay} days before the ${F.date(r.firstPay)} paycheck.` : `Known bills are covered for <b class="num">${r.covered} days</b>, even if no paycheck arrives.`}</div></div>
@@ -215,9 +224,12 @@
           <div class="num hero btc">${F.btc(s.held)}</div>
           <div class="sub"><b class="num btc">▲ ${F.btc(gain)}</b> this month</div>
           <div class="sub num">${s.buys.length} buys · ${F.usd(s.stackUsd)} · ${s.rate.toFixed(1)}% of income</div>
-          <div class="chart" data-chart="spark" style="height:52px"></div>
+          <div class="chart" data-chart="spark" style="height:46px"></div>
         </div>
       </div>
+      <div style="display:grid;gap:4px"><div class="split sub" style="justify-content:space-between"><span>Next milestone <b class="num btc">${F.btc(22000000)}</b></span><span class="num">${F.btc(22000000 - s.held)} to go</span></div>
+        <div class="meter" role="img" aria-label="Progress to the next million"><i style="width:${((s.held - 21000000) / 10000).toFixed(1)}%;background:var(--btc)"></i></div>
+        <div class="sub"><span class="badge">6-month streak</span> A buy every month since June.</div></div>
       <ul class="rows" style="flex:1;align-content:start">${s.wallets.map(([n, v]) => `<li style="grid-template-columns:1fr auto"><span>${n}</span><span class="num">${F.btc(v)}</span></li>`).join("")}</ul>
       <div class="sub" style="border-top:1px solid var(--hairline);padding-top:8px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><span class="num">${F.btc(D.price.perDollar)} per $1</span><span class="dim">${D.price.source} · ${D.price.when}</span></div>`,
       { link: ["stack", "Stack"] });
@@ -233,41 +245,35 @@
       { link: ["learn", "Why"] });
   }
 
-  function iMonth(m, cls) {
-    const out = m.spentUsd + m.stack.stackUsd + m.movesUsd, w = (v) => `flex:${v} 0 0`;
-    return inst(cls, "This month", "in and out · Nov 1–19", `
-      <div class="kv"><div><span>In</span><b>${F.usd(m.incomeUsd)}</b></div><div><span>Out</span><b>${F.usd(out)}</b></div></div>
-      <div class="stackbar" role="img" aria-label="Out: spending ${F.usd(m.spentUsd)}, bitcoin ${F.usd(m.stack.stackUsd)}, other moves ${F.usd(m.movesUsd)}, still in checking ${F.usd(m.restUsd)}">
-        <i style="${w(m.spentUsd)};background:var(--usd)" data-tip="Spending ${F.usd(m.spentUsd)}"></i><i style="${w(m.stack.stackUsd)};background:var(--btc)" data-tip="Bitcoin stacked ${F.btc(m.stack.stackBtc)} for ${F.usd(m.stack.stackUsd)}"></i><i style="${w(m.movesUsd)};background:var(--ink-3)" data-tip="Other moves ${F.usd(m.movesUsd)}"></i><i style="${w(Math.max(m.restUsd, 0))};background:var(--bezel)" data-tip="Still in checking ${F.usd(m.restUsd)}"></i></div>
-      <ul class="rows">
-        <li style="grid-template-columns:12px 1fr auto"><i style="width:9px;height:9px;border-radius:2px;background:var(--usd)"></i><span>Spending</span><span class="num">${F.usd(m.spentUsd)}</span></li>
-        <li style="grid-template-columns:12px 1fr auto"><i style="width:9px;height:9px;border-radius:2px;background:var(--btc)"></i><span><b class="btc">Bitcoin stacked</b></span><span class="num btc">${F.btc(m.stack.stackBtc)}</span></li>
-        <li style="grid-template-columns:12px 1fr auto"><i style="width:9px;height:9px;border-radius:2px;background:var(--ink-3)"></i><span>Other moves</span><span class="num">${F.usd(m.movesUsd)}</span></li>
-        <li style="grid-template-columns:12px 1fr auto"><i style="width:9px;height:9px;border-radius:2px;background:var(--bezel)"></i><span class="dim">Still in checking</span><span class="num dim">${F.usd(m.restUsd)}</span></li>
-      </ul>`, { link: ["spending", "Flow"] });
-  }
-
   function iPace(m, cls, h = 118) {
     const f = flag(m, "pace"), has = !!m.pace.prev, d = has ? m.spent - m.prior : 0, pct = has ? (d / m.prior) * 100 : 0;
-    return inst(cls, "Spend pace", has ? "vs October, same days" : "this month so far", `
+    return inst(cls, "Spend pace", has ? "vs last month" : "this month so far", `
       <div class="split" style="align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:4px 12px">
         <span class="num read">${m.fmt(m.spent)}</span>
-        ${has ? `<span class="sub num"><b style="color:var(--ink)">${F.pct(pct)}</b> · ${d >= 0 ? "+" : "−"}${m.fmt(Math.abs(d))} vs Oct 19</span>` : `<span class="sub">Tracking since Nov 17</span>`}
+        ${has ? `<span class="sub num"><b style="color:var(--ink)">${m.fmt(Math.abs(d))} ${d >= 0 ? "more" : "less"}</b> than Oct 1–19 · ${F.pct(pct)}</span>` : `<span class="sub">Tracking since Nov 17</span>`}
       </div>
       <div class="chart" data-chart="pace" style="flex:1;min-height:${h}px"></div>
       ${has ? (m.missing.size && m.lens !== "USD" ? `<div class="hint">Partial: ${m.missing.size} expenses have no saved bitcoin price and use the day's reference here.</div>` : "") : `<div class="hint">Comparison with last month starts December 1. Nothing is estimated before then.</div>`}`,
       { flag: f, link: ["spending", "Spending"] });
   }
 
-  function iRadar(m, cls) {
-    const f = flag(m, "radar"), up = m.bills.filter((b) => b.day >= 0), late = m.bills.filter((b) => b.day < 0);
-    const wk = up.filter((b) => b.day <= 7), mo = up.filter((b) => b.day <= 30);
-    return inst(cls, "Bills radar", "what is due", `
-      <div class="kv"><div><span>Next 7 days</span><b>${F.usd(sum(wk.map((b) => b.cents)))}</b></div><div><span>Next 30 days</span><b>${F.usd(sum(mo.map((b) => b.cents)))}</b></div></div>
-      <div class="split" style="flex:1">
-        <div class="chart" data-chart="radar" style="width:128px;height:128px;flex:none;align-self:center"></div>
-        <ul class="rows" style="flex:1;align-content:center">${late.concat(up).slice(0, 3).map((b) => `<li style="grid-template-columns:minmax(0,1fr) auto"><span class="nm">${esc(b.name)}<small class="num ${b.day < 0 ? "overdue" : "dim"}" style="display:block">${b.day < 0 ? `${-b.day} days overdue` : `${F.date(b.day)} · ${b.day} days`}</small></span><span class="num">${F.usd(b.cents)}</span></li>`).join("")}</ul>
-      </div>`, { flag: f, link: ["bills", `All ${up.length + late.length}`] });
+  function iBills(m, cls) {
+    const f = flag(m, "bills"), r = m.runway, short = r.low < 0;
+    const late = m.bills.filter((b) => b.day < 0), up = m.bills.filter((b) => b.day >= 0);
+    const need = r.dueBefore, pct = Math.min(100, (need / Math.max(m.checking, 1)) * 100);
+    const next = late.concat(up).slice(0, 3);
+    return inst(cls, "Bills to destroy", "checking is your ammo", `
+      <div class="split" style="align-items:flex-end;flex-wrap:wrap;gap:6px 16px">
+        <div class="kv"><div><span>Ammo · in checking</span><b style="font-size:var(--t-read)">${F.usd(m.checking)}</b></div></div>
+        <div style="flex:1 1 210px;display:grid;gap:5px;padding-bottom:3px">
+          <div class="bar ammo${short ? " short" : ""}" role="img" aria-label="${F.usd(need)} of ${F.usd(m.checking)} is needed for bills before payday"><i style="width:${pct.toFixed(1)}%"></i></div>
+          <div class="sub">${need ? `Bills before the ${F.date(r.firstPay)} reload need <b class="num">${F.usd(need)}</b>. ${short ? `<b style="color:var(--warn)">${F.usd(-r.low)} short.</b>` : `<b class="ok">Enough ammo.</b>`}` : `Nothing left to destroy before the ${F.date(r.firstPay)} reload.`}</div>
+        </div>
+      </div>
+      <div class="chart" data-chart="lane" style="height:104px"></div>
+      ${next.length ? `<ul class="rows">${next.map((b) => `<li style="grid-template-columns:minmax(0,1fr) auto auto;align-items:center"><span class="nm">${esc(b.name)} <small class="num ${b.day < 0 ? "overdue" : "dim"}">· ${b.day < 0 ? `${-b.day} days overdue` : b.day === 0 ? "due today" : `${F.date(b.day)}, in ${b.day} days`}</small></span><span class="num">${F.usd(b.cents)}</span><button class="btn sm" data-destroy="${esc(b.name)}" aria-label="Destroy ${esc(b.name)}: record payment of ${F.usd(b.cents)}"${m.boom ? " disabled" : ""}>Destroy</button></li>`).join("")}</ul>` : `<div class="sub ok">${I.ok} All clear. Every bill in the next 30 days is destroyed.</div>`}
+      <div class="sub" style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;border-top:1px solid var(--hairline);padding-top:8px"><span><span class="badge">${m.destroyed.n} destroyed</span> this month · <span class="num">${F.usd(m.destroyed.cents)}</span></span><span class="dim">Destroy = record the payment</span></div>`,
+      { flag: f, link: ["bills", `All ${m.bills.length}`] });
   }
 
   function iDebt(m, cls) {
@@ -285,13 +291,13 @@
   }
 
   function iBridge(m, cls) {
-    return inst(cls, "Month bridge", "what changed since October", `
+    return inst(cls, "Spending bridge", "what changed since October", `
       <div class="chart" data-chart="bridge"></div>
       <div class="key"><span><i style="background:${m.lens === "USD" ? "var(--usd)" : "var(--btc)"}"></i>Spent more</span><span><i style="border:1.4px dashed ${m.lens === "USD" ? "var(--usd)" : "var(--btc)"}"></i>Spent less</span><span class="dim">Same days of each month</span></div>`,
       { link: ["spending", "Explore"] });
   }
   function iWatershed(m, cls, h = 270) {
-    return inst(cls, "Watershed", "where November's income flowed · month so far", `<div class="chart" data-chart="watershed" style="height:${h}px"></div>`, { link: ["spending", "Explore"] });
+    return inst(cls, "Money flow", "November's income and where it went · month so far", `<div class="chart" data-chart="watershed" style="height:${h}px"></div>`, { link: ["spending", "Explore"] });
   }
   function iAllow(m, cls) {
     const rows = D.allowances.map(([c, cap]) => {
@@ -299,11 +305,11 @@
       return `<div style="display:grid;gap:4px"><div class="split" style="justify-content:space-between"><span>${c}</span><span class="num sub">${F.usd(used)} of ${F.usd0(cap)}</span></div>
         <div class="bar" role="img" aria-label="${pct.toFixed(0)}% of allowance used"><i style="width:${Math.min(pct, 100)}%"></i><u style="left:63%" data-tip="Today: 63% of the month has passed"></u></div></div>`;
     }).join("");
-    return inst(cls, "Allowances", "dollar budgets", `<div style="display:grid;gap:9px">${rows}</div><div class="hint">The mark is today. A bar past the mark is spending faster than the month.</div>`, { link: ["spending", "Budgets"] });
+    return inst(cls, "Budgets", "dollar allowances", `<div style="display:grid;gap:9px">${rows}</div><div class="hint">The mark is today. A bar past the mark is spending faster than the month.</div>`, { link: ["spending", "Budgets"] });
   }
   function iHorizon(m, cls) {
     const h = D.horizon;
-    return inst(cls, "Horizon", "hypothetical course", `
+    return inst(cls, "Retirement", "hypothetical plan", `
       <div class="lead"><b>${h.name}:</b> <span class="plan">funded to age ${h.fundedTo}</span>, retiring at ${h.retireAge}.</div>
       <div class="chart" data-chart="course" style="height:70px"></div>
       <div class="kv"><div><span>Life / month</span><b>${F.usd(h.monthlyUsd)}</b></div><div><span>Same, in bitcoin</span><b class="btc">${F.btc(h.monthlyBitcoin)}</b></div></div>
@@ -318,21 +324,21 @@
   }
   function iLog(m, cls, n = 6) {
     const f = flag(m, "log");
-    return inst(cls, "Flight log", "latest entries", `<div style="overflow:hidden"><table class="log"><thead><tr><th>Date</th><th>Entry</th><th class="hide-s">Category</th><th class="r">Dollars</th><th class="r">Bitcoin that day</th></tr></thead><tbody>${logRows(m, m.log.slice(0, n), -1, true)}</tbody></table></div>`,
-      { flag: f, link: ["log", "Open log"] });
+    return inst(cls, "Transactions", "latest entries", `<div style="overflow:hidden"><table class="log"><thead><tr><th>Date</th><th>Entry</th><th class="hide-s">Category</th><th class="r">Dollars</th><th class="r">Bitcoin that day</th></tr></thead><tbody>${logRows(m, m.log.slice(0, n), -1, true)}</tbody></table></div>`,
+      { flag: f, link: ["log", "All activity"] });
   }
 
   /* ---------- Day-one instruments ---------- */
   function iPreflight(cls) {
     const steps = [
-      [true, "Add your checking account", "Lit: Checking, Spend pace, Flight log"],
-      [false, "Set your next paycheck", "Lights: Runway", "Set payday"],
-      [false, "Add recurring bills", "Lights: Runway, Bills radar", "Add bills"],
-      [false, "Record your bitcoin", "Lights: Stack", "Add bitcoin"],
-      [false, "Choose a price source", "Lights: bitcoin cost on every expense", "Choose"],
-      [false, "Make an encrypted backup", "Arms: Backup light", "Back up"],
+      [true, "Add your checking account", "On: Checking, Spend pace, Transactions"],
+      [false, "Set your next paycheck", "Turns on: Cash ahead", "Set payday"],
+      [false, "Add recurring bills", "Turns on: Cash ahead, Bills to destroy", "Add bills"],
+      [false, "Record your bitcoin", "Turns on: Stack", "Add bitcoin"],
+      [false, "Choose a price source", "Turns on: bitcoin cost on every expense", "Choose"],
+      [false, "Make an encrypted backup", "Turns on: backup reminders", "Back up"],
     ];
-    return inst(cls, "Pre-flight", "1 of 6 done", `<div class="meter"><i style="width:16.7%;background:var(--ok)"></i></div>
+    return inst(cls, "Get set up", "1 of 6 done", `<div class="meter"><i style="width:16.7%;background:var(--ok)"></i></div>
       <ol class="check">${steps.map(([done, t, sub, act]) => `<li class="${done ? "done" : ""}"><span class="box">${done ? I.ok : ""}</span><span class="t">${t}<small>${sub}</small></span>${act ? `<button class="btn sm">${act}</button>` : ""}</li>`).join("")}</ol>`);
   }
   const iInop = (cls, name, plain, needs, act) =>
@@ -349,26 +355,26 @@
         ${iPace(m, "c4", 124)}
         ${iPreflight("c4")}
         ${iLog(m, "c8", 3)}
-        ${iInop("c4", "Runway", "checking against known bills", `No bills or payday on file yet, so nothing is known to be due. Add them and this shows whether <b class="num">${F.usd(m.checking)}</b> covers everything before your next paycheck.`, "Add bills and payday")}
-        <div class="band">Powers up with your data</div>
+        ${iInop("c4", "Cash ahead", "checking after known bills", `No bills or payday on file yet, so nothing is known to be due. Add them and this shows whether <b class="num">${F.usd(m.checking)}</b> covers everything before your next paycheck.`, "Add bills and payday")}
+        <div class="band">Turns on as you add data</div>
         ${iInop("c3", "Stack", "bitcoin held", "Record what you hold. Bitcoin is your saving; this is where it shows.", "Add bitcoin")}
-        ${iInop("c3", "Bills radar", "what is due", "Lights when the first bill is added.", "Add a bill")}
-        ${iWait("c3", "Month bridge", "what changed since last month", 3, 30, "days", "Needs one full month to compare against. Ready December 1.")}
+        ${iInop("c3", "Bills to destroy", "what is due", "Add a bill and it shows up here as a target, with your checking balance as ammo.", "Add a bill")}
+        ${iWait("c3", "Spending bridge", "what changed since last month", 3, 30, "days", "Needs one full month to compare against. Ready December 1.")}
         ${iWait("c3", "Two systems", "the same life, priced two ways", 3, 60, "days", "Needs two full months and a price source. Ready about February 1.")}
       </div>`;
     }
     return `<div class="panel">
       ${iTwo(m, "c4")}${iRunway(m, "c5")}${iStack(m, "c3")}
-      ${iPace(m, "c3")}${iMonth(m, "c3")}${iRadar(m, "c3")}${iDebt(m, "c3")}
+      ${iPace(m, "c3")}${iBills(m, "c5")}<div class="c4 col">${iDebt(m, "")}${iAllow(m, "")}</div>
       <div class="band">Month in detail</div>
       ${iWatershed(m, "c7")}${iBridge(m, "c5")}
-      ${iLog(m, "c6")}${iAllow(m, "c3")}${iHorizon(m, "c3")}
+      ${iLog(m, "c8")}${iHorizon(m, "c4")}
     </div>`;
   }
 
   /* ---------- Other screens ---------- */
   function spending(m) {
-    if (m.day3) return `<div class="page"><h1>Spending</h1><p class="intro">Three days in. The pace line works already; comparisons arrive as months complete.</p><div class="grid2">${iPace(m, "c6", 180)}${iWait("c6", "Month bridge", "what changed since last month", 3, 30, "days", "Ready December 1.")}</div></div>`;
+    if (m.day3) return `<div class="page"><h1>Spending</h1><p class="intro">Three days in. The pace line works already; comparisons arrive as months complete.</p><div class="grid2">${iPace(m, "c6", 180)}${iWait("c6", "Spending bridge", "what changed since last month", 3, 30, "days", "Ready December 1.")}</div></div>`;
     const drill = S.drill ? m.expenses.filter((e) => e.cat === S.drill) : null;
     return `<div class="page"><h1>Spending</h1><p class="intro">November 1–19 against the same days of October. Switch <b>$</b> / <b class="btc">₿</b> in the top bar to price everything in bitcoin at each purchase date. Select a category to see the entries behind it.</p>
       <div class="grid2">${iPace(m, "c5", 190)}${iBridge(m, "c7")}${iWatershed(m, "c12", 300)}
@@ -376,8 +382,8 @@
       </div></div>`;
   }
   function log(m) {
-    return `<div class="page"><h1>Flight log</h1><p class="intro">Every entry, newest first. Corrections never edit history: they append a reversal and a replacement.</p>
-      ${inst("", "New entry", "type, Tab, Enter — stays open for the next one", `<div class="entry">
+    return `<div class="page"><h1>Transactions</h1><p class="intro">Every entry, newest first. Corrections never edit history: they append a reversal and a replacement.</p>
+      ${inst("", "New entry", "type, Tab, Enter; stays open for the next one", `<div class="entry">
         <label class="field"><span>Date</span><input value="Nov 19" aria-label="Date"></label>
         <label class="field"><span>Payee or note</span><input id="payee" value="Mountain Market" aria-label="Payee or note"></label>
         <label class="field"><span>Category</span><input value="Groceries" aria-label="Category"></label>
@@ -389,20 +395,20 @@
     </div>`;
   }
   const STUB = {
-    bills: ["Bills", "The radar at full size, a 30-day calendar strip, recurring bills, and your paycheck schedule. One tap confirms a payment; nothing ever posts by itself."],
-    stack: ["Stack", "Your bitcoin: holdings by wallet, every buy with the price actually paid, the stacking trend, and the Two systems view at full size. Price source and provenance live here."],
+    bills: ["Bills", "Every bill as a target at full size, a 30-day view, recurring bills and your paycheck schedule. Destroying a bill records its payment after you confirm; nothing ever posts by itself."],
+    stack: ["Stack", "Your bitcoin: holdings by wallet, every buy with the price actually paid, milestones and streaks, and the Two systems view at full size. Price source and provenance live here."],
     accounts: ["Accounts", "Checking, cards, reserve, brokerage, property and loans in one place. Bitcoin and dollars are listed in their own units; no combined net worth figure."],
-    horizon: ["Horizon", "The existing retirement planner, restyled: saved scenarios side by side in both systems. Everything here is hypothetical and drawn in amethyst."],
-    learn: ["Ground school", "A short, well-made course on thinking in two monetary systems, using your own ledger as the worked example."],
+    horizon: ["Retirement", "The existing retirement planner, restyled: saved scenarios side by side in both systems. Everything here is hypothetical and drawn in amethyst."],
+    learn: ["Learn", "A short, well-made course on thinking in two monetary systems, using your own ledger as the worked example."],
   };
   function stub(k) {
-    return `<div class="page"><h1>${STUB[k][0]}</h1><p class="intro">${STUB[k][1]}</p>${iInop("", "Not in this prototype", "described in docs/cockpit-design.md", "This screen is specified in the design brief and will be built in its increment.", "Back to cockpit").replace("<button", '<button data-go="cockpit"')}</div>`;
+    return `<div class="page"><h1>${STUB[k][0]}</h1><p class="intro">${STUB[k][1]}</p>${iInop("", "Not in this prototype", "described in docs/cockpit-design.md", "This screen is specified in the design brief and will be built in its increment.", "Back to dashboard").replace("<button", '<button data-go="cockpit"')}</div>`;
   }
   function system() {
     const sw = (v, name, use) => `<div class="sw"><i style="background:var(${v})"></i><div>${name}<small>${use}</small></div></div>`;
     const lamp = (lvl, label, acked) => `<span class="lamp on l-${lvl}${acked ? " acked" : ""}">${I[lvl]}<span>${label}</span></span>`;
-    return `<div class="page"><h1>Design system</h1><p class="intro">The mark, the colour meanings, the type and the lamp states this prototype is built from.</p>
-      ${inst("", "Logo", "three ridges, redrawn; wordmark set to the mark's width and baseline", `<div class="lockups">
+    return `<div class="page"><h1>Design system</h1><p class="intro">The logo, the colour meanings, the type and the alert-light states this prototype is built from.</p>
+      ${inst("", "Logo", "three rolling mountains: two blues and one orange for bitcoin", `<div class="lockups">
         ${["night", "day"].map((t) => `<div class="plate ${t}"><div class="lockup">${mark(46)}<span class="wordmark">Appalachian <b>Bitcoin</b></span></div><small>Horizontal · ${t}</small></div>`).join("")}
         ${["night", "day"].map((t) => `<div class="plate ${t}">${stacked(190)}<small>Stacked · ${t}</small></div>`).join("")}
         <div class="plate night">${stacked(190, true)}<small>Alternate wordmark · serif</small></div>
@@ -412,16 +418,16 @@
       </div>`)}
       ${inst("", "Colour", "every colour means one thing", `<div class="swatches">
         ${sw("--btc", "Copper", "Bitcoin. Saving.")}${sw("--usd", "Mist", "Dollars, neutral readings")}${sw("--plan", "Amethyst", "Planned or hypothetical")}${sw("--ok", "Green", "In range")}
-        ${sw("--adv-fill", "Blue", "Advisory light only")}${sw("--caution-fill", "Amber", "Caution light only")}${sw("--warn-fill", "Red", "Warning light only")}
+        ${sw("--adv-fill", "Blue", "Heads-up alert only")}${sw("--caution-fill", "Amber", "Caution alert only")}${sw("--warn-fill", "Red", "Warning alert only")}
         ${sw("--bg", "Night", "Canvas")}${sw("--panel", "Panel", "Instrument face")}${sw("--bezel", "Bezel", "Instrument edge")}${sw("--ink", "Ink", "Primary text")}${sw("--ink-3", "Ink 3", "Labels")}</div>`)}
       ${inst("", "Type", "B612, designed for aircraft displays; its digits share one width, so numbers align", `<div style="display:grid;gap:6px">
         <div class="num hero">₿21,932,000 <span class="dim" style="font-size:15px">Hero 34</span></div><div class="num read">$4,812.40 <span class="dim" style="font-size:13px">Readout 24</span></div>
         <div class="lead">Covered through payday <span class="dim">Lead 15</span></div><div>Known bills are covered for 33 days. <span class="dim">Body 13</span></div>
         <div class="inst-name">Instrument name <span class="dim" style="letter-spacing:0;text-transform:none;font-weight:400">Label 11, tracked caps</span></div></div>`)}
-      ${inst("", "Lamps", "level is carried by shape, word and colour together", `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px">
+      ${inst("", "Alert lights", "level is carried by shape, word and colour together", `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px">
         ${lamp("advisory", "Advisory")}${lamp("caution", "Caution")}${lamp("warning", "Warning")}${lamp("advisory", "Acknowledged", 1)}${lamp("caution", "Acknowledged", 1)}${lamp("warning", "Acknowledged", 1)}<span class="lamp">Normal (dark)</span></div>
-        <div class="hint">Circle = advisory, triangle = caution, octagon = warning. Acknowledged lamps stay lit but hollow until the condition clears.</div>`)}
-      ${inst("", "States", "every instrument has all of these", `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
+        <div class="hint">Circle = advisory, triangle = caution, octagon = warning. Acknowledged lights stay on but hollow until the problem is fixed.</div>`)}
+      ${inst("", "States", "every panel has all of these", `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
         ${iWait("", "Collecting", "partial history", 19, 60, "days", "Shown instead of an empty chart.")}
         ${iInop("", "Not set up", "missing input", "Says what it needs and offers the one action that lights it.", "Set up")}
         <section class="inst"><div class="inst-h"><span class="inst-name">Missing price</span></div><div class="num read">$31.00</div><div><span class="tag miss">no price saved</span></div><div class="hint">Never guessed. Totals that include it say “partial”.</div></section>
@@ -446,7 +452,7 @@
           <div class="grow"></div>${NAV.slice(8).map(([k, l, i]) => `<button class="nav" data-go="${k}" ${S.screen === k ? 'aria-current="page"' : ""}>${i}<span>${l}</span></button>`).join("")}</nav>
         <div class="main">
           <header class="glare"><div class="rail-mark" style="padding:0">${tile(32)}</div><div class="lockup">${mark(46)}<span class="wordmark">Appalachian <b>Bitcoin</b></span></div><span class="crumb">${CRUMB[S.screen]}</span><span class="grow"></span>
-            ${M.day3 ? `<button class="price"><span class="q dim">No price source</span><span class="prov">Choose one in pre-flight</span></button>` : `<button class="price" data-tip="${D.price.legacy}\n${D.price.source} · ${D.price.when}"><span class="num q btc">${F.btc(D.price.perDollar)}</span><span class="per">per $1</span><span class="prov">${D.price.source} · ${D.price.when}</span></button>`}
+            ${M.day3 ? `<button class="price"><span class="q dim">No price source</span><span class="prov">Choose one in setup</span></button>` : `<button class="price" data-tip="${D.price.legacy}\n${D.price.source} · ${D.price.when}"><span class="num q btc">${F.btc(D.price.perDollar)}</span><span class="per">per $1</span><span class="prov">${D.price.source} · ${D.price.when}</span></button>`}
             <div class="lens" role="group" aria-label="Price analysis in"><button data-set="lens:USD" aria-pressed="${S.lens === "USD"}" aria-label="Dollars">$</button><button class="b" data-set="lens:BITCOIN" aria-pressed="${S.lens === "BITCOIN"}" aria-label="Bitcoin">₿</button></div>
             ${master(M)}<button class="add" data-go="log" data-focus="payee"><span>Add entry</span><kbd>N</kbd><b aria-hidden="true">+</b></button></header>
           <main>${body}</main>
@@ -461,10 +467,16 @@
   }
 
   document.addEventListener("click", (e) => {
-    const el = e.target.closest("[data-set],[data-go],[data-open],[data-close],[data-ack],[data-ackall],[data-master],[data-drill],[data-drill-clear]");
+    const el = e.target.closest("[data-destroy],[data-set],[data-go],[data-open],[data-close],[data-ack],[data-ackall],[data-master],[data-drill],[data-drill-clear]");
     if (!el) return;
     const d = el.dataset;
-    if (d.set) { const [k, v] = d.set.split(":"); S[k] = v; if (k !== "theme" && k !== "lens") { S.acks = {}; S.drawer = null; S.drill = null; } }
+    if (d.destroy) {
+      if (S.boom) return;
+      S.boom = d.destroy;
+      render();
+      return setTimeout(() => { S.paid.push(S.boom); S.boom = null; render(); }, matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 520);
+    }
+    if (d.set) { const [k, v] = d.set.split(":"); S[k] = v; if (k !== "theme" && k !== "lens") { S.acks = {}; S.drawer = null; S.drill = null; S.paid = []; } }
     else if (d.go) { S.screen = d.go; S.drawer = null; window.scrollTo(0, 0); }
     else if (d.open) S.drawer = d.open;
     else if ("close" in d) S.drawer = null;

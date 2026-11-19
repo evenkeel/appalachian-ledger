@@ -146,25 +146,33 @@
       `Cumulative spending this month: ${fmt(lv)} through day ${last}.`);
   };
 
-  /* Bills radar: closer to the centre is sooner; blips run clockwise in due order and are sized by amount. */
-  CH.radar = (el, m) => {
-    const W = el.clientWidth, H = el.clientHeight, R = Math.min(W, H) / 2 - 8, core = 13;
-    const bills = m.bills.filter((b) => b.day <= 30), max = Math.max(...bills.map((b) => b.cents), 1);
-    const rr = (d) => core + 4 + ((R - core - 4) * d) / 30;
-    const rings = [7, 14, 30].map((d) => `<circle r="${rr(d)}" fill="none" stroke="var(--bezel)" stroke-width="1"${d === 30 ? "" : ' stroke-dasharray="2 4"'}/><text x="3" y="${-rr(d) + 10}">${d}d</text>`).join("");
-    const up = bills.filter((b) => b.day >= 0), late = bills.filter((b) => b.day < 0);
-    const blips = up.map((b, i) => {
-      const a = (-90 + 28 + (i * 300) / Math.max(up.length, 1)) * (Math.PI / 180), r = rr(b.day);
-      const size = 3 + 7 * Math.sqrt(b.cents / max);
-      return `<circle cx="${(r * Math.cos(a)).toFixed(1)}" cy="${(r * Math.sin(a)).toFixed(1)}" r="${size.toFixed(1)}" fill="${b.card ? "var(--panel)" : "var(--usd)"}" stroke="var(--usd)" stroke-width="1.6" fill-opacity="${b.card ? 1 : 0.85}" ${tip(`${b.name} ${F.usd(b.cents)}\nDue ${F.date(b.day)} · in ${b.day} day${b.day === 1 ? "" : "s"}`)}/>`;
-    }).join("");
-    const overdue = late.length
-      ? `<circle r="${core}" fill="var(--warn)" opacity=".22"/>` + late.map((b, i) => `<path d="M0,-7L7,0L0,7L-7,0Z" transform="translate(${i * 6},0)" fill="var(--warn)" ${tip(`OVERDUE · ${b.name} ${F.usd(b.cents)}\nWas due ${F.date(b.day)}`)}/>`).join("")
-      : `<circle r="2.5" fill="var(--ink-2)"/>`;
-    el.innerHTML = `<svg viewBox="${-W / 2} ${-H / 2} ${W} ${H}" role="img" aria-label="${esc(`${up.length} bills due in the next 30 days${late.length ? `, ${late.length} overdue` : ""}.`)}">
-      <circle r="${R}" fill="var(--well)"/>${rings}
-      <line class="sweep" x1="0" y1="0" x2="0" y2="${-R}" stroke="var(--ink-3)" stroke-width="1" opacity=".5"/>
-      ${blips}${overdue}</svg>`;
+  /* Bills to destroy: a 30-day lane. Further left is sooner; a bigger target is a bigger bill. */
+  CH.lane = (el, m) => {
+    const W = el.clientWidth, H = el.clientHeight, bills = m.bills.filter((b) => b.day <= 30);
+    const late = bills.filter((b) => b.day < 0), up = bills.filter((b) => b.day >= 0).sort((a, b) => a.day - b.day);
+    const zone = late.length ? 62 : 16, x = (d) => zone + (d / 30) * (W - zone - 24), cy = (H - 16) / 2 + 4;
+    const max = Math.max(1, ...bills.map((b) => b.cents)), size = (c) => 12 + 24 * Math.sqrt(c / max);
+    const target = (b, tx, ty) => {
+      const s = size(b.cents), warn = b.day < 0, boom = m.boom === b.name, col = warn ? "var(--warn)" : "var(--usd)";
+      const burst = boom ? `<g class="burst">${Array.from({ length: 8 }, (_, k) => { const a = (k * Math.PI) / 4; return `<line x1="${(Math.cos(a) * s * 0.7).toFixed(1)}" y1="${(Math.sin(a) * s * 0.7).toFixed(1)}" x2="${(Math.cos(a) * s * 1.25).toFixed(1)}" y2="${(Math.sin(a) * s * 1.25).toFixed(1)}" stroke="var(--ink)" stroke-width="2" stroke-linecap="round"/>`; }).join("")}</g>` : "";
+      return `<g transform="translate(${tx.toFixed(1)},${ty.toFixed(1)})" data-destroy="${esc(b.name)}" class="target" ${tip(`${b.name} ${F.usd(b.cents)}\n${warn ? `${-b.day} days overdue` : `Due ${F.date(b.day)}, in ${b.day} days`}\nClick to destroy (record the payment)`)}>
+        <g class="${boom ? "boom" : ""}"><circle r="${s / 2}" fill="${warn ? "var(--warn)" : "var(--usd-soft)"}" stroke="${col}" stroke-width="1.6"${b.card ? ' stroke-dasharray="4 3"' : ""}/>
+        ${s > 22 ? `<circle r="${s * 0.29}" fill="none" stroke="${warn ? "var(--lamp-on-ink)" : col}" stroke-width="1.2"/>` : ""}
+        <circle r="${Math.max(1.8, s * 0.1)}" fill="${warn ? "var(--lamp-on-ink)" : col}"/></g>${burst}</g>`;
+    };
+    let out = `<line x1="${zone}" x2="${W}" y1="${cy}" y2="${cy}" stroke="var(--hairline)"/>`;
+    if (late.length) out += `<rect x="0" y="6" width="${zone - 8}" height="${H - 26}" rx="6" fill="var(--warn)" opacity=".14"/><text x="${(zone - 8) / 2}" y="${H - 4}" text-anchor="middle" style="fill:var(--warn);font-weight:700">Past due</text>`;
+    out += `<line x1="${x(0)}" x2="${x(0)}" y1="6" y2="${H - 18}" stroke="var(--ink-2)" stroke-width="1.5"/>`;
+    out += [0, 7, 14, 21, 28].map((d) => `<text x="${x(d)}" y="${H - 4}" text-anchor="${d ? "middle" : "start"}"${d ? "" : ' class="lbl"'}>${d ? F.date(d) : "Today"}</text>`).join("");
+    out += PROTO.six.paydays.map((p) => `<line x1="${x(p.day)}" x2="${x(p.day)}" y1="16" y2="${H - 18}" stroke="var(--plan)" stroke-dasharray="3 3"/><text x="${x(p.day)}" y="11" text-anchor="middle" style="fill:var(--plan)" ${tip(`Planned paycheck ${F.usd(p.cents)}\n${F.date(p.day)} · reloads your ammo`)}>Reload +${F.usd0(p.cents)}</text>`).join("");
+    out += late.map((b, i) => target(b, (zone - 8) / 2 + i * 8, cy)).join("");
+    let prevX = -99, prevS = 0, flip = 1;
+    for (const b of up) {
+      const tx = x(b.day), s = size(b.cents), crowd = tx - prevX < (s + prevS) / 2 + 3;
+      out += target(b, tx, crowd ? cy + flip * 15 : cy);
+      flip = crowd ? -flip : 1; prevX = tx; prevS = s;
+    }
+    el.innerHTML = svg(W, H, out, `${up.length} bills in the next 30 days${late.length ? `, ${late.length} past due` : ""}. Nearest is furthest left.`);
   };
 
   /* Two systems: the same monthly cost of living, indexed to the first full month. */

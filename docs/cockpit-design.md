@@ -1,6 +1,10 @@
-# Cockpit design brief
+# Dashboard design brief
 
-Status: **proposal, awaiting owner feedback.** Nothing in the running app has changed yet.
+Status: **second draft, awaiting owner feedback.** "Cockpit" was shorthand for a dense dashboard, so this draft drops the flight vocabulary and uses plain names. The file keeps its original name.
+
+Changed since the first draft: plain names throughout; a new logo drawing; the bills radar replaced by **Bills to destroy**; "Watershed" renamed **Money flow**; a small game layer; clearer spend-pace wording.
+
+Nothing in the running app has changed yet.
 This document and the clickable prototype in [`docs/cockpit-prototype/`](cockpit-prototype/) are the whole of step 2.
 
 ## See it first
@@ -11,17 +15,17 @@ python3 -m http.server 5180 --bind 127.0.0.1 --directory docs/cockpit-prototype
 
 Open <http://127.0.0.1:5180>. The dashed strip at the top is prototype-only: switch between **Day 3** (one account, three entries) and **Month 6**, between **All calm** and **Trouble**, and between **Night** and **Day**. Everything is fictional and static; no server or ledger is involved.
 
-Things to try: press **Master warning** in Trouble; click a lit lamp; switch **$ / ₿** on the Spending screen; click a bridge row to drill down; press **N**.
+Things to try: in Trouble, press **Destroy** on the overdue bill and watch its red light go out; press the **Warnings** button; click a lit light; switch **$ / ₿** on the Spending screen; click a bridge row to drill down; press **N**.
 
 | Month 6, all calm | Month 6, trouble |
 | --- | --- |
-| ![Cockpit, calm](cockpit-prototype/screens/cockpit-calm.png) | ![Cockpit, trouble](cockpit-prototype/screens/cockpit-trouble.png) |
+| ![Dashboard, calm](cockpit-prototype/screens/dashboard-calm.png) | ![Dashboard, trouble](cockpit-prototype/screens/dashboard-trouble.png) |
 
 | Day 3 | Phone, trouble |
 | --- | --- |
 | ![Day one](cockpit-prototype/screens/day-one.png) | ![Phone](cockpit-prototype/screens/phone-trouble.png) |
 
-More: [day theme](cockpit-prototype/screens/cockpit-day-theme.png), [Spending in bitcoin](cockpit-prototype/screens/spending-bitcoin.png), [design system and logo](cockpit-prototype/screens/design-system.png).
+More: [day theme](cockpit-prototype/screens/dashboard-day-theme.png), [Spending in bitcoin](cockpit-prototype/screens/spending-bitcoin.png), [design system and logo](cockpit-prototype/screens/design-system.png).
 
 ## What I found in the current app
 
@@ -33,7 +37,7 @@ Worth keeping, and reused as is:
 - Price sync and provenance (`prices.py`, `price_sync.py`, `conversions.py`), the forecasting engine, recurring bills with confirm-to-post, CSV import, encrypted backup and verified restore, auth and CSRF.
 - `spendingAnalysis.ts`: exact BigInt pace and bridge maths. The three ideas the owner loves are sound; they are under-presented, not wrong.
 
-Weak, and what the cockpit changes:
+Weak, and what the new dashboard changes:
 
 - **The top of Overview needs months of history.** "Your expenses, priced in bitcoin" leads the page and is blank or thin for a new user.
 - **No sense of danger.** An overdue bill is a small link. Nothing says "checking will not cover the card payment".
@@ -41,66 +45,90 @@ Weak, and what the cockpit changes:
 - **A total net worth card is on Overview**, although `architecture.md` says none is shown.
 - **Ten flat destinations and long pages of collapsible cards.** Related things live apart (Income, Transactions; Expenses, Budgets, Reports).
 - **The wordmark** is Georgia set under a 6:1 landscape; widths and baselines do not agree.
-- **The demo is too thin** to show a cockpit: no credit card, no paycheck schedule, one bitcoin buy a month.
+- **The demo is too thin** to show a full dashboard: no credit card, no paycheck schedule, one bitcoin buy a month.
 
 ## Information architecture
 
-Nine destinations instead of eleven. Plain names lead; the one themed name ("Horizon") always carries its plain label.
+Nine destinations instead of eleven, all with plain names.
 
 | Destination | What lives there | Replaces |
 | --- | --- | --- |
-| **Cockpit** | The instrument panel and annunciator | Overview |
-| **Log** (flight log) | Every entry, fast keyboard entry, corrections, import | Transactions, Income |
-| **Spending** | Pace, Month bridge, Watershed, categories, allowances, history | Expenses, Budgets, most of Reports |
-| **Bills** | Radar at full size, 30-day strip, recurring bills, paycheck schedule | Upcoming expenses |
-| **Stack** | Bitcoin by wallet, every buy at the price paid, Two systems at full size, price source | Stacking, price settings |
+| **Dashboard** | The panels and the row of alert lights | Overview |
+| **Activity** | Every transaction, fast keyboard entry, corrections, import | Transactions, Income |
+| **Spending** | Spend pace, Spending bridge, Money flow, categories, budgets, history | Expenses, Budgets, most of Reports |
+| **Bills** | Bills to destroy at full size, 30-day view, recurring bills, paycheck schedule | Upcoming expenses |
+| **Stack** | Bitcoin by wallet, every buy at the price paid, milestones, Two systems at full size, price source | Stacking, price settings |
 | **Accounts** | Checking, cards, reserve, brokerage, property, loans | Accounts, Assets & liabilities |
-| **Horizon** · retirement | Saved scenarios in both systems | Retirement |
-| **Learn** (ground school) | The teaching space; contextual "Why" links land here | new |
-| **Settings** | Warning-light thresholds, backup, security, categories, export | Settings |
+| **Retirement** | Saved scenarios in both systems | Retirement |
+| **Learn** | The teaching space; contextual "Why" links land here | new |
+| **Settings** | Alert thresholds, backup, security, categories, export | Settings |
 
-Shell: a 76 px icon-and-label rail on desktop; a five-slot tab bar on phones (Cockpit, Log, **+**, Bills, Stack; the rest under More). Above the panel sits the glareshield: logo, price with provenance, the `$ / ₿` lens, Master caution, Add entry (`N`).
+Shell: a 76 px icon-and-label rail on desktop; a five-slot tab bar on phones (Dashboard, Activity, **+**, Bills, Stack; the rest under More). The top bar holds the logo, the price with its source, the `$ / ₿` switch, the alerts button, and Add entry (`N`).
 
-The lens changes how analysis is priced (pace, bridge, watershed, history). It never changes operational dollar readings: checking, bills and runway are always dollars.
+The `$ / ₿` switch changes how analysis is priced (pace, bridge, money flow, history). It never changes operational dollar readings: checking and bills are always dollars.
 
-## Instruments
+## Panels
 
-Day-one instruments are on top. History-dependent ones sit lower and say what they are waiting for; none ever draws an empty chart. Once Two systems has two full months, it is promoted to the top-left slot.
+Panels that work on day one are on top. Panels that need history sit lower and say what they are waiting for; none ever draws an empty chart. Once Two systems has two full months, it moves to the top-left slot.
 
-| Instrument · plain label | Measures | Source | Day one | With history |
+| Panel | Measures | Source | Day one | With history |
 | --- | --- | --- | --- | --- |
-| **Runway** · checking against known bills | Projected checking balance over 30 days: known bills step it down, planned paychecks step it up. Headline is "Covered through payday" or "Short before payday", with lowest point and days of bills covered with no paycheck | Account balance, `recurring_bills`, new `income_schedules` | Works once one bill exists. Before that it is dark and says what it needs | Same |
-| **Stack** · bitcoin held | Bitcoin held on an altimeter tape, this month's climb, buys and dollars paid, share of income stacked, wallets, price and provenance | Balances, transfers into bitcoin accounts, `price_quotes` | Works with one holding | Monthly trend line appears from month two |
-| **This month** · in and out | Dollars in; out split into spending, bitcoin stacked, other moves; and what is still in checking, shown dim and never praised | `flow`, `money_moved_out` | Works with one entry | Same |
-| **Spend pace** · vs last month, same days | Cumulative spending against the same elapsed days last month | Expenses, `expense_costs` | Shows this month's line and says when comparison starts | Full comparison |
-| **Bills radar** · what is due | Bills in the next 30 days. Closer to the centre is sooner; blips run clockwise in due order and are sized by amount; overdue sits in a red core. Always paired with a list | `recurring_bills`, `bill_occurrences` | Works with one bill | Same |
-| **Cards & debt** · what you owe | Card balance against its limit with the caution threshold marked, next payment, loan balance and change | Liability accounts, new `card_terms` | Works with one card or loan | Payoff pace, labelled hypothetical |
-| **Two systems** · the same life, priced two ways | Monthly cost of living indexed to the first full month, in dollars and in bitcoin at purchase-date prices | `expense_costs` | "Collecting data — 19 of 60 days" with a meter and ready date | Becomes the headline instrument |
-| **Month bridge** · what changed since last month | A horizontal waterfall: which categories carry last month's total to this month's, same days of each | `analyzeSpending` | "Collecting data — n of 30 days" | Full |
-| **Watershed** · where the month's income flowed | One picture of the month: income into bitcoin stacked (first, copper, the only bright stream), spending by category, other moves, and still in checking | `flow`, `stacked` | Works with income and one expense | Any month selectable |
-| **Allowances** · dollar budgets | Category spending against its USD allowance, with a mark for how much of the month has passed | `budget_overview` | Works once one allowance is set | Same |
-| **Horizon** · hypothetical course | The default saved scenario: funded-to age, retirement age, monthly life in both systems | `planning_scenarios`, forecasting engine | "No scenario yet" with one action | Same |
-| **Flight log** · latest entries | The last entries with dollars and bitcoin that day | Journal, `expense_costs` | Works with one entry | Same |
+| **Cash ahead** | Projected checking balance over 30 days: known bills step it down, planned paychecks step it up. Headline is "Covered through payday" or "Short before payday", with the lowest point and how many days of bills are covered with no paycheck | Account balance, `recurring_bills`, new `income_schedules` | Works once one bill exists. Before that it says what it needs | Same |
+| **Bills to destroy** | See below | `recurring_bills`, `bill_occurrences`, checking balance | Works with one bill | Same |
+| **Stack** | Bitcoin held, this month's gain, buys and dollars paid, share of income stacked, next milestone, streak, wallets, price and source | Balances, transfers into bitcoin accounts, `price_quotes` | Works with one holding | Monthly trend from month two |
+| **Spend pace** | Exact spending so far this month, against the same days last month | Expenses, `expense_costs` | Shows this month's line and says when comparison starts | Full comparison |
+| **Cards & debt** | Card balance against its limit, next payment, loan balance and change | Liability accounts, new `card_terms` | Works with one card or loan | Payoff pace, labelled hypothetical |
+| **Budgets** | Category spending against its dollar allowance, with a mark for how much of the month has passed | `budget_overview` | Works once one allowance is set | Same |
+| **Two systems** | Monthly cost of living indexed to the first full month, in dollars and in bitcoin at purchase-date prices | `expense_costs` | "Collecting data — 19 of 60 days" with a meter and ready date | Becomes the headline panel |
+| **Spending bridge** | Which categories carry last month's total to this month's, same days of each | `analyzeSpending` | "Collecting data — n of 30 days" | Full |
+| **Money flow** | One picture of the month: income into bitcoin stacked (first, orange, the only bright stream), spending by category, other moves, and what is still in checking | `flow`, `stacked` | Works with income and one expense | Any month selectable |
+| **Retirement** | The default saved scenario: funded-to age, retirement age, monthly life in both systems | `planning_scenarios`, forecasting engine | "No scenario yet" with one action | Same |
+| **Transactions** | The latest entries with dollars and bitcoin that day | Journal, `expense_costs` | Works with one entry | Same |
 
-The three ideas the owner loves:
+### Bills to destroy
 
-- **Spend pace** keeps its name and moves up to the first screenful.
-- **Spending bridge → Month bridge.** Redrawn horizontally so category names and amounts are readable and no axis is truncated. Filled bar means spent more, dashed outline means spent less.
-- **Where the money went → Watershed.** My recommended name: income runs downhill into streams, and it belongs to these mountains. Its plain label, "where the month's income flowed", always sits beside it. Alternatives if it does not land: *Month flow*, *Flow map*. Bitcoin stacked is listed first and is the only saturated stream; "Still in checking" is dim and described as waiting, not saved.
+This replaces the radar, which looked good but did not explain itself.
+
+- Your checking balance is your **ammo**. A bar shows how much of it the bills before payday will use, and says "Enough ammo" or "$757.46 short".
+- Each bill is a **target** on a 30-day line. Further left is sooner; a bigger target is a bigger bill. Overdue bills sit in a red "Past due" box left of Today.
+- Each planned paycheck is a **reload**, drawn in purple because it has not happened yet.
+- **Destroy** records the payment. The target bursts, ammo drops by that amount, and any alert the bill caused goes out. In the real app Destroy opens the existing confirm step first (date and actual amount), so nothing posts by accident.
+- A counter keeps score: "6 destroyed this month".
+
+### Game layer
+
+Small and optional; it never changes a number.
+
+- **Bills destroyed** this month, and an "All clear" state when none are left.
+- **Stack milestones**: progress to the next round number of bitcoin held.
+- **Stacking streak**: consecutive months with at least one buy.
+- Ideas I have not drawn yet: a clean-sweep badge for a month with every bill destroyed on time, and a personal-best marker for the most bitcoin stacked in a month. Tell me how far to take this.
+
+### Spend pace, in plain terms
+
+The panel always shows exact tracked numbers: what you have spent so far this month, and how many dollars more or less that is than the same days last month. Nothing is rounded or estimated.
+
+Separately, an amber alert light can come on when you are well ahead of last month. I have set that to both 20% and $150 ahead, starting on day 5, so a single early grocery run cannot trigger it. You can change or turn off that light in Settings; it does not affect the tracking.
+
+### The three ideas the owner loves
+
+- **Spend pace** keeps its name and moves to the first screenful.
+- **Spending bridge** keeps its name. It is redrawn horizontally so category names and amounts are readable and no axis is cut short. A filled bar means spent more; a dashed outline means spent less.
+- **Where the money went** becomes **Money flow**. Bitcoin stacked is listed first and is the only bright stream; "Still in checking" is dim and described as waiting, not saved.
 
 All three work in dollars and bitcoin, drill down to the entries behind a number, label partial months ("Nov 1–19", "month so far"), and mark totals "partial" when a purchase-date price is missing.
 
-## Warning lights
+## Alert lights
 
-A fixed row of ten lamps. A dark lamp is normal; "All normal" is the calm state. Level is carried three ways at once: shape (circle, triangle, octagon), the word, and colour. Amber and red appear nowhere else in the product.
+A fixed row of ten lights. A dark light is normal; "All normal" is the calm state. Level is carried three ways at once: shape (circle, triangle, octagon), the word, and colour. Amber and red appear nowhere else in the product.
 
-Each light states what is wrong, why it matters, and one action with a direct link. A flagged instrument takes the same colour on its top edge and a chip that opens the alert.
+Each light states what is wrong, why it matters, and one action with a direct link. A flagged panel takes the same colour on its top edge and a chip that opens the alert.
 
-**Master caution** lights for any unacknowledged caution or warning. Pressing it acknowledges all of them, as in an aircraft: the master goes dark, each lamp stays lit but hollow until the condition clears. An acknowledged light returns to your attention when it gets worse: a higher level, or a magnitude past the acknowledged value (more days overdue, a deeper shortfall, a higher utilisation step).
+The **alerts button** in the top bar lights for any unacknowledged caution or warning. Pressing it acknowledges all of them: the button goes dark, and each light stays on but hollow until the problem is fixed. An acknowledged light returns to your attention when it gets worse: a higher level, or a magnitude past the acknowledged value (more days overdue, a deeper shortfall, a higher utilisation step).
 
-| Lamp | Advisory (blue) | Caution (amber) | Warning (red) | One action |
+| Light | Advisory (blue) | Caution (amber) | Warning (red) | One action |
 | --- | --- | --- | --- | --- |
-| Bill overdue | — | 1–2 days past due | 3+ days past due | Record payment |
+| Bill overdue | — | 1–2 days past due | 3+ days past due | Destroy it |
 | Cash short | — | Projected paying-account balance below $0 before the next paycheck, more than 7 days out | Same, within 7 days | Move money / reschedule |
 | Card due | Payment due in ≤ 7 days | Due in ≤ 2 days | Past due | Make payment |
 | Spend pace | — | Month to date ≥ 120% of last month's same days, and ≥ $150 more, from day 5 | never | See what changed |
@@ -111,9 +139,9 @@ Each light states what is wrong, why it matters, and one action with a direct li
 | Backup | Last encrypted backup 14+ days ago | 30+ days ago, or never after 7 days of use | never | Back up now |
 | No stack yet | By day 20: income recorded, no bitcoin bought this month | never | never | Record a bitcoin buy |
 
-Against false alarms: every threshold above is a default, adjustable in Settings → Warning lights, and each lamp can be switched off. Manual-price mode never lights Price feed. Spend pace needs both a ratio and a dollar floor. Bills are confirm-to-post, so the first two days past due are a caution, not a warning.
+Against false alarms: every threshold above is a default, adjustable in Settings → Alerts, and each light can be switched off. Manual-price mode never lights Price feed. Spend pace needs both a ratio and a dollar floor. Bills are confirm-to-post, so the first two days past due are a caution, not a warning.
 
-Implementation: one pure function, `alerts(ledger_state, thresholds, today) -> list[Alert]`, in a new `backend/app/alerts.py`, with a test per trigger edge (just under, at, just over), per re-arm rule, and for "no alert on an empty ledger".
+Implementation: one pure function, `alerts(ledger_state, thresholds, today) -> list[Alert]`, in a new `backend/app/alerts.py`, with a test per trigger edge (just under, at, just over), per comes-back-when-worse rule, and for "no alert on an empty ledger".
 
 ## Design system
 
@@ -127,42 +155,47 @@ Tokens live in [`cockpit-prototype/tokens.css`](cockpit-prototype/tokens.css) an
 | `--usd` mist | `#C9D8E0` | `#304E5D` | Dollars and neutral readings |
 | `--plan` amethyst | `#BD90E4` | `#7A49B0` | Planned or hypothetical: paychecks not yet recorded, forecasts, payoff pace. Never a recorded fact |
 | `--ok` green | `#4CC38A` | `#1A7C51` | In range |
-| `--adv` / `--caution` / `--warn` | `#55AAFF` / `#F8BC2C` / `#FF5D50` | `#1461BD` / `#F3B11F` / `#C22F29` | Annunciator only |
-| `--bg` / `--panel` / `--bezel` | `#070E13` / `#0D181F` / `#20343E` | `#EBE9E1` / `#FBFAF6` / `#CFCEC3` | Canvas, instrument face, instrument edge |
+| `--adv` / `--caution` / `--warn` | `#55AAFF` / `#F8BC2C` / `#FF5D50` | `#1461BD` / `#F3B11F` / `#C22F29` | Alert lights only |
+| `--bg` / `--panel` / `--bezel` | `#070E13` / `#0D181F` / `#20343E` | `#EBE9E1` / `#FBFAF6` / `#CFCEC3` | Canvas, panel face, panel edge |
 
-Amethyst for the hypothetical mirrors the magenta flight-plan line in a glass cockpit, and gives the rule "a forecast never creates a posting" a visible form. Income and expenses are not green and red; sign and position carry that, which frees red for real danger.
+Giving the hypothetical its own colour makes the rule "a forecast never creates a posting" visible. Income and expenses are not green and red; sign and position carry that, which frees red for real danger.
 
-**Type.** B612, the open typeface Airbus commissioned for cockpit displays (OFL, self-hosted, no remote fonts). Its digits share one width, so every number aligns without a monospaced face. Scale: 10.5 / 11 / 12 / 13 / 15 / 18 / 24 / 30. Instrument names are 11 px tracked capitals with a sentence-case plain label beside them.
+**Type.** B612, an open typeface designed for reading dense instrument displays at a glance (OFL, self-hosted, no remote fonts). Its digits share one width, so every number aligns without a monospaced face. Scale: 10.5 / 11 / 12 / 13 / 15 / 18 / 24 / 30. Panel names are 11 px tracked capitals with a sentence-case label beside them.
 
-**Space, radius, elevation.** 4 px base (4, 8, 12, 16, 24, 32). Radii 4 (chips and lamps), 10 (instruments), 14 (sheets). Instruments are flat with a 1 px bezel; only overlays cast a shadow.
+**Space, radius, elevation.** 4 px base (4, 8, 12, 16, 24, 32). Radii 4 (chips and lights), 10 (panels), 14 (sheets). Panels are flat with a 1 px edge; only overlays cast a shadow.
 
-**Motion.** 120 ms for controls, 240 ms for panels, 700 ms for needles and lines settling on load. An unacknowledged warning lamp blinks; the master pulses; the radar sweeps. All stop under `prefers-reduced-motion`.
+**Motion.** 120 ms for controls, 240 ms for panels, 700 ms for lines settling on load. An unacknowledged warning light blinks; the alerts button pulses; a destroyed bill bursts. All stop under `prefers-reduced-motion`.
 
-**States.** Every instrument has: not set up (dashed, says what it needs, one action), collecting (n of m with a ready date), partial (labelled), missing price (dashed "no price saved" tag, never a guess), loading (skeleton at final size), offline (last readings with their time, entry paused), locked (blanked). All are on the prototype's System screen.
+**States.** Every panel has: not set up (dashed, says what it needs, one action), collecting (n of m with a ready date), partial (labelled), missing price (dashed "no price saved" tag, never a guess), loading (skeleton at final size), offline (last readings with their time, entry paused), locked (blanked). All are on the prototype's System screen.
 
 **Charts** are hand-built SVG with `d3-scale` and `d3-shape` only; Recharts is retired. Every mark exposes its exact value on hover and keyboard focus, formatted from the integer amount. Floats are for coordinates only.
 
-**Accessibility.** Lamps and instruments have text labels and `aria-label` summaries; the annunciator has a polite live region; focus is always visible. Checked in the prototype: no horizontal page scroll at 375 px. Targets for the build, not yet measured: WCAG AA contrast for all text in both themes, and 44 px touch targets on phones.
+**Accessibility.** Lights and panels have text labels and `aria-label` summaries; alerts are announced through a polite live region; focus is always visible. Checked in the prototype: no horizontal page scroll at 375 px. Targets for the build, not yet measured: WCAG AA contrast for all text in both themes, and 44 px touch targets on phones.
 
 ## Logo
 
-The three-ridge mark stays: mist behind, copper in the middle, slate in front.
+The first draft's mark was a flattened copy of the old wide artwork, and it looked bad. This draft redraws it from scratch as what the logo is: **three rolling mountains, two blues and one orange for bitcoin.**
 
-- Redrawn from three smooth paths on a 60 × 30 grid with a flat shared baseline, replacing the two hand-tuned files that disagreed with each other.
-- **Horizontal** (header): mark, then the wordmark on one line in tracked B612 capitals, "APPALACHIAN" regular and "BITCOIN" bold, cap-height centred on the mark.
+- Three soft peaks built from one curve recipe, so they look related: a tall light-blue mountain behind, the orange mountain beside it, a lower dark-blue mountain in front.
+- A thin gap separates each mountain from the one behind it, so the shapes stay crisp at every size and on both themes.
+- Proportions are about 2:1 with real height, not a strip.
+- **Horizontal** (header): mark, then the wordmark on one line in tracked capitals, "APPALACHIAN" regular and "BITCOIN" bold, centred on the mark.
 - **Stacked** (sign-in, splash): the wordmark is set to exactly the mark's width, so both edges align.
-- **Icon / favicon / PWA**: the ridges full-bleed in an ivory rounded tile, legible at 16 px. Night theme lifts only the front ridge (`#3B6073`) so it does not sink into the canvas.
-- An alternate serif wordmark, closer to today's, is on the System screen for comparison. I recommend the capitals: they read as an instrument maker's plate and align cleanly.
+- **App icon and favicon**: the mountains rise from the bottom edge of an ivory rounded tile; checked down to 16 px.
+- On the dark theme only the dark-blue mountain is lifted a step (`#3F6A80`) so it does not sink into the background.
+- A serif wordmark, closer to today's, is on the System screen for comparison.
+
+This is the item I most want a yes or no on. If the shapes are still wrong, tell me which way (rounder, lower, wider apart, a different order) and I will redraw before building anything on it.
 
 In the build the wordmark becomes outlined paths, and `mark.svg`, `mountains.svg`, `MountainMark.tsx`, `icon-192.png`, `icon-512.png` and the manifest are regenerated from one source.
 
 ## Earlier decisions
 
-- **No combined net worth: keep, and enforce.** The current Overview shows one; the cockpit does not. Bitcoin and dollars stay in their own units.
-- **Budgets are USD allowances: keep.** Renamed "Allowances" on the panel.
-- **Compact, content-sized panels: keep.** A 12-column grid of instruments that size to content.
-- **"Safe to spend": changed.** It becomes Runway's "Free after bills", measured to the next paycheck, not month end, and never presented as money kept.
-- **Bitcoin price is quoted as bitcoin per dollar** (`₿842 per $1`), with the legacy `per BTC` figure one hover away. This is BIP-177 taken seriously, and worth the owner's explicit yes or no.
+- **No combined net worth: keep, and enforce.** The current Overview shows one; the new dashboard does not. Bitcoin and dollars stay in their own units.
+- **Budgets are USD allowances: keep.**
+- **Compact, content-sized panels: keep.** A 12-column grid of panels that size to content.
+- **"Safe to spend": changed.** It becomes Cash ahead's "Free after bills", measured to the next paycheck, not month end, and never presented as money kept.
+- **Bitcoin price is quoted as bitcoin per dollar** (`₿842 per $1`), with the legacy `per BTC` figure one hover away. Approved by the owner.
 
 ## Back end and migration
 
@@ -174,9 +207,9 @@ New tables (one migration each, no change to journal tables):
 | --- | --- |
 | `income_schedules` | Expected paychecks: account, amount, frequency (adds biweekly and semi-monthly), next date. Never posts by itself |
 | `card_terms` | Credit limit and payment due day per card account |
-| `alert_acknowledgements` | Lamp id, level and magnitude at acknowledgement, time |
+| `alert_acknowledgements` | Light id, level and magnitude at acknowledgement, time |
 
-Thresholds and the pre-flight checklist state go in the existing owner preferences JSON. New read endpoints: `GET /api/cockpit` (instrument readings) and `GET /api/alerts`. Existing endpoints stay until the new screens replace their callers.
+Thresholds and the setup checklist state go in the existing owner preferences JSON. New read endpoints: `GET /api/dashboard` (panel readings) and `GET /api/alerts`. Existing endpoints stay until the new screens replace their callers.
 
 Restore today refuses a backup from an older schema. I will extend it: authenticate, validate at the backup's own revision, migrate a temporary copy forward, validate again, then swap. Older backups then import directly.
 
@@ -186,11 +219,11 @@ Tests that prove no loss (isolated temporary databases only):
 2. Make an encrypted backup at the old head, restore it into the new app, and assert the same.
 3. Confirm the journal triggers still reject edits after migration.
 
-The demo seed grows a credit card, a paycheck schedule, more bills and twice-monthly buys so every instrument has something to show.
+The demo seed grows a credit card, a paycheck schedule, more bills and twice-monthly buys so every panel has something to show.
 
 ## Front end
 
-React, TypeScript, Vite and Tailwind 4 stay. The `src/` tree is rebuilt: `design/` (tokens, primitives), `instruments/` (one folder each: component, pure maths, tests), `annunciator/`, `screens/`. Money stays in BigInt and strings. Routing moves to real URLs so every drill-down is linkable.
+React, TypeScript, Vite and Tailwind 4 stay. The `src/` tree is rebuilt: `design/` (tokens, primitives), `panels/` (one folder each: component, pure maths, tests), `alerts/`, `screens/`. Money stays in BigInt and strings. Routing moves to real URLs so every drill-down is linkable.
 
 ## Build order after approval
 
@@ -198,27 +231,34 @@ Each step runs end to end and is checked in a browser at desktop and phone width
 
 1. Design system and logo.
 2. Shell and navigation.
-3. Cockpit with day-one instruments (Runway, Stack, This month, Spend pace, Bills radar, Cards & debt) and their migrations.
-4. Annunciator, thresholds, acknowledgement, trigger tests.
-5. History instruments (Two systems, Month bridge, Watershed).
-6. Flight log and entry.
-7. Bills, Stack, Accounts, Spending, Horizon, Settings.
-8. Pre-flight checklist.
+3. Dashboard with day-one panels (Cash ahead, Bills to destroy, Stack, Spend pace, Cards & debt, Budgets) and their migrations.
+4. Alert lights, thresholds, acknowledgement, trigger tests.
+5. History panels (Two systems, Spending bridge, Money flow).
+6. Activity and entry.
+7. Bills, Stack, Accounts, Spending, Retirement, Settings.
+8. Setup checklist.
 9. Learn.
 10. Migration and restore tests, then removal of the old screens.
 
+## Decisions so far
+
+- Price quoted as `₿842 per $1`: **approved.**
+- "No stack yet" light: **approved.**
+- "Watershed": **rejected**, now Money flow.
+- Bills radar: **rejected**, now Bills to destroy.
+- Flight vocabulary: **removed.**
+
 ## Questions for the owner
 
-1. **Watershed** as the new name for "Where the money went"?
-2. **Wordmark**: tracked capitals (recommended) or the serif alternate?
-3. **Price quoted as `₿842 per $1`** first, with `per BTC` secondary?
-4. **"No stack yet"** as an advisory light by day 20: welcome, or too pushy?
-5. **Bills radar**: keep the scope, or prefer a plain 30-day strip? The prototype shows the scope with its list.
-6. Are the default thresholds about right for your own use, especially Spend pace (120% and $150) and Credit use (30%)?
+1. **Logo**: is the new drawing right? If not, which way should it move?
+2. **Wordmark**: tracked capitals or the serif alternate?
+3. **Bills to destroy**: is this the right amount of game, and should Destroy keep a confirm step before it records the payment?
+4. **Game layer**: keep it to counters, milestones and streaks, or go further (badges, personal bests)?
+5. **Money flow** as the name?
 
 ## Not done yet
 
-- Only Cockpit, Spending, Log and the System screen are prototyped. The other destinations are described above and show a placeholder.
+- Only Dashboard, Spending, Activity and the System screen are prototyped. The other destinations are described above and show a placeholder.
 - The prototype is static HTML; none of it is wired to the API, and no application code or migration has been written.
 - The `₿` glyph falls back to a system font in the prototype; the build will ship a matched glyph.
 - A few existing files still contain the retired unit name (for example `docs/monetary-lens-roadmap.md` and `Settings.tsx`); they will be cleaned up as each area is rebuilt.
