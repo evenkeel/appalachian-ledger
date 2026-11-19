@@ -59,9 +59,9 @@
     const ex = D.expenses.concat(extra).sort((a, b) => a.day - b.day);
     const missing = t ? new Set(["Hardware store", "Transit pass"]) : new Set();
     const rate = (day) => 850 - day * 0.42;
-    const sat = (e) => (missing.has(e.name) ? null : Math.round((e.cents / 100) * rate(e.day)));
+    const bitcoinAt = (e) => (missing.has(e.name) ? null : Math.round((e.cents / 100) * rate(e.day)));
     const conv = (cents, mo) => (lens === "USD" ? cents : Math.round((cents / 100) * P.RATE[mo]));
-    const val = (e) => (lens === "USD" ? e.cents : sat(e) ?? Math.round((e.cents / 100) * rate(e.day)));
+    const val = (e) => (lens === "USD" ? e.cents : bitcoinAt(e) ?? Math.round((e.cents / 100) * rate(e.day)));
 
     // Runway
     const checking = D.checking[S.cond];
@@ -119,7 +119,7 @@
     const card = { ...D.card, balance: D.card.balance[S.cond] };
     card.util = (card.balance / card.limit) * 100;
     const m = {
-      lens, fmt, t, checking, bills, runway, expenses: ex, sat, missing, rate,
+      lens, fmt, t, checking, bills, runway, expenses: ex, bitcoinAt, missing, rate,
       pace: { cur, prev, from: 1 }, spent, spentUsd, prior: priorCats, bridge, flow, catNow, catNames,
       stack: { ...D.stack, buys: D.other.filter((o) => o.kind === "stack"), stackUsd, stackBtc, rate: (stackUsd / incomeUsd) * 100 },
       incomeUsd, movesUsd, restUsd, two: D.twoSystems, card, mortgage: D.mortgage,
@@ -312,7 +312,7 @@
   function logRows(m, list, sel, slim) {
     return list.map((e, i) => {
       const sign = e.kind === "income" ? "+" : e.kind === "expense" ? "−" : "";
-      const b = e.kind === "stack" ? `<span class="btc">+${F.btc(e.bitcoin)}</span>` : m.day3 ? `<span class="tag miss">no price source</span>` : e.kind === "expense" ? (m.sat(e) === null ? `<span class="tag miss">${I.advisory ? "" : ""}no price saved</span>` : F.btc(m.sat(e))) : `<span class="dim">${F.btc(Math.round((e.cents / 100) * m.rate(e.day)))}</span>`;
+      const b = e.kind === "stack" ? `<span class="btc">+${F.btc(e.bitcoin)}</span>` : m.day3 ? `<span class="tag miss">no price source</span>` : e.kind === "expense" ? (m.bitcoinAt(e) === null ? `<span class="tag miss">no price saved</span>` : F.btc(m.bitcoinAt(e))) : `<span class="dim">${F.btc(Math.round((e.cents / 100) * m.rate(e.day)))}</span>`;
       return `<tr class="${sel === i ? "sel" : ""}"><td class="num dim">Nov ${e.day}</td><td class="w">${esc(e.name)}</td><td class="hide-s"><span class="tag">${e.cat}</span></td>${slim ? "" : `<td class="dim hide-s">${e.acct}</td>`}<td class="num r">${sign}${F.usd(e.cents)}</td><td class="num r">${b}</td></tr>`;
     }).join("");
   }
