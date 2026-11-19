@@ -1103,6 +1103,9 @@ table.log {
   .glare .rail-mark {
     display: grid;
   }
+  .glare .lockup {
+    display: none;
+  }
   .annun {
     padding: 8px 12px;
     flex-direction: column;
@@ -1273,4 +1276,38 @@ table.log {
   .panel > .col {
     grid-column: span 6;
   }
+}
+
+/* Confirm before a bill is destroyed */
+.sheet {
+  position: fixed;
+  left: 50%;
+  top: 22vh;
+  transform: translateX(-50%);
+  width: min(400px, calc(100vw - 24px));
+  background: var(--panel);
+  border: 1px solid var(--bezel);
+  border-radius: var(--r-sheet);
+  box-shadow: var(--shadow);
+  padding: 16px;
+  z-index: 42;
+  display: grid;
+  gap: 10px;
+}
+.sheet h2 {
+  margin: 0;
+  font-size: var(--t-title);
+}
+.sheet p {
+  margin: 0;
+}
+.sheet-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.sheet .acts {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
 }

@@ -1,8 +1,10 @@
 # Dashboard design brief
 
-Status: **second draft, awaiting owner feedback.** "Cockpit" was shorthand for a dense dashboard, so this draft drops the flight vocabulary and uses plain names. The file keeps its original name.
+Status: **third draft, awaiting owner feedback.** "Cockpit" was shorthand for a dense dashboard, so this draft drops the flight vocabulary and uses plain names. The file keeps its original name.
 
-Changed since the first draft: plain names throughout; a new logo drawing; the bills radar replaced by **Bills to destroy**; "Watershed" renamed **Money flow**; a small game layer; clearer spend-pace wording.
+Changed since the first draft: plain names throughout; the bills radar replaced by **Bills to destroy**; "Watershed" renamed **Money flow**; a small game layer; clearer spend-pace wording.
+
+Changed in this draft: the logo is redrawn again as three gentle, layered hills; Destroy now has a confirm step; spare ammo can be stacked.
 
 Nothing in the running app has changed yet.
 This document and the clickable prototype in [`docs/cockpit-prototype/`](cockpit-prototype/) are the whole of step 2.
@@ -15,7 +17,7 @@ python3 -m http.server 5180 --bind 127.0.0.1 --directory docs/cockpit-prototype
 
 Open <http://127.0.0.1:5180>. The dashed strip at the top is prototype-only: switch between **Day 3** (one account, three entries) and **Month 6**, between **All calm** and **Trouble**, and between **Night** and **Day**. Everything is fictional and static; no server or ledger is involved.
 
-Things to try: in Trouble, press **Destroy** on the overdue bill and watch its red light go out; press the **Warnings** button; click a lit light; switch **$ / ₿** on the Spending screen; click a bridge row to drill down; press **N**.
+Things to try: in Trouble, press **Destroy** on the overdue bill, confirm, and watch its red light go out; press the **Warnings** button; click a lit light; switch **$ / ₿** on the Spending screen; click a bridge row to drill down; press **N**.
 
 | Month 6, all calm | Month 6, trouble |
 | --- | --- |
@@ -92,17 +94,21 @@ This replaces the radar, which looked good but did not explain itself.
 - Your checking balance is your **ammo**. A bar shows how much of it the bills before payday will use, and says "Enough ammo" or "$757.46 short".
 - Each bill is a **target** on a 30-day line. Further left is sooner; a bigger target is a bigger bill. Overdue bills sit in a red "Past due" box left of Today.
 - Each planned paycheck is a **reload**, drawn in purple because it has not happened yet.
-- **Destroy** records the payment. The target bursts, ammo drops by that amount, and any alert the bill caused goes out. In the real app Destroy opens the existing confirm step first (date and actual amount), so nothing posts by accident.
+- **Destroy** opens a short confirm step (date paid, actual amount, paying account, ammo left afterwards). Confirming records the payment: the target bursts, ammo drops by that amount, and any alert the bill caused goes out. Nothing posts without that confirmation.
 - A counter keeps score: "6 destroyed this month".
+- When there is more ammo than the bills before payday need, the panel says so ("Spare ammo after bills $1,728.54") and offers **Stack it**, which opens a bitcoin buy. That is the loop the app teaches: destroy the bills, stack what is spare.
 
 ### Game layer
 
-Small and optional; it never changes a number.
+The owner's framing: money is what you fight an uncertain future with. Dollars are ammo that loses power over time, bitcoin is the stronger weapon, stocks are a different one, and winning is simple: keep stacking.
 
-- **Bills destroyed** this month, and an "All clear" state when none are left.
-- **Stack milestones**: progress to the next round number of bitcoin held.
-- **Stacking streak**: consecutive months with at least one buy.
-- Ideas I have not drawn yet: a clean-sweep badge for a month with every bill destroyed on time, and a personal-best marker for the most bitcoin stacked in a month. Tell me how far to take this.
+My judgement on how far to take it:
+
+- **Keep "ammo" for dollars in checking, everywhere it appears.** It explains itself in one line and it is true to how dollars are used: spent on bills.
+- **Make stacking the win condition.** The Stack panel shows the next milestone, the current streak of months with a buy, and the best month so far. "Stack it" turns spare ammo into bitcoin. The "No stack yet" light is the nudge.
+- **Let the user's own numbers make the purchasing-power point.** Two systems already shows a month of life costing more dollars and less bitcoin. That is more convincing than a label, and it stays honest when the price moves the other way.
+- **Do not relabel every account as a weapon.** Calling the brokerage or the mortgage a weapon would bring back the problem the radar had: a metaphor to decode before a number can be read. The fuller weapons framing (dollars, bitcoin, stocks) belongs in Learn, where there is room to explain it.
+- Not drawn yet, easy to add: an "All clear" badge for a month with every bill destroyed on time.
 
 ### Spend pace, in plain terms
 
@@ -174,18 +180,16 @@ Giving the hypothetical its own colour makes the rule "a forecast never creates 
 
 ## Logo
 
-The first draft's mark was a flattened copy of the old wide artwork, and it looked bad. This draft redraws it from scratch as what the logo is: **three rolling mountains, two blues and one orange for bitcoin.**
+Two earlier drawings were wrong: first a flattened copy of the old artwork, then three steep peaks. This draft draws what the logo is: **three gentle rolling hills, layered like rows of Appalachian ridges, two blues and one orange for bitcoin.**
 
-- Three soft peaks built from one curve recipe, so they look related: a tall light-blue mountain behind, the orange mountain beside it, a lower dark-blue mountain in front.
-- A thin gap separates each mountain from the one behind it, so the shapes stay crisp at every size and on both themes.
-- Proportions are about 2:1 with real height, not a strip.
-- **Horizontal** (header): mark, then the wordmark on one line in tracked capitals, "APPALACHIAN" regular and "BITCOIN" bold, centred on the mark.
+- Long and low, 4:1, as the original artwork was. Each ridge is one smooth curve with soft slopes and no points.
+- Light blue is the furthest ridge, orange sits in the middle, dark blue is the nearest and trails off to the right.
+- Flat colour only. No outlines or gaps between layers.
+- **Horizontal** (header): the mark at full width beside the wordmark, in tracked capitals, "APPALACHIAN" regular and "BITCOIN" bold.
 - **Stacked** (sign-in, splash): the wordmark is set to exactly the mark's width, so both edges align.
-- **App icon and favicon**: the mountains rise from the bottom edge of an ivory rounded tile; checked down to 16 px.
-- On the dark theme only the dark-blue mountain is lifted a step (`#3F6A80`) so it does not sink into the background.
+- **App icon and favicon**: the same three ridges running edge to edge across an ivory rounded tile, with the dark ridge filling the bottom; checked down to 16 px.
+- On the dark theme only the dark-blue ridge is lifted a step (`#3F6A80`) so it does not sink into the background.
 - A serif wordmark, closer to today's, is on the System screen for comparison.
-
-This is the item I most want a yes or no on. If the shapes are still wrong, tell me which way (rounder, lower, wider apart, a different order) and I will redraw before building anything on it.
 
 In the build the wordmark becomes outlined paths, and `mark.svg`, `mountains.svg`, `MountainMark.tsx`, `icon-192.png`, `icon-512.png` and the manifest are regenerated from one source.
 
@@ -244,17 +248,15 @@ Each step runs end to end and is checked in a browser at desktop and phone width
 
 - Price quoted as `₿842 per $1`: **approved.**
 - "No stack yet" light: **approved.**
-- "Watershed": **rejected**, now Money flow.
-- Bills radar: **rejected**, now Bills to destroy.
-- Flight vocabulary: **removed.**
+- **Money flow** as the name: **approved.**
+- Confirm step before Destroy records a payment: **approved**, and now in the prototype.
+- "Ammo" for dollars in checking: **liked**; kept and extended with "Stack it".
+- "Watershed", the bills radar, flight vocabulary: **rejected and removed.**
 
 ## Questions for the owner
 
-1. **Logo**: is the new drawing right? If not, which way should it move?
+1. **Logo**: is the layered-hills drawing right?
 2. **Wordmark**: tracked capitals or the serif alternate?
-3. **Bills to destroy**: is this the right amount of game, and should Destroy keep a confirm step before it records the payment?
-4. **Game layer**: keep it to counters, milestones and streaks, or go further (badges, personal bests)?
-5. **Money flow** as the name?
 
 ## Not done yet
 

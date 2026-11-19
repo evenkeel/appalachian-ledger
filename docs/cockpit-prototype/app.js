@@ -1,6 +1,6 @@
 /* Clickable prototype of the dashboard. Static: no server, no storage, fictional data. */
 (function () {
-  const S = { screen: "cockpit", data: "six", cond: "calm", theme: "night", lens: "USD", acks: {}, drawer: null, drill: null, sel: 0, paid: [], boom: null };
+  const S = { screen: "cockpit", data: "six", cond: "calm", theme: "night", lens: "USD", acks: {}, drawer: null, drill: null, sel: 0, paid: [], boom: null, confirm: null };
   const P = PROTO, D = P.six;
   const sum = (a) => a.reduce((x, y) => x + y, 0);
   const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
@@ -27,25 +27,39 @@
   const CRUMB = { cockpit: "Dashboard", log: "Transactions", spending: "Spending", bills: "Bills", stack: "Stack · your bitcoin", accounts: "Accounts", horizon: "Retirement", learn: "Learn", system: "Design system · prototype" };
 
   /* ---------- Logo ---------- */
-  // Three rolling mountains: light blue behind, orange (bitcoin) beside it, dark blue in front.
-  const BASE = 64;
-  const peak = (px, py, x0, x1) => {
-    const h = BASE - py, f = (n) => +n.toFixed(2);
-    return `M${x0},${BASE}C${f(x0 + (px - x0) * 0.55)},${f(BASE - h * 0.72)} ${f(px - (px - x0) * 0.3)},${py} ${px},${py}C${f(px + (x1 - px) * 0.3)},${py} ${f(x1 - (x1 - px) * 0.55)},${f(BASE - h * 0.72)} ${x1},${BASE}Z`;
+  // Three gentle rolling hills, layered like rows of Appalachian ridges:
+  // light blue furthest back, orange (bitcoin) in the middle, dark blue in front.
+  const spline = (p) => {
+    let d = `M${p[0][0]},${p[0][1]}`;
+    for (let i = 0; i < p.length - 1; i++) {
+      const p0 = p[i - 1] || p[i], p1 = p[i], p2 = p[i + 1], p3 = p[i + 2] || p2, f = (n) => +n.toFixed(2);
+      d += `C${f(p1[0] + (p2[0] - p0[0]) / 6)},${f(p1[1] + (p2[1] - p0[1]) / 6)} ${f(p2[0] - (p3[0] - p1[0]) / 6)},${f(p2[1] - (p3[1] - p1[1]) / 6)} ${p2[0]},${p2[1]}`;
+    }
+    return d;
   };
-  const MOUNTAINS = [["var(--mark-back)", peak(40, 4, 2, 92)], ["var(--mark-mid)", peak(84, 17, 46, 118)], ["var(--mark-front)", peak(58, 37, 12, 106)]];
-  // Each nearer mountain is separated from the one behind by a thin gap in the background colour.
-  const peaks = (gap, front) => MOUNTAINS.map(([c, d], i) => `<path fill="${i === 2 && front ? front : c}" d="${d}"${i ? ` stroke="${gap}" stroke-width="2.4" paint-order="stroke" stroke-linejoin="round"` : ""}/>`).join("");
-  const mark = (w) => `<svg viewBox="0 2 120 62" width="${w}" height="${(w * 62) / 120}" aria-hidden="true">${peaks("var(--gap, var(--bg))")}</svg>`;
+  // Free-standing mark, 160 x 40: each ridge tapers to the baseline.
+  const RIDGES = [
+    ["var(--mark-back)", [[0, 40], [26, 27], [56, 8], [92, 19], [124, 30], [150, 40]]],
+    ["var(--mark-mid)", [[30, 40], [74, 31], [108, 13], [140, 26], [160, 40]]],
+    ["var(--mark-front)", [[0, 40], [20, 33], [50, 25], [84, 33], [116, 38], [160, 40]]],
+  ];
+  // App icon, 150 x 44: the same three ridges running edge to edge.
+  const BLEED = [
+    ["#a9c1cf", [[0, 22], [45, 7], [98, 22], [150, 15]]],
+    ["#db8046", [[0, 31], [50, 29], [108, 15], [150, 25]]],
+    ["#304e5d", [[0, 33], [42, 27], [98, 38], [150, 34]]],
+  ];
+  const ridges = () => RIDGES.map(([c, p]) => `<path fill="${c}" d="${spline(p)}Z"/>`).join("");
+  const mark = (w) => `<svg viewBox="0 0 160 40" width="${w}" height="${w / 4}" aria-hidden="true">${ridges()}</svg>`;
   let tileN = 0;
   const tile = (size) => {
     const id = "tile" + ++tileN;
     return `<svg viewBox="0 0 48 48" width="${size}" height="${size}" aria-hidden="true"><defs><clipPath id="${id}"><rect width="48" height="48" rx="11"/></clipPath></defs>
-      <g clip-path="url(#${id})"><rect width="48" height="48" fill="#f8f7f3"/><g transform="translate(-3.6 18.6) scale(.46)">${peaks("#f8f7f3", "#304e5d")}</g></g></svg>`;
+      <g clip-path="url(#${id})"><rect width="48" height="48" fill="#f8f7f3"/><g transform="translate(-3 18.5) scale(.36)">${BLEED.map(([c, p]) => `<path fill="${c}" d="${spline(p)}V90H0Z"/>`).join("")}</g></g></svg>`;
   };
-  const stacked = (w, serif) => `<svg viewBox="0 0 200 132" width="${w}" height="${(w * 132) / 200}" role="img" aria-label="Appalachian Bitcoin">
-      <g transform="translate(0 -3.3) scale(1.6667)">${peaks("var(--gap, var(--bg))")}</g>
-      <text x="0" y="126" textLength="200" lengthAdjust="spacing" fill="currentColor" style="font-family:${serif ? "Georgia,'Times New Roman',serif" : "var(--font-ui)"};font-size:${serif ? 21 : 13.5}px;${serif ? "font-weight:700" : "letter-spacing:.2em"}">${serif ? "Appalachian Bitcoin" : `APPALACHIAN <tspan font-weight="700">BITCOIN</tspan>`}</text></svg>`;
+  const stacked = (w, serif) => `<svg viewBox="0 0 200 78" width="${w}" height="${(w * 78) / 200}" role="img" aria-label="Appalachian Bitcoin">
+      <g transform="scale(1.25)">${ridges()}</g>
+      <text x="0" y="72" textLength="200" lengthAdjust="spacing" fill="currentColor" style="font-family:${serif ? "Georgia,'Times New Roman',serif" : "var(--font-ui)"};font-size:${serif ? 21 : 13.5}px;${serif ? "font-weight:700" : "letter-spacing:.2em"}">${serif ? "Appalachian Bitcoin" : `APPALACHIAN <tspan font-weight="700">BITCOIN</tspan>`}</text></svg>`;
 
   /* ---------- Model ---------- */
   function model() {
@@ -194,6 +208,21 @@
         <p class="hint">Thresholds are adjustable in Settings → Alerts.</p></div></aside>`;
   }
 
+  function confirmSheet(m) {
+    const b = S.confirm && (m.bills || []).find((x) => x.name === S.confirm);
+    if (!b) return "";
+    return `<div class="scrim" data-cancel></div><div class="sheet" role="dialog" aria-modal="true" aria-label="Destroy ${esc(b.name)}">
+      <h2>Destroy ${esc(b.name)}</h2>
+      <p class="sub">This records the payment in your ledger. Change the date or amount if the real payment was different.</p>
+      <div class="sheet-fields">
+        <label class="field"><span>Paid on</span><input value="${F.date(0)}" aria-label="Paid on"></label>
+        <label class="field"><span>Amount</span><input class="num" value="${F.usd(b.cents)}" aria-label="Amount"></label>
+        <label class="field" style="grid-column:1/-1"><span>From</span><input value="Everyday checking" aria-label="From account"></label>
+      </div>
+      <div class="sub num">Ammo after this: <b>${F.usd(m.checking - b.cents)}</b></div>
+      <div class="acts"><button class="btn primary" data-fire="${esc(b.name)}" id="fire">Destroy <kbd>⏎</kbd></button><button class="btn ghost" data-cancel>Cancel <kbd>Esc</kbd></button></div></div>`;
+  }
+
   /* ---------- Instruments ---------- */
   const inst = (cls, name, plain, body, opts = {}) =>
     `<section class="inst ${cls}${opts.flag ? opts.flag.cls : ""}" aria-label="${name}: ${plain}"><div class="inst-h"><span class="inst-name">${name}</span><span class="inst-plain">${plain}</span>${opts.flag ? opts.flag.chip : ""}${opts.link && !(opts.flag && opts.flag.chip) ? `<button class="inst-link" data-go="${opts.link[0]}">${opts.link[1]} →</button>` : ""}</div>${body}</section>`;
@@ -229,7 +258,7 @@
       </div>
       <div style="display:grid;gap:4px"><div class="split sub" style="justify-content:space-between"><span>Next milestone <b class="num btc">${F.btc(22000000)}</b></span><span class="num">${F.btc(22000000 - s.held)} to go</span></div>
         <div class="meter" role="img" aria-label="Progress to the next million"><i style="width:${((s.held - 21000000) / 10000).toFixed(1)}%;background:var(--btc)"></i></div>
-        <div class="sub"><span class="badge">6-month streak</span> A buy every month since June.</div></div>
+        <div class="sub"><span class="badge">6-month streak</span> Best month <b class="num btc">${F.btc(700000)}</b> in Sep</div></div>
       <ul class="rows" style="flex:1;align-content:start">${s.wallets.map(([n, v]) => `<li style="grid-template-columns:1fr auto"><span>${n}</span><span class="num">${F.btc(v)}</span></li>`).join("")}</ul>
       <div class="sub" style="border-top:1px solid var(--hairline);padding-top:8px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><span class="num">${F.btc(D.price.perDollar)} per $1</span><span class="dim">${D.price.source} · ${D.price.when}</span></div>`,
       { link: ["stack", "Stack"] });
@@ -272,7 +301,7 @@
       </div>
       <div class="chart" data-chart="lane" style="height:104px"></div>
       ${next.length ? `<ul class="rows">${next.map((b) => `<li style="grid-template-columns:minmax(0,1fr) auto auto;align-items:center"><span class="nm">${esc(b.name)} <small class="num ${b.day < 0 ? "overdue" : "dim"}">· ${b.day < 0 ? `${-b.day} days overdue` : b.day === 0 ? "due today" : `${F.date(b.day)}, in ${b.day} days`}</small></span><span class="num">${F.usd(b.cents)}</span><button class="btn sm" data-destroy="${esc(b.name)}" aria-label="Destroy ${esc(b.name)}: record payment of ${F.usd(b.cents)}"${m.boom ? " disabled" : ""}>Destroy</button></li>`).join("")}</ul>` : `<div class="sub ok">${I.ok} All clear. Every bill in the next 30 days is destroyed.</div>`}
-      <div class="sub" style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;border-top:1px solid var(--hairline);padding-top:8px"><span><span class="badge">${m.destroyed.n} destroyed</span> this month · <span class="num">${F.usd(m.destroyed.cents)}</span></span><span class="dim">Destroy = record the payment</span></div>`,
+      <div class="sub" style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;border-top:1px solid var(--hairline);padding-top:8px"><span><span class="badge">${m.destroyed.n} destroyed</span> this month · <span class="num">${F.usd(m.destroyed.cents)}</span></span>${!short && r.low > 0 ? `<span>Spare ammo after bills <b class="num">${F.usd(r.low)}</b> <button class="btn sm copper" data-go="stack">Stack it →</button></span>` : `<span class="dim">Destroy = record the payment</span>`}</div>`,
       { flag: f, link: ["bills", `All ${m.bills.length}`] });
   }
 
@@ -408,22 +437,22 @@
     const sw = (v, name, use) => `<div class="sw"><i style="background:var(${v})"></i><div>${name}<small>${use}</small></div></div>`;
     const lamp = (lvl, label, acked) => `<span class="lamp on l-${lvl}${acked ? " acked" : ""}">${I[lvl]}<span>${label}</span></span>`;
     return `<div class="page"><h1>Design system</h1><p class="intro">The logo, the colour meanings, the type and the alert-light states this prototype is built from.</p>
-      ${inst("", "Logo", "three rolling mountains: two blues and one orange for bitcoin", `<div class="lockups">
-        ${["night", "day"].map((t) => `<div class="plate ${t}"><div class="lockup">${mark(46)}<span class="wordmark">Appalachian <b>Bitcoin</b></span></div><small>Horizontal · ${t}</small></div>`).join("")}
+      ${inst("", "Logo", "three gentle rolling hills, layered: two blues and one orange for bitcoin", `<div class="lockups">
+        ${["night", "day"].map((t) => `<div class="plate ${t}"><div class="lockup">${mark(92)}<span class="wordmark">Appalachian <b>Bitcoin</b></span></div><small>Horizontal · ${t}</small></div>`).join("")}
         ${["night", "day"].map((t) => `<div class="plate ${t}">${stacked(190)}<small>Stacked · ${t}</small></div>`).join("")}
         <div class="plate night">${stacked(190, true)}<small>Alternate wordmark · serif</small></div>
         <div class="plate day"><div class="split" style="align-items:flex-end;gap:16px">${tile(64)}${tile(32)}${tile(16)}</div><small>App icon · 64, 32, 16 px</small></div>
         <div class="plate night"><div class="split" style="align-items:flex-end;gap:16px">${tile(64)}${tile(32)}${tile(16)}</div><small>App icon on dark</small></div>
-        <div class="plate night"><div class="split" style="align-items:center;gap:16px">${mark(96)}${mark(40)}${mark(22)}</div><small>Mark only</small></div>
+        <div class="plate night"><div class="split" style="align-items:center;gap:16px">${mark(128)}${mark(76)}${mark(44)}</div><small>Mark only</small></div>
       </div>`)}
       ${inst("", "Colour", "every colour means one thing", `<div class="swatches">
         ${sw("--btc", "Copper", "Bitcoin. Saving.")}${sw("--usd", "Mist", "Dollars, neutral readings")}${sw("--plan", "Amethyst", "Planned or hypothetical")}${sw("--ok", "Green", "In range")}
         ${sw("--adv-fill", "Blue", "Heads-up alert only")}${sw("--caution-fill", "Amber", "Caution alert only")}${sw("--warn-fill", "Red", "Warning alert only")}
-        ${sw("--bg", "Night", "Canvas")}${sw("--panel", "Panel", "Instrument face")}${sw("--bezel", "Bezel", "Instrument edge")}${sw("--ink", "Ink", "Primary text")}${sw("--ink-3", "Ink 3", "Labels")}</div>`)}
-      ${inst("", "Type", "B612, designed for aircraft displays; its digits share one width, so numbers align", `<div style="display:grid;gap:6px">
+        ${sw("--bg", "Night", "Canvas")}${sw("--panel", "Panel", "Panel face")}${sw("--bezel", "Edge", "Panel edge")}${sw("--ink", "Ink", "Primary text")}${sw("--ink-3", "Ink 3", "Labels")}</div>`)}
+      ${inst("", "Type", "B612, made for dense displays; its digits share one width, so numbers align", `<div style="display:grid;gap:6px">
         <div class="num hero">₿21,932,000 <span class="dim" style="font-size:15px">Hero 34</span></div><div class="num read">$4,812.40 <span class="dim" style="font-size:13px">Readout 24</span></div>
         <div class="lead">Covered through payday <span class="dim">Lead 15</span></div><div>Known bills are covered for 33 days. <span class="dim">Body 13</span></div>
-        <div class="inst-name">Instrument name <span class="dim" style="letter-spacing:0;text-transform:none;font-weight:400">Label 11, tracked caps</span></div></div>`)}
+        <div class="inst-name">Panel name <span class="dim" style="letter-spacing:0;text-transform:none;font-weight:400">Label 11, tracked caps</span></div></div>`)}
       ${inst("", "Alert lights", "level is carried by shape, word and colour together", `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px">
         ${lamp("advisory", "Advisory")}${lamp("caution", "Caution")}${lamp("warning", "Warning")}${lamp("advisory", "Acknowledged", 1)}${lamp("caution", "Acknowledged", 1)}${lamp("warning", "Acknowledged", 1)}<span class="lamp">Normal (dark)</span></div>
         <div class="hint">Circle = advisory, triangle = caution, octagon = warning. Acknowledged lights stay on but hollow until the problem is fixed.</div>`)}
@@ -433,7 +462,7 @@
         <section class="inst"><div class="inst-h"><span class="inst-name">Missing price</span></div><div class="num read">$31.00</div><div><span class="tag miss">no price saved</span></div><div class="hint">Never guessed. Totals that include it say “partial”.</div></section>
         <section class="inst"><div class="inst-h"><span class="inst-name">Loading</span></div><div class="meter" style="height:24px;width:60%"><i style="width:100%;opacity:.25"></i></div><div class="meter" style="width:85%"><i style="width:100%;opacity:.25"></i></div><div class="hint">Skeleton at final size; no layout shift.</div></section>
         <section class="inst"><div class="inst-h"><span class="inst-name">Offline</span></div><div class="sub">Can't reach your ledger. Showing the last readings from 2:14 PM; entry is paused.</div><div><button class="btn sm">Retry</button></div></section>
-        <section class="inst"><div class="inst-h"><span class="inst-name">Locked</span></div><div class="sub">Session ended. Instruments are blanked, not cached.</div><div><button class="btn sm primary">Unlock</button></div></section></div>`)}
+        <section class="inst"><div class="inst-h"><span class="inst-name">Locked</span></div><div class="sub">Session ended. Panels are blanked, not cached.</div><div><button class="btn sm primary">Unlock</button></div></section></div>`)}
     </div>`;
   }
 
@@ -451,7 +480,7 @@
           ${NAV.slice(0, 8).map(([k, l, i]) => `<button class="nav" data-go="${k}" ${S.screen === k ? 'aria-current="page"' : ""}>${i}<span>${l}</span></button>`).join("")}
           <div class="grow"></div>${NAV.slice(8).map(([k, l, i]) => `<button class="nav" data-go="${k}" ${S.screen === k ? 'aria-current="page"' : ""}>${i}<span>${l}</span></button>`).join("")}</nav>
         <div class="main">
-          <header class="glare"><div class="rail-mark" style="padding:0">${tile(32)}</div><div class="lockup">${mark(46)}<span class="wordmark">Appalachian <b>Bitcoin</b></span></div><span class="crumb">${CRUMB[S.screen]}</span><span class="grow"></span>
+          <header class="glare"><div class="rail-mark" style="padding:0">${tile(32)}</div><div class="lockup">${mark(92)}<span class="wordmark">Appalachian <b>Bitcoin</b></span></div><span class="crumb">${CRUMB[S.screen]}</span><span class="grow"></span>
             ${M.day3 ? `<button class="price"><span class="q dim">No price source</span><span class="prov">Choose one in setup</span></button>` : `<button class="price" data-tip="${D.price.legacy}\n${D.price.source} · ${D.price.when}"><span class="num q btc">${F.btc(D.price.perDollar)}</span><span class="per">per $1</span><span class="prov">${D.price.source} · ${D.price.when}</span></button>`}
             <div class="lens" role="group" aria-label="Price analysis in"><button data-set="lens:USD" aria-pressed="${S.lens === "USD"}" aria-label="Dollars">$</button><button class="b" data-set="lens:BITCOIN" aria-pressed="${S.lens === "BITCOIN"}" aria-label="Bitcoin">₿</button></div>
             ${master(M)}<button class="add" data-go="log" data-focus="payee"><span>Add entry</span><kbd>N</kbd><b aria-hidden="true">+</b></button></header>
@@ -459,7 +488,7 @@
         </div>
       </div>
       <nav class="tabbar" aria-label="Main">${[NAV[0], NAV[1]].map(([k, l, i]) => `<button data-go="${k}" ${S.screen === k ? 'aria-current="page"' : ""}>${i}${l}</button>`).join("")}<button data-go="log" aria-label="Add entry"><span class="plus">${ic(`<path d="M12 5v14M5 12h14"/>`)}</span></button>${[NAV[3], NAV[4]].map(([k, l, i]) => `<button data-go="${k}" ${S.screen === k ? 'aria-current="page"' : ""}>${i}${l}</button>`).join("")}</nav>
-      ${drawer(M)}<div class="sr" aria-live="polite">${M.alerts.filter((a) => !isAcked(a) && a.level !== "advisory").map((a) => a.level + ": " + a.title).join(". ")}</div>`;
+      ${drawer(M)}${confirmSheet(M)}<div class="sr" aria-live="polite">${M.alerts.filter((a) => !isAcked(a) && a.level !== "advisory").map((a) => a.level + ": " + a.title).join(". ")}</div>`;
     draw();
   }
   function draw() {
@@ -467,16 +496,23 @@
   }
 
   document.addEventListener("click", (e) => {
-    const el = e.target.closest("[data-destroy],[data-set],[data-go],[data-open],[data-close],[data-ack],[data-ackall],[data-master],[data-drill],[data-drill-clear]");
+    const el = e.target.closest("[data-destroy],[data-fire],[data-cancel],[data-set],[data-go],[data-open],[data-close],[data-ack],[data-ackall],[data-master],[data-drill],[data-drill-clear]");
     if (!el) return;
     const d = el.dataset;
     if (d.destroy) {
       if (S.boom) return;
-      S.boom = d.destroy;
+      S.confirm = d.destroy;
+      render();
+      return document.getElementById("fire")?.focus();
+    }
+    if ("cancel" in d) { S.confirm = null; return render(); }
+    if (d.fire) {
+      S.confirm = null;
+      S.boom = d.fire;
       render();
       return setTimeout(() => { S.paid.push(S.boom); S.boom = null; render(); }, matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 520);
     }
-    if (d.set) { const [k, v] = d.set.split(":"); S[k] = v; if (k !== "theme" && k !== "lens") { S.acks = {}; S.drawer = null; S.drill = null; S.paid = []; } }
+    if (d.set) { const [k, v] = d.set.split(":"); S[k] = v; if (k !== "theme" && k !== "lens") { S.acks = {}; S.drawer = null; S.drill = null; S.paid = []; S.confirm = null; } }
     else if (d.go) { S.screen = d.go; S.drawer = null; window.scrollTo(0, 0); }
     else if (d.open) S.drawer = d.open;
     else if ("close" in d) S.drawer = null;
@@ -488,6 +524,7 @@
     if (d.focus) document.getElementById(d.focus)?.select();
   });
   document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && S.confirm) { S.confirm = null; return render(); }
     if (e.key === "Escape" && S.drawer !== null) { S.drawer = null; return render(); }
     if (e.target.matches("input")) return;
     if (e.key === "n" || e.key === "N") { e.preventDefault(); S.screen = "log"; render(); document.getElementById("payee")?.select(); }
@@ -512,7 +549,7 @@
   let rz;
   window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(draw, 80); });
   const q = new URLSearchParams(location.search);
-  for (const k of ["screen", "data", "cond", "theme", "lens"]) if (q.get(k)) S[k] = q.get(k);
+  for (const k of ["screen", "data", "cond", "theme", "lens", "confirm"]) if (q.get(k)) S[k] = q.get(k);
   document.fonts?.ready.then(render);
   render();
 })();
