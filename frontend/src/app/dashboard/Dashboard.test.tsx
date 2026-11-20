@@ -1,21 +1,27 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { empty, reading } from "../test/fixture";
+import { categories, empty, periods, reading, report, transactions } from "../test/fixture";
+import type { Period } from "./history";
 import type { DashboardData } from "./types";
 
 const calls: { path: string; method: string; body?: unknown }[] = [];
 let current: DashboardData = reading;
+let history: Period[] = periods;
 vi.mock("../../lib/api", () => ({
   setCsrf: () => {},
   api: vi.fn(async (path: string, method = "GET", body?: unknown) => {
     calls.push({ path, method, body });
     if (path === "/dashboard") return current;
-    if (path.startsWith("/transactions")) return [];
+    if (path.startsWith("/transactions")) return current === empty ? [] : transactions;
+    if (path === "/categories") return categories;
+    if (path.startsWith("/reports")) return current === empty ? { month: "2026-11", dual: { USD: { income_categories: [], categories: [] }, BITCOIN: { income_categories: [], categories: [] } } } : report;
+    if (path.startsWith("/spending-history")) return { periods: history };
     return { ok: true };
   }),
 }));
+let lens = "USD";
 vi.mock("../lib/session", () => ({
-  useSession: () => ({ lens: "USD", demoEnabled: false }),
+  useSession: () => ({ lens, demoEnabled: false }),
 }));
 
 import { Dashboard } from "./Dashboard";
@@ -28,6 +34,8 @@ const show = async () => {
 beforeEach(() => {
   calls.length = 0;
   current = reading;
+  history = periods;
+  lens = "USD";
 });
 
 describe("dashboard", () => {
@@ -102,9 +110,61 @@ describe("dashboard", () => {
   });
 
   it("says what a history panel is waiting for instead of drawing it early", async () => {
-    current = { ...reading, days_of_history: 19 };
+    current = { ...reading, days_of_history: 19, first_entry_date: "2026-11-01" };
+    history = [];
     await show();
-    expect(screen.getByLabelText("Two systems: the same life, priced two ways")).toHaveTextContent("Collecting data — 19 of 60 days");
-    expect(screen.getByLabelText("Spending bridge: what changed since last month")).toHaveTextContent("19 of 30 days");
+    expect(await screen.findByLabelText("Two systems: the same life, priced two ways")).toHaveTextContent("Collecting data — 19 of 60 days");
+  });
+
+  it("shows the same life priced in both systems once two full months exist", async () => {
+    await show();
+    const label = "Two systems: the same life, priced two ways";
+    await waitFor(() => expect(screen.getByLabelText(label)).toHaveTextContent("Since Jun, a month of your life costs +4.8% in dollars and −11.7% in bitcoin."));
+    const two = screen.getByLabelText(label);
+    expect(within(two).getByText("$2,946.10")).toBeInTheDocument();
+    expect(within(two).getByText("₿2,584,298")).toBeInTheDocument();
+  });
+
+  it("leaves a month out of the bitcoin line rather than guess a missing price", async () => {
+    history = [...periods.slice(0, 4), { period: "2026-10", usd: "2946.10", bitcoin: null, missing_bitcoin: 3 }];
+    await show();
+    const label = "Two systems: the same life, priced two ways";
+    await waitFor(() => expect(screen.getByLabelText(label)).toHaveTextContent("1 month left out of the bitcoin line"));
+    expect(screen.getByLabelText(label)).toHaveTextContent("−8.9% in bitcoin"); // through September, the last fully priced month
+  });
+
+  it("bridges last month to this one by category, exactly, in dollars and in bitcoin", async () => {
+    const { unmount } = render(<Dashboard go={() => {}} onData={() => {}} />);
+    const bridge = await screen.findByLabelText("Spending bridge: what changed since October");
+    await waitFor(() => expect(bridge).toHaveTextContent("Oct 1–19 · $126.30"));
+    expect(bridge).toHaveTextContent("Nov 1–19 · $154.20");
+    expect(within(bridge).getByRole("button", { name: /^Groceries: \$40\.00 more than October/ })).toBeInTheDocument();
+    expect(within(bridge).getByRole("button", { name: /^Dining: \$12\.10 less than October/ })).toBeInTheDocument();
+    expect(within(bridge).queryByRole("button", { name: /^Transport/ })).toBeNull(); // unchanged, so not a step
+    unmount();
+    lens = "BITCOIN";
+    render(<Dashboard go={() => {}} onData={() => {}} />);
+    const inBitcoin = await screen.findByLabelText("Spending bridge: what changed since October");
+    await waitFor(() => expect(inBitcoin).toHaveTextContent("Oct 1–19 · ₿110,770"));
+    expect(inBitcoin).toHaveTextContent("Nov 1–19 · ₿129,840");
+    expect(within(inBitcoin).getByRole("button", { name: /^Groceries: ₿31,870 more/ })).toBeInTheDocument();
+  });
+
+  it("puts bitcoin stacked first in the money flow and never calls leftover dollars savings", async () => {
+    await show();
+    const flow = await screen.findByLabelText(/^Money flow: November's income/);
+    await waitFor(() => expect(flow).toHaveTextContent("Bitcoin stacked"));
+    const chart = within(flow).getByRole("img");
+    expect(chart.getAttribute("aria-label")).toMatch(/^Where November's income went: Bitcoin stacked ₿672,400 · \$800\.00, Groceries \$91\.80, Transport \$40\.00, Dining \$22\.40, Other moves out \$500\.00, Still in checking \$5,595\.80\.$/);
+    expect(flow).toHaveTextContent("dollars waiting, not savings");
+    expect(flow.textContent).not.toMatch(/saved|surplus|kept|savings rate/i);
+  });
+
+  it("opens a category's entries from the bridge", async () => {
+    const onDrill = vi.fn();
+    render(<Dashboard go={() => {}} onData={() => {}} onDrill={onDrill} />);
+    const bridge = await screen.findByLabelText("Spending bridge: what changed since October");
+    fireEvent.click(await within(bridge).findByRole("button", { name: /^Groceries/ }));
+    expect(onDrill).toHaveBeenCalledWith("2");
   });
 });

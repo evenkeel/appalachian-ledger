@@ -8,7 +8,7 @@ Changed in the third draft: the logo redrawn as three gentle, layered hills (app
 
 Changed in this draft: bills are **paid** or **destroyed** (cancelled, or paid off in full); each alert light opens its own detail; **stack rate** is a headline number in Stack.
 
-**Build status.** Steps 1–4 of the build order are in the app: design system and logo, shell and navigation, the dashboard's day-one panels on real data, and the alert lights. Steps 5–10 are not built; those screens open in the previous interface at `/legacy.html`.
+**Build status.** Steps 1–6 of the build order are in the app: design system and logo, shell and navigation, the dashboard's day-one panels on real data, the alert lights, the history panels (Two systems, Spending bridge, Money flow) with the Spending screen, and the Transactions screen with keyboard entry, corrections and removal. Steps 7–10 are not built; those screens open in the previous interface at `/legacy.html`.
 This document and the clickable prototype in [`docs/cockpit-prototype/`](cockpit-prototype/) are the whole of step 2.
 
 ## See it first

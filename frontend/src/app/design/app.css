@@ -1422,3 +1422,53 @@ a.btn {
     display: none;
   }
 }
+
+/* Segmented choice (kind of entry) */
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--bezel);
+  border-radius: 7px;
+  overflow: hidden;
+}
+.seg button {
+  padding: 4px 12px;
+  min-height: 30px;
+  color: var(--ink-2);
+  font-size: var(--t-small);
+}
+.seg button + button {
+  border-left: 1px solid var(--bezel);
+}
+.seg button[aria-pressed="true"] {
+  background: var(--panel-2);
+  color: var(--ink);
+  box-shadow: inset 0 -2px 0 var(--btc);
+}
+/* Entry form: fields flow to fit however many the kind of entry needs. */
+.entry {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+.field input[type="search"] {
+  min-height: 28px;
+}
+.log tbody tr {
+  cursor: default;
+}
+
+/* Actions for the selected entry; on phones this is how an entry is corrected or removed. */
+.picked {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--bezel);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+.picked .nm {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

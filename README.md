@@ -12,7 +12,7 @@ Every API startup applies pending database migrations before loading ledger data
 
 ## The new interface (in progress)
 
-The app is being rebuilt as a dense dashboard; see the [design brief](docs/cockpit-design.md). The front page is the new interface: sign-in, navigation, and a dashboard with Cash ahead, Bills (pay, destroy, pay off), Stack with stack rate, Spend pace, Cards & debt, Budgets and alert lights. Screens that are not rebuilt yet open in the previous interface at `/legacy.html`, on the same ledger, so nothing is unavailable in the meantime. The data contract for the dashboard is in [docs/dashboard-api.md](docs/dashboard-api.md).
+The app is being rebuilt as a dense dashboard; see the [design brief](docs/cockpit-design.md). The front page is the new interface: sign-in, navigation, and a dashboard with Cash ahead, Bills (pay, destroy, pay off), Stack with stack rate, Spend pace, Cards & debt, Budgets, alert lights, Two systems, Spending bridge and Money flow; a Spending screen with drill-down; and a Transactions screen with keyboard entry (`N` new, `/` search, `J`/`K` move, `E` correct). Screens that are not rebuilt yet open in the previous interface at `/legacy.html`, on the same ledger, so nothing is unavailable in the meantime. The data contract for the dashboard is in [docs/dashboard-api.md](docs/dashboard-api.md).
 
 Existing ledgers upgrade in place: migration `0014_dashboard` only adds tables and two nullable columns, and `backend/tests/test_ledger_migration.py` proves the journal, balances and every earlier table are unchanged by it. Keep a backup before updating all the same.
 

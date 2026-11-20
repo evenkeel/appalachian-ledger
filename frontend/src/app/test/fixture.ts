@@ -1,3 +1,5 @@
+import type { Category, Report, Transaction } from "../../lib/types";
+import type { Period } from "../dashboard/history";
 import type { DashboardData } from "../dashboard/types";
 
 /** A fictional dashboard reading in the documented shape (docs/dashboard-api.md). */
@@ -87,3 +89,76 @@ export const empty: DashboardData = {
   budgets: { month_elapsed_percent: "63.3", items: [] },
   setup: { has_account: false, has_paycheck: false, has_bills: false, has_bitcoin: false, has_price_source: false, has_backup: false },
 };
+
+
+const expense = (id: number, date: string, category_id: number, category: string, amount: string, bitcoin: string | null): Transaction => ({
+  id,
+  date,
+  kind: "expense",
+  description: `${category} ${id}`,
+  notes: "",
+  account_id: 3,
+  account: "Everyday checking",
+  currency: "USD",
+  amount,
+  destination_id: null,
+  destination_amount: null,
+  destination_currency: null,
+  destination_account: null,
+  category_id,
+  category,
+  bitcoin,
+  usd: amount,
+  rate_snapshot: null,
+  valuation_basis: "historical purchasing power",
+  purchase_cost: bitcoin === null ? null : { usd: amount, bitcoin, usd_per_btc: "118750.00", source: "Fictional demo rate", method: "legacy", observed_at: date },
+});
+
+export const categories: Category[] = [
+  { id: 2, name: "Groceries", kind: "expense" },
+  { id: 3, name: "Dining", kind: "expense" },
+  { id: 4, name: "Transport", kind: "expense" },
+  { id: 1, name: "Salary", kind: "income" },
+];
+
+/** November so far against October 1–19: groceries up $40, dining down $12.10, transport unchanged. */
+export const transactions: Transaction[] = [
+  expense(21, "2026-11-03", 2, "Groceries", "91.80", "77300"),
+  expense(20, "2026-11-02", 3, "Dining", "22.40", "18860"),
+  expense(19, "2026-11-02", 4, "Transport", "40.00", "33680"),
+  expense(12, "2026-10-03", 2, "Groceries", "51.80", "45430"),
+  expense(11, "2026-10-02", 3, "Dining", "34.50", "30260"),
+  expense(10, "2026-10-02", 4, "Transport", "40.00", "35080"),
+  expense(9, "2026-10-20", 2, "Groceries", "286.00", "250800"),
+];
+
+const flow = (income: string, incomeRows: [string, string][], rows: [string, string][]) => ({
+  income,
+  expenses: "154.20",
+  savings_rate: null,
+  spending: {},
+  conversion_status: {},
+  income_categories: incomeRows.map(([name, value]) => ({ name, value })),
+  categories: rows.map(([name, value]) => ({ name, value })),
+  assets: null,
+  liabilities: null,
+  net_worth: null,
+});
+
+export const report = {
+  month: "2026-11",
+  stacked: { bitcoin: "672400", usd: "800.00", other_usd: "500.00", stack_rate: "11.3" },
+  dual: {
+    USD: flow("7050.00", [["Salary", "6200.00"], ["Design project", "850.00"]], [["Groceries", "91.80"], ["Dining", "22.40"], ["Transport", "40.00"]]),
+    BITCOIN: flow("5936100", [["Salary", "5220400"], ["Design project", "715700"]], [["Groceries", "77300"], ["Dining", "18860"], ["Transport", "33680"]]),
+  },
+} as unknown as Report;
+
+/** Five full months: dollars up 4.8%, bitcoin down 11.7%. */
+export const periods: Period[] = [
+  { period: "2026-06", usd: "2810.00", bitcoin: "2927083", missing_bitcoin: 0 },
+  { period: "2026-07", usd: "2865.00", bitcoin: "2865000", missing_bitcoin: 0 },
+  { period: "2026-08", usd: "2790.00", bitcoin: "2669856", missing_bitcoin: 0 },
+  { period: "2026-09", usd: "2905.00", bitcoin: "2665138", missing_bitcoin: 0 },
+  { period: "2026-10", usd: "2946.10", bitcoin: "2584298", missing_bitcoin: 0 },
+];

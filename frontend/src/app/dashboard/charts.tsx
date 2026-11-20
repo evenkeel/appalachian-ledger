@@ -6,7 +6,10 @@ import type { Lens } from "../lib/session";
 import { useSize } from "../lib/useSize";
 import type { Bill, DashboardData } from "./types";
 
-function Frame({
+// Without layout (tests), charts draw at a nominal size so their labels can still be checked.
+const NO_LAYOUT = typeof ResizeObserver === "undefined";
+
+export function Frame({
   height,
   label,
   className = "",
@@ -20,11 +23,13 @@ function Frame({
   children: (width: number, height: number) => ReactNode;
 }) {
   const [ref, size] = useSize<HTMLDivElement>();
+  const width = size.width || (NO_LAYOUT ? 600 : 0),
+    tall = size.height || (NO_LAYOUT ? (height ?? 150) : 0);
   return (
     <div ref={ref} className={`chart ${className}`} style={{ height, ...style }}>
-      {size.width > 0 && size.height > 0 && (
-        <svg viewBox={`0 0 ${size.width} ${size.height}`} role="img" aria-label={label} preserveAspectRatio="none">
-          {children(size.width, size.height)}
+      {(width > 0 && tall > 0) && (
+        <svg viewBox={`0 0 ${width} ${tall}`} role="img" aria-label={label} preserveAspectRatio="none">
+          {children(width, tall)}
         </svg>
       )}
     </div>

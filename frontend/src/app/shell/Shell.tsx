@@ -155,8 +155,6 @@ export function Shell({
 
 /** Screens that are not rebuilt yet open in the previous interface, on the same ledger. */
 const LEGACY: Partial<Record<Route, { page: string; note: string }>> = {
-  activity: { page: "Transactions", note: "Add, correct and search transactions." },
-  spending: { page: "Expenses", note: "Spend pace, spending bridge and category history." },
   bills: { page: "Expenses", note: "Recurring bills and the upcoming calendar." },
   stack: { page: "Stacking", note: "Bitcoin buys and holdings over time." },
   accounts: { page: "Accounts", note: "Accounts, cards, assets and loans." },

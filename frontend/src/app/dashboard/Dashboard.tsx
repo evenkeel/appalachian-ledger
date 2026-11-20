@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../lib/api";
-import type { Transaction } from "../../lib/types";
-import { btc, shortDate, usd } from "../lib/format";
+import { EntryTable } from "../activity/EntryTable";
 import type { Route } from "../lib/router";
 import { useSession } from "../lib/session";
 import { Lights } from "./Alerts";
 import type { AlertsData } from "./Alerts";
-import { BillsPanel, BudgetsPanel, CashAheadPanel, DebtPanel, HistoryPanels, PacePanel, Panel, SetupPanel, StackPanel } from "./panels";
+import { BridgePanel, MoneyFlowPanel, TwoSystemsPanel, useAnalysis, useSpendingData } from "./history";
+import type { SpendingData } from "./history";
+import { BillsPanel, BudgetsPanel, CashAheadPanel, DebtPanel, PacePanel, Panel, SetupPanel, StackPanel } from "./panels";
 import { BillSheet, PaycheckSheet } from "./Sheets";
 import type { BillMode } from "./Sheets";
 import type { Flag } from "./panels";
@@ -22,6 +23,7 @@ export function Dashboard({
   onChanged,
   payBill,
   onPayBillHandled,
+  onDrill,
 }: {
   go: (route: Route) => void;
   onData: (data: DashboardData) => void;
@@ -33,10 +35,11 @@ export function Dashboard({
   /** A bill the alert drawer asked to pay. */
   payBill?: number | null;
   onPayBillHandled?: () => void;
+  /** Open the Spending screen on one category's entries. */
+  onDrill?: (categoryKey: string) => void;
 }) {
   const { lens, demoEnabled } = useSession();
   const [data, setData] = useState<DashboardData | null>(null);
-  const [recent, setRecent] = useState<Transaction[]>([]);
   const [error, setError] = useState("");
   const [sheet, setSheet] = useState<{ bill: Bill; mode: BillMode } | null>(null);
   const [paycheck, setPaycheck] = useState(false);
@@ -48,7 +51,6 @@ export function Dashboard({
       setData(next);
       setError("");
       onData(next);
-      setRecent(await api<Transaction[]>(`/transactions?start=${next.month}-01`));
     } catch (e) {
       setError((e as Error).message);
     }
@@ -56,6 +58,7 @@ export function Dashboard({
   useEffect(() => {
     void load();
   }, [load]);
+  const spending = useSpendingData(data);
   useEffect(() => {
     if (payBill == null || !data) return;
     const bill = data.bills.items.find((item) => item.id === payBill);
@@ -96,6 +99,7 @@ export function Dashboard({
     );
 
   const setupDone = Object.values(data.setup).every(Boolean);
+  const recent = spending.transactions.filter((row) => row.date.startsWith(data.month));
   const flag = (panel: string): Flag => {
     const alert = alerts?.active
       .filter((item) => item.panel === panel)
@@ -155,12 +159,8 @@ export function Dashboard({
       )}
       {alerts && <Lights data={alerts} onOpen={(id) => onAlert?.(id)} />}
       <div className="panel">
-        <CashAheadPanel className="c5" flag={flag("cash")} data={data} go={go} onPaycheck={() => setPaycheck(true)} />
-        <StackPanel className="c3" flag={flag("stack")} data={data} go={go} />
         {setupDone ? (
-          <div className="c4 col" style={{ gridTemplateRows: "1fr 1fr" }}>
-            <HistoryPanels data={data} />
-          </div>
+          <TwoSystemsPanel className="c4" data={data} periods={spending.periods} onWhy={() => go("learn")} />
         ) : (
           <SetupPanel
             className="c4"
@@ -170,64 +170,20 @@ export function Dashboard({
             onDemo={loadDemo}
           />
         )}
+        <CashAheadPanel className="c5" flag={flag("cash")} data={data} go={go} onPaycheck={() => setPaycheck(true)} />
+        <StackPanel className="c3" flag={flag("stack")} data={data} go={go} />
         <PacePanel className="c3" flag={flag("pace")} data={data} lens={lens} go={go} />
         <BillsPanel className="c5" flag={flag("bills")} data={data} go={go} gone={gone} onAct={(bill, mode) => setSheet({ bill, mode })} onStack={() => go("stack")} />
         <div className="c4 col">
           <DebtPanel flag={flag("debt")} data={data} go={go} />
           <BudgetsPanel flag={flag("budgets")} data={data} go={go} />
         </div>
+        <div className="band">Month in detail</div>
+        <MonthDetail data={data} spending={spending} onDrill={(key) => onDrill?.(key)} go={go} />
         <Panel className={setupDone ? "c12" : "c8"} name="Transactions" plain="latest entries" link={{ label: "All activity", onClick: () => go("activity") }}>
-          {recent.length ? (
-            <div style={{ overflow: "hidden" }}>
-              <table className="log">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Entry</th>
-                    <th className="hide-s">Category</th>
-                    <th className="r">Amount</th>
-                    <th className="r">Bitcoin that day</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recent.slice(0, 6).map((row) => (
-                    <tr key={row.id}>
-                      <td className="num dim">{shortDate(row.date)}</td>
-                      <td className="w">{row.description}</td>
-                      <td className="hide-s">
-                        <span className="tag">{row.category}</span>
-                      </td>
-                      <td className="num r">
-                        {row.kind === "income" ? "+" : row.kind === "expense" ? "−" : ""}
-                        {row.currency === "USD" ? usd(row.amount) : btc(row.amount)}
-                      </td>
-                      <td className="num r">
-                        {row.kind === "transfer" && row.destination_currency === "BITCOIN" && row.destination_amount ? (
-                          <span className="btc">+{btc(row.destination_amount)}</span>
-                        ) : row.currency === "BITCOIN" ? (
-                          btc(row.amount)
-                        ) : row.purchase_cost ? (
-                          btc(row.purchase_cost.bitcoin)
-                        ) : row.kind === "expense" ? (
-                          <span className="tag miss">no price saved</span>
-                        ) : (
-                          <span className="dim">{row.bitcoin !== null ? btc(row.bitcoin) : "—"}</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="sub">Nothing recorded this month yet.</div>
-          )}
+          {recent.length ? <EntryTable rows={recent.slice(0, 6)} account={false} /> : <div className="sub">Nothing recorded this month yet.</div>}
         </Panel>
-        {!setupDone && (
-          <div className="c4 col" style={{ gridTemplateRows: "1fr 1fr" }}>
-            <HistoryPanels data={data} />
-          </div>
-        )}
+        {!setupDone && <TwoSystemsPanel className="c4" data={data} periods={spending.periods} onWhy={() => go("learn")} />}
       </div>
       {sheet && (
         <BillSheet
@@ -250,6 +206,18 @@ export function Dashboard({
           }}
         />
       )}
+    </>
+  );
+}
+
+/** Money flow and Spending bridge share one spending analysis in the current lens. */
+function MonthDetail({ data, spending, go, onDrill }: { data: DashboardData; spending: SpendingData; go: (route: Route) => void; onDrill: (key: string) => void }) {
+  const { lens } = useSession();
+  const analysis = useAnalysis(spending, data, lens);
+  return (
+    <>
+      <MoneyFlowPanel className="c7" data={data} report={spending.report} categories={spending.categories} lens={lens} onDrill={onDrill} onExplore={() => go("spending")} />
+      <BridgePanel className="c5" data={data} analysis={analysis} lens={lens} onDrill={onDrill} onExplore={() => go("spending")} />
     </>
   );
 }

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { LevelIcon } from "../design/icons";
-import { btc, cents, coordinate, fromCents, longMonth, monthName, plural, shortDate, usd, usdWhole } from "../lib/format";
+import { btc, cents, coordinate, fromCents, monthName, plural, shortDate, usd, usdWhole } from "../lib/format";
 import type { Route } from "../lib/router";
 import type { Lens } from "../lib/session";
 import { BillsLane, CashAheadChart, PaceChart, StackRateBars, StackSpark, StackTape, shift } from "./charts";
@@ -591,28 +591,5 @@ export function SetupPanel({ className, data, demoEnabled, onPaycheck, onDemo }:
         </div>
       )}
     </Panel>
-  );
-}
-
-/** History panels are rebuilt in a later step; until then they say what they are waiting for. */
-export function HistoryPanels({ data }: { data: DashboardData }) {
-  const days = data.days_of_history;
-  const later = (name: string, plain: string, page: string) => (
-    <Panel name={name} plain={plain} inop>
-      <div className="sub" style={{ flex: 1 }}>
-        You have enough history for this. It is being rebuilt for the new design.
-      </div>
-      <div>
-        <a className="btn sm" href={`/legacy.html?page=${page}`}>
-          See it in the previous interface
-        </a>
-      </div>
-    </Panel>
-  );
-  return (
-    <>
-      {days >= 60 ? later("Two systems", "the same life, priced two ways", "Overview") : <Collecting name="Two systems" plain="the same life, priced two ways" have={days} need={60} note="Needs two full months and a price source." />}
-      {days >= 30 ? later("Spending bridge", `what changed since ${longMonth(shift(data.month, -1))}`, "Expenses") : <Collecting name="Spending bridge" plain="what changed since last month" have={days} need={30} note="Needs one full month to compare against." />}
-    </>
   );
 }

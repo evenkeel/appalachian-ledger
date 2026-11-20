@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { Activity } from "./activity/Activity";
 import { AlertDrawer, AlertsButton, useAlerts } from "./dashboard/Alerts";
 import { Dashboard } from "./dashboard/Dashboard";
 import type { DashboardData } from "./dashboard/types";
@@ -8,6 +9,7 @@ import { SessionProvider, useSession } from "./lib/session";
 import { ComingSoon, Shell } from "./shell/Shell";
 import type { PriceReading } from "./shell/Shell";
 import { SignIn } from "./shell/SignIn";
+import { Spending } from "./spending/Spending";
 
 function Screens() {
   const { phase, error, retry } = useSession();
@@ -19,6 +21,8 @@ function Screens() {
   const [drawer, setDrawer] = useState<string | null>(null);
   const [payBill, setPayBill] = useState<number | null>(null);
   const handled = useCallback(() => setPayBill(null), []);
+  // The category whose entries the Spending screen is showing.
+  const [drill, setDrill] = useState<string | null>(null);
 
   if (phase === "booting")
     return (
@@ -69,7 +73,15 @@ function Screens() {
             onChanged={() => void alerts.refresh()}
             payBill={payBill}
             onPayBillHandled={handled}
+            onDrill={(key) => {
+              setDrill(key);
+              go("spending");
+            }}
           />
+        ) : route === "activity" ? (
+          <Activity onChanged={() => void alerts.refresh()} />
+        ) : route === "spending" ? (
+          <Spending go={go} drill={drill} onDrill={setDrill} />
         ) : (
           <ComingSoon route={route} />
         )}
