@@ -97,6 +97,15 @@ Nothing here creates a posting except the three write actions that say so.
 
 `limit`, `utilization`, `due_day`, `next_due` are `null` for a card with no saved terms.
 
+## Notes on the reading
+
+- Cash ahead only moves on everyday accounts: bills paid from them and paychecks landing in them. A bill paid by card appears under `bills` only, so the card bill and the card payment are never both counted.
+- Overdue bills are placed on today. On the same day, bills come before paychecks. A paycheck dated today is assumed to have landed.
+- `next_paycheck` may fall after the 30 days shown.
+- `bills.next_7`, `bills.next_30`, `paid_this_month.total` and `destroyed.monthly_freed` are `null` when a bitcoin-denominated bill cannot be valued because no price is saved. Nothing is guessed.
+- `stack.rates` and `stack.history` cover only months since the first entry, so both are empty on a new ledger.
+- `price.usd_per_btc` has at least two decimals and is never rounded.
+
 ## Writes
 
 | Endpoint | Does |
@@ -105,7 +114,7 @@ Nothing here creates a posting except the three write actions that say so.
 | `PUT /api/accounts/{id}/card-terms` | Body: `credit_limit` (string or null), `due_day` (1–31 or null). Credit-card accounts only. |
 | `PUT /api/recurring-bills/{id}/pays-account` | Body: `account_id` (a liability account) or null. Links a bill to the debt it pays down. |
 | `POST /api/recurring-bills/{id}/destroy` | Archives the bill and stamps `destroyed_on` with today. No posting. Returns `{ "monthly_freed": "22.99" }`. |
-| `POST /api/recurring-bills/{id}/pay-off` | Body: `date`. Bill must have `pays_account_id`. Posts one transfer for the debt's full balance from the bill's paying account to the debt account, then destroys the bill. Refuses (409) if the paying account balance is lower than the debt. |
+| `POST /api/recurring-bills/{id}/pay-off` | Body: `date`. Bill must have `pays_account_id`. Posts one transfer for the debt's full balance from the bill's paying account to the debt account, then destroys the bill. Refuses (409) if the paying account balance is lower than the debt, or if nothing is owed. Returns `{ "entry_id", "amount", "monthly_freed" }`. |
 
 Paying a bill for the month keeps using the existing `POST /api/recurring-bills/{id}/record`.
 

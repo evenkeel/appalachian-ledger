@@ -52,10 +52,11 @@ export interface DashboardData {
   };
   bills: {
     items: Bill[];
-    next_7: string;
-    next_30: string;
-    paid_this_month: { count: number; total: string };
-    destroyed: { count: number; monthly_freed: string };
+    /** Null when a bitcoin-denominated bill cannot be valued because there is no price. */
+    next_7: string | null;
+    next_30: string | null;
+    paid_this_month: { count: number; total: string | null };
+    destroyed: { count: number; monthly_freed: string | null };
   };
   stack: {
     status: "needs_bitcoin" | "ready";
