@@ -55,7 +55,7 @@
       octCats,
       checking: { calm: 481240, trouble: 241240 },
       bills: [
-        { day: 2, name: "Mortgage", cents: 140000 },
+        { day: 2, name: "Mortgage", cents: 140000, debt: true },
         { day: 4, name: "Health insurance", cents: 14500 },
         { day: 6, name: "Internet", cents: 7000 },
         { day: 9, name: "Ridgeline Visa payment", cents: 128436, card: true },
@@ -79,6 +79,13 @@
           ["Sep", 20612000],
           ["Oct", 21259600],
           ["Nov", 21932000],
+        ],
+        rates: [
+          ["Jun", 9.8],
+          ["Jul", 10.4],
+          ["Aug", 10.1],
+          ["Sep", 11.0],
+          ["Oct", 10.2],
         ],
         wallets: [
           ["Cold storage", 21400000],

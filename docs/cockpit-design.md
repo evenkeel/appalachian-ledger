@@ -1,10 +1,12 @@
 # Dashboard design brief
 
-Status: **third draft, awaiting owner feedback.** "Cockpit" was shorthand for a dense dashboard, so this draft drops the flight vocabulary and uses plain names. The file keeps its original name.
+Status: **fourth draft, awaiting owner feedback.** "Cockpit" was shorthand for a dense dashboard, so this draft drops the flight vocabulary and uses plain names. The file keeps its original name.
 
-Changed since the first draft: plain names throughout; the bills radar replaced by **Bills to destroy**; "Watershed" renamed **Money flow**; a small game layer; clearer spend-pace wording.
+Changed since the first draft: plain names throughout; the bills radar replaced by a bills panel with targets and ammo; "Watershed" renamed **Money flow**; a small game layer; clearer spend-pace wording.
 
-Changed in this draft: the logo is redrawn again as three gentle, layered hills; Destroy now has a confirm step; spare ammo can be stacked.
+Changed in the third draft: the logo redrawn as three gentle, layered hills (approved); a confirm step; spare ammo can be stacked.
+
+Changed in this draft: bills are **paid** or **destroyed** (cancelled, or paid off in full); each alert light opens its own detail; **stack rate** is a headline number in Stack.
 
 Nothing in the running app has changed yet.
 This document and the clickable prototype in [`docs/cockpit-prototype/`](cockpit-prototype/) are the whole of step 2.
@@ -17,7 +19,7 @@ python3 -m http.server 5180 --bind 127.0.0.1 --directory docs/cockpit-prototype
 
 Open <http://127.0.0.1:5180>. The dashed strip at the top is prototype-only: switch between **Day 3** (one account, three entries) and **Month 6**, between **All calm** and **Trouble**, and between **Night** and **Day**. Everything is fictional and static; no server or ledger is involved.
 
-Things to try: in Trouble, press **Destroy** on the overdue bill, confirm, and watch its red light go out; press the **Warnings** button; click a lit light; switch **$ / ₿** on the Spending screen; click a bridge row to drill down; press **N**.
+Things to try: in Trouble, **Pay** the overdue bill and watch its red light go out; **Destroy** a bill and see what it frees each year; try **Pay off** on the mortgage; click two different alert lights and compare what each shows; switch **$ / ₿** on the Spending screen; click a bridge row to drill down; press **N**.
 
 | Month 6, all calm | Month 6, trouble |
 | --- | --- |
@@ -58,7 +60,7 @@ Nine destinations instead of eleven, all with plain names.
 | **Dashboard** | The panels and the row of alert lights | Overview |
 | **Activity** | Every transaction, fast keyboard entry, corrections, import | Transactions, Income |
 | **Spending** | Spend pace, Spending bridge, Money flow, categories, budgets, history | Expenses, Budgets, most of Reports |
-| **Bills** | Bills to destroy at full size, 30-day view, recurring bills, paycheck schedule | Upcoming expenses |
+| **Bills** | Every bill as a target at full size, 30-day view, recurring bills, paycheck schedule | Upcoming expenses |
 | **Stack** | Bitcoin by wallet, every buy at the price paid, milestones, Two systems at full size, price source | Stacking, price settings |
 | **Accounts** | Checking, cards, reserve, brokerage, property, loans | Accounts, Assets & liabilities |
 | **Retirement** | Saved scenarios in both systems | Retirement |
@@ -76,8 +78,8 @@ Panels that work on day one are on top. Panels that need history sit lower and s
 | Panel | Measures | Source | Day one | With history |
 | --- | --- | --- | --- | --- |
 | **Cash ahead** | Projected checking balance over 30 days: known bills step it down, planned paychecks step it up. Headline is "Covered through payday" or "Short before payday", with the lowest point and how many days of bills are covered with no paycheck | Account balance, `recurring_bills`, new `income_schedules` | Works once one bill exists. Before that it says what it needs | Same |
-| **Bills to destroy** | See below | `recurring_bills`, `bill_occurrences`, checking balance | Works with one bill | Same |
-| **Stack** | Bitcoin held, this month's gain, buys and dollars paid, share of income stacked, next milestone, streak, wallets, price and source | Balances, transfers into bitcoin accounts, `price_quotes` | Works with one holding | Monthly trend from month two |
+| **Bills** | See below | `recurring_bills`, `bill_occurrences`, checking balance | Works with one bill | Same |
+| **Stack** | Bitcoin held, this month's gain, buys and dollars paid, **stack rate**, next milestone, streak, best month, price and source | Balances, transfers into bitcoin accounts, `price_quotes` | Works with one holding | Monthly trend from month two |
 | **Spend pace** | Exact spending so far this month, against the same days last month | Expenses, `expense_costs` | Shows this month's line and says when comparison starts | Full comparison |
 | **Cards & debt** | Card balance against its limit, next payment, loan balance and change | Liability accounts, new `card_terms` | Works with one card or loan | Payoff pace, labelled hypothetical |
 | **Budgets** | Category spending against its dollar allowance, with a mark for how much of the month has passed | `budget_overview` | Works once one allowance is set | Same |
@@ -87,28 +89,35 @@ Panels that work on day one are on top. Panels that need history sit lower and s
 | **Retirement** | The default saved scenario: funded-to age, retirement age, monthly life in both systems | `planning_scenarios`, forecasting engine | "No scenario yet" with one action | Same |
 | **Transactions** | The latest entries with dollars and bitcoin that day | Journal, `expense_costs` | Works with one entry | Same |
 
-### Bills to destroy
+### Bills: pay them, or destroy them for good
 
-This replaces the radar, which looked good but did not explain itself.
+The owner's idea, and it is better than what I had: paying a bill does not destroy it, because it comes back next month. A bill is only destroyed when it is gone for good.
 
 - Your checking balance is your **ammo**. A bar shows how much of it the bills before payday will use, and says "Enough ammo" or "$757.46 short".
-- Each bill is a **target** on a 30-day line. Further left is sooner; a bigger target is a bigger bill. Overdue bills sit in a red "Past due" box left of Today.
-- Each planned paycheck is a **reload**, drawn in purple because it has not happened yet.
-- **Destroy** opens a short confirm step (date paid, actual amount, paying account, ammo left afterwards). Confirming records the payment: the target bursts, ammo drops by that amount, and any alert the bill caused goes out. Nothing posts without that confirmation.
-- A counter keeps score: "6 destroyed this month".
-- When there is more ammo than the bills before payday need, the panel says so ("Spare ammo after bills $1,728.54") and offers **Stack it**, which opens a bitcoin buy. That is the loop the app teaches: destroy the bills, stack what is spare.
+- Each bill is a **target** on a 30-day line. Further left is sooner; a bigger target is a bigger bill. Overdue bills sit in a red "Past due" box left of Today. Each planned paycheck is a **reload**.
+- **Pay** records this month's payment after a short confirm step (date, actual amount, account, ammo left). The target fades and ammo drops. It will be back next month.
+- **Destroy** cancels a bill for good. The confirm step shows what that frees: "$22.99 a month, $275.88 a year you could stack instead". The target bursts. The app reminds you to cancel with the provider too, since it cannot do that for you.
+- **Pay off** is how a debt is destroyed: it pays the whole balance of a card or loan from checking and removes the bill. If checking cannot cover it, the confirm step says how much more ammo is needed and will not proceed.
+- The score: "6 paid this month" and "2 destroyed · $31.98 a month freed".
+- When there is more ammo than the bills before payday need, the panel offers **Stack it**, which opens a bitcoin buy. The loop the app teaches: pay the bills, destroy the ones you can, stack what is spare.
+
+In the ledger, Pay is the existing confirm-to-post bill payment, Destroy archives the recurring bill, and Pay off is a transfer for the full balance followed by archiving. No new accounting is needed.
 
 ### Game layer
 
 The owner's framing: money is what you fight an uncertain future with. Dollars are ammo that loses power over time, bitcoin is the stronger weapon, stocks are a different one, and winning is simple: keep stacking.
 
-My judgement on how far to take it:
+What is in the design:
 
-- **Keep "ammo" for dollars in checking, everywhere it appears.** It explains itself in one line and it is true to how dollars are used: spent on bills.
-- **Make stacking the win condition.** The Stack panel shows the next milestone, the current streak of months with a buy, and the best month so far. "Stack it" turns spare ammo into bitcoin. The "No stack yet" light is the nudge.
-- **Let the user's own numbers make the purchasing-power point.** Two systems already shows a month of life costing more dollars and less bitcoin. That is more convincing than a label, and it stays honest when the price moves the other way.
-- **Do not relabel every account as a weapon.** Calling the brokerage or the mortgage a weapon would bring back the problem the radar had: a metaphor to decode before a number can be read. The fuller weapons framing (dollars, bitcoin, stocks) belongs in Learn, where there is room to explain it.
-- Not drawn yet, easy to add: an "All clear" badge for a month with every bill destroyed on time.
+- **"Ammo" for dollars in checking, everywhere it appears.**
+- **Stack rate is the score.** It is the share of this month's income that went into bitcoin, the bitcoin version of a savings rate, and higher is better. It sits in the Stack panel as a headline number with the last six months as bars, the change from last month, and a "best yet" mark when it is a record.
+- **Supporting numbers**: next milestone of bitcoin held, the streak of months with a buy, and the best month so far. "Stack it" turns spare ammo into bitcoin, and the "No stack yet" light is the nudge.
+- **Bills destroyed** and the dollars a month that freed.
+- **Your own numbers make the purchasing-power point.** Two systems shows a month of life costing more dollars and less bitcoin. It stays honest when the price moves the other way.
+
+What I left out on purpose: relabelling every account as a weapon. That would be another metaphor to decode before a number can be read. The fuller framing of dollars, bitcoin and stocks belongs in Learn.
+
+Easy to add later: a stack-rate target you set yourself, and an "All clear" badge for a month with every bill paid on time.
 
 ### Spend pace, in plain terms
 
@@ -128,13 +137,15 @@ All three work in dollars and bitcoin, drill down to the entries behind a number
 
 A fixed row of ten lights. A dark light is normal; "All normal" is the calm state. Level is carried three ways at once: shape (circle, triangle, octagon), the word, and colour. Amber and red appear nowhere else in the product.
 
-Each light states what is wrong, why it matters, and one action with a direct link. A flagged panel takes the same colour on its top edge and a chip that opens the alert.
+Each light opens its own detail, not a shared list. The detail states what is wrong and why it matters, shows the figures behind it, and offers one action. For example, Credit use shows balance, limit, the bar against your 30% line and "Pay $2,328.00 to get back under your 30% line"; Spend pace shows this month against last and the three categories that grew most; Cash short lists the bills due before payday and the exact gap. Other active alerts are one click away at the bottom, and the alerts button in the top bar lists them all.
+
+A flagged panel takes the same colour on its top edge and a chip that opens that alert.
 
 The **alerts button** in the top bar lights for any unacknowledged caution or warning. Pressing it acknowledges all of them: the button goes dark, and each light stays on but hollow until the problem is fixed. An acknowledged light returns to your attention when it gets worse: a higher level, or a magnitude past the acknowledged value (more days overdue, a deeper shortfall, a higher utilisation step).
 
 | Light | Advisory (blue) | Caution (amber) | Warning (red) | One action |
 | --- | --- | --- | --- | --- |
-| Bill overdue | — | 1–2 days past due | 3+ days past due | Destroy it |
+| Bill overdue | — | 1–2 days past due | 3+ days past due | Pay it |
 | Cash short | — | Projected paying-account balance below $0 before the next paycheck, more than 7 days out | Same, within 7 days | Move money / reschedule |
 | Card due | Payment due in ≤ 7 days | Due in ≤ 2 days | Past due | Make payment |
 | Spend pace | — | Month to date ≥ 120% of last month's same days, and ≥ $150 more, from day 5 | never | See what changed |
@@ -170,7 +181,7 @@ Giving the hypothetical its own colour makes the rule "a forecast never creates 
 
 **Space, radius, elevation.** 4 px base (4, 8, 12, 16, 24, 32). Radii 4 (chips and lights), 10 (panels), 14 (sheets). Panels are flat with a 1 px edge; only overlays cast a shadow.
 
-**Motion.** 120 ms for controls, 240 ms for panels, 700 ms for lines settling on load. An unacknowledged warning light blinks; the alerts button pulses; a destroyed bill bursts. All stop under `prefers-reduced-motion`.
+**Motion.** 120 ms for controls, 240 ms for panels, 700 ms for lines settling on load. An unacknowledged warning light blinks; the alerts button pulses; a paid bill fades and a destroyed bill bursts. All stop under `prefers-reduced-motion`.
 
 **States.** Every panel has: not set up (dashed, says what it needs, one action), collecting (n of m with a ready date), partial (labelled), missing price (dashed "no price saved" tag, never a guess), loading (skeleton at final size), offline (last readings with their time, entry paused), locked (blanked). All are on the prototype's System screen.
 
@@ -180,7 +191,7 @@ Giving the hypothetical its own colour makes the rule "a forecast never creates 
 
 ## Logo
 
-Two earlier drawings were wrong: first a flattened copy of the old artwork, then three steep peaks. This draft draws what the logo is: **three gentle rolling hills, layered like rows of Appalachian ridges, two blues and one orange for bitcoin.**
+**Approved by the owner.** Two earlier drawings were wrong: first a flattened copy of the old artwork, then three steep peaks. The approved drawing is what the logo is: **three gentle rolling hills, layered like rows of Appalachian ridges, two blues and one orange for bitcoin.**
 
 - Long and low, 4:1, as the original artwork was. Each ridge is one smooth curve with soft slopes and no points.
 - Light blue is the furthest ridge, orange sits in the middle, dark blue is the nearest and trails off to the right.
@@ -235,7 +246,7 @@ Each step runs end to end and is checked in a browser at desktop and phone width
 
 1. Design system and logo.
 2. Shell and navigation.
-3. Dashboard with day-one panels (Cash ahead, Bills to destroy, Stack, Spend pace, Cards & debt, Budgets) and their migrations.
+3. Dashboard with day-one panels (Cash ahead, Bills, Stack, Spend pace, Cards & debt, Budgets) and their migrations.
 4. Alert lights, thresholds, acknowledgement, trigger tests.
 5. History panels (Two systems, Spending bridge, Money flow).
 6. Activity and entry.
@@ -246,17 +257,19 @@ Each step runs end to end and is checked in a browser at desktop and phone width
 
 ## Decisions so far
 
+- Logo, three gentle layered hills: **approved.**
 - Price quoted as `₿842 per $1`: **approved.**
 - "No stack yet" light: **approved.**
 - **Money flow** as the name: **approved.**
-- Confirm step before Destroy records a payment: **approved**, and now in the prototype.
-- "Ammo" for dollars in checking: **liked**; kept and extended with "Stack it".
+- Confirm step before a payment is recorded: **approved.**
+- Pay versus Destroy, and Pay off for debts: **the owner's idea, adopted.**
+- Stack rate as a headline: **requested, added.**
+- Each alert light has its own detail: **requested, added.**
 - "Watershed", the bills radar, flight vocabulary: **rejected and removed.**
 
 ## Questions for the owner
 
-1. **Logo**: is the layered-hills drawing right?
-2. **Wordmark**: tracked capitals or the serif alternate?
+1. **Wordmark**: tracked capitals or the serif alternate?
 
 ## Not done yet
 

@@ -1,6 +1,6 @@
 /* Clickable prototype of the dashboard. Static: no server, no storage, fictional data. */
 (function () {
-  const S = { screen: "cockpit", data: "six", cond: "calm", theme: "night", lens: "USD", acks: {}, drawer: null, drill: null, sel: 0, paid: [], boom: null, confirm: null };
+  const S = { screen: "cockpit", data: "six", cond: "calm", theme: "night", lens: "USD", acks: {}, drawer: null, drill: null, sel: 0, paid: [], gone: [], paidOff: [], boom: null, confirm: null };
   const P = PROTO, D = P.six;
   const sum = (a) => a.reduce((x, y) => x + y, 0);
   const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
@@ -83,11 +83,14 @@
     const val = (e) => (lens === "USD" ? e.cents : bitcoinAt(e) ?? Math.round((e.cents / 100) * rate(e.day)));
 
     // Runway
-    const paid = new Set(S.paid);
+    const paid = new Set(S.paid), off = new Set(S.paidOff), gone = new Set(S.gone.concat(S.paidOff));
     const allBills = (t ? [D.overdue] : []).concat(D.bills);
-    const paidCents = sum(allBills.filter((b) => paid.has(b.name)).map((b) => b.cents));
+    // A debt is destroyed by paying off its whole balance.
+    const payoffOf = (b) => (b.card ? D.card.balance[S.cond] : b.debt ? D.mortgage.balance : null);
+    const paidCents = sum(allBills.filter((b) => paid.has(b.name)).map((b) => b.cents)) + sum(allBills.filter((b) => off.has(b.name)).map(payoffOf));
+    const goneCents = sum(allBills.filter((b) => gone.has(b.name)).map((b) => b.cents));
     const checking = D.checking[S.cond] - paidCents;
-    const bills = allBills.filter((b) => !paid.has(b.name)).map((b) => ({ ...b }));
+    const bills = allBills.filter((b) => !paid.has(b.name) && !gone.has(b.name)).map((b) => ({ ...b }));
     const events = bills.map((b) => ({ ...b, origDay: b.day, overdue: b.day < 0, day: Math.max(0, b.day), pay: false }))
       .concat(D.paydays.map((p) => ({ ...p, pay: true })))
       .sort((a, b) => a.day - b.day || a.pay - b.pay); // same day: bills first (conservative)
@@ -101,7 +104,7 @@
       return { ...e, after: bal };
     });
     let b2 = checking, covered = 60;
-    for (const e of bills.concat(D.bills.map((b) => ({ ...b, day: b.day + 30 }))).sort((a, b) => a.day - b.day)) {
+    for (const e of bills.concat(D.bills.filter((b) => !gone.has(b.name)).map((b) => ({ ...b, day: b.day + 30 }))).sort((a, b) => a.day - b.day)) {
       b2 -= e.cents;
       if (b2 < 0) { covered = Math.max(0, e.day) - 1; break; }
     }
@@ -138,12 +141,12 @@
     const assigned = sum(flow.dests.map((d) => d.v));
     flow.dests[flow.dests.length - 1].v = Math.max(0, sum(flow.sources.map((s) => s.v)) - assigned);
 
-    const card = { ...D.card, balance: D.card.balance[S.cond] };
+    const card = { ...D.card, balance: allBills.some((b) => b.card && off.has(b.name)) ? 0 : D.card.balance[S.cond] };
     card.util = (card.balance / card.limit) * 100;
     const m = {
-      lens, fmt, t, checking, bills, runway, boom: S.boom, destroyed: { n: 6 + paid.size, cents: 121450 + paidCents }, expenses: ex, bitcoinAt, missing, rate,
+      lens, fmt, t, checking, bills, runway, payoffOf, boom: S.boom, paidStats: { n: 6 + paid.size, cents: 121450 + paidCents }, goneStats: { n: 2 + gone.size, cents: 3198 + goneCents }, expenses: ex, bitcoinAt, missing, rate,
       pace: { cur, prev, from: 1 }, spent, spentUsd, prior: priorCats, bridge, flow, catNow, catNames,
-      stack: { ...D.stack, buys: D.other.filter((o) => o.kind === "stack"), stackUsd, stackBtc, rate: (stackUsd / incomeUsd) * 100 },
+      stack: { ...D.stack, buys: D.other.filter((o) => o.kind === "stack"), stackUsd, stackBtc, rate: (stackUsd / incomeUsd) * 100, rates: D.stack.rates.concat([["Nov", Math.round((stackUsd / incomeUsd) * 1000) / 10]]) },
       incomeUsd, movesUsd, restUsd, two: D.twoSystems, card, mortgage: D.mortgage,
       log: ex.concat(D.other).sort((a, b) => b.day - a.day),
     };
@@ -156,15 +159,44 @@
   const RANK = { warning: 3, caution: 2, advisory: 1 };
   function alerts(m) {
     if (!m.t) return [];
-    const r = m.runway, pct = ((m.spentUsd - 179255) / 179255) * 100;
-    const late = m.bills.filter((b) => b.day < 0);
+    const r = m.runway, diff = m.spentUsd - 179255, pct = (diff / 179255) * 100;
+    const late = m.bills.filter((b) => b.day < 0), c = m.card;
+    const kv = (rows) => `<div class="kv">${rows.map(([k, v, cls]) => `<div><span>${k}</span><b class="${cls || ""}">${v}</b></div>`).join("")}</div>`;
+    const li = (left, sub, right, btn = "") => `<li style="grid-template-columns:minmax(0,1fr) auto auto;align-items:center"><span class="nm">${left}${sub ? ` <small class="num dim">· ${sub}</small>` : ""}</span><span class="num">${right}</span>${btn}</li>`;
+    const before = m.bills.filter((b) => b.day <= r.firstPay);
+    const underBy = c.balance - Math.floor(c.limit * 0.3);
+    const lost = m.expenses.filter((e) => m.missing.has(e.name));
     return [
-      late.length && { id: "overdue", level: "warning", sev: 3, title: "Car registration was due Nov 16", why: "3 days past due. Late fees start small and grow, and a lapse is harder to undo than a payment.", act: "Destroy it (record payment)", go: "cockpit", inst: "bills" },
-      r.low < 0 && { id: "cash", level: "warning", sev: -r.low, title: `Checking runs short on ${F.date(r.shortDay)}`, why: `The Visa payment lands ${r.firstPay - r.shortDay} days before your ${F.date(r.firstPay)} paycheck. Bills due by then total ${F.usd(r.dueBefore)}; checking holds ${F.usd(m.checking)}. The gap is ${F.usd(-r.low)}.`, act: "Move money from reserve", go: "accounts", inst: "runway" },
-      { id: "pace", level: "caution", sev: pct, title: `Spending is ${pct.toFixed(0)}% ahead of October`, why: `${F.usd(m.spentUsd - 179255)} more than through October 19. The largest new cost is Auto (${F.usd(45420)}).`, act: "See what changed", go: "spending", inst: "pace" },
-      { id: "util", level: "caution", sev: m.card.util, title: `${m.card.name} is at ${m.card.util.toFixed(0)}% of its limit`, why: `${F.usd(m.card.balance)} of ${F.usd(m.card.limit)}. A balance this high costs interest and leaves little headroom. Your caution threshold is 30%.`, act: "Plan a payment", go: "accounts", inst: "debt" },
-      { id: "backup", level: "caution", sev: 34, title: "Last encrypted backup was 34 days ago", why: "This ledger lives only on this machine. A backup is the only copy that survives a failed disk.", act: "Back up now", go: "system" },
-      { id: "conv", level: "advisory", sev: 2, title: "2 expenses have no purchase-date bitcoin price", why: "Their bitcoin cost is shown as missing, never guessed. Totals that include them are marked partial until a dated price is saved.", act: "Review missing prices", go: "log", inst: "log" },
+      late.length && { id: "overdue", level: "warning", sev: 3, inst: "bills", title: `${late[0].name} was due ${F.date(late[0].day)}`,
+        why: `${-late[0].day} days past due. Late fees start small and grow, and a lapse is harder to undo than a payment.`,
+        detail: `<ul class="rows">${late.map((b) => li(esc(b.name), `${-b.day} days late`, F.usd(b.cents))).join("")}</ul>`,
+        acts: `<button class="btn primary" data-pay="${esc(late[0].name)}">Pay it now</button>` },
+      r.low < 0 && { id: "cash", level: "warning", sev: -r.low, inst: "runway", title: `Checking runs short on ${F.date(r.shortDay)}`,
+        why: `The bills due before your ${F.date(r.firstPay)} paycheck add up to more than checking holds.`,
+        detail: kv([["In checking", F.usd(m.checking)], ["Bills before payday", F.usd(r.dueBefore)], ["Short by", F.usd(-r.low), "warnc"]]) +
+          `<ul class="rows">${before.map((b) => li(esc(b.name), b.day < 0 ? "overdue" : F.date(b.day), F.usd(b.cents))).join("")}</ul>
+          <p>To clear this: get at least <b class="num">${F.usd(-r.low)}</b> more into checking before ${F.date(r.shortDay)}.</p>`,
+        acts: `<button class="btn primary" data-go="accounts">Move money in →</button>` },
+      { id: "pace", level: "caution", sev: pct, inst: "pace", title: `Spending is ${F.usd(diff)} ahead of October`,
+        why: `That is ${pct.toFixed(0)}% more than you had spent by October 19.`,
+        detail: kv([["Nov 1–19", F.usd(m.spentUsd)], ["Oct 1–19", F.usd(179255)], ["Difference", "+" + F.usd(diff)]]) +
+          `<div class="hint" style="margin-top:2px">Biggest increases</div><ul class="rows">${m.bridge.steps.filter((s) => s.change > 0).slice(0, 3).map((s) => li(esc(s.name), "", "+" + m.fmt(s.change))).join("")}</ul>
+          <p class="hint">This light comes on at 20% and $150 ahead of last month, from day 5.</p>`,
+        acts: `<button class="btn primary" data-go="spending">Open the spending bridge →</button>` },
+      { id: "util", level: "caution", sev: c.util, inst: "debt", title: `${c.name} is at ${c.util.toFixed(0)}% of its limit`,
+        why: "A balance this high costs interest and leaves little room for an emergency.",
+        detail: kv([["Balance", F.usd(c.balance)], ["Limit", F.usd0(c.limit)], ["Used", c.util.toFixed(0) + "%"]]) +
+          `<div class="bar" style="margin:4px 0"><i style="width:${Math.min(c.util, 100)}%"></i><u style="left:30%"></u></div>
+          <p>Pay <b class="num">${F.usd(underBy)}</b> to get back under your 30% line.</p>`,
+        acts: `<button class="btn primary" data-go="accounts">Plan a payment →</button>` },
+      { id: "backup", level: "caution", sev: 34, title: "Last encrypted backup was 34 days ago",
+        why: "This ledger lives only on this machine. A backup is the only copy that survives a failed disk.",
+        detail: kv([["Last backup", "Oct 16"], ["Days ago", "34"], ["Entries since", "61"]]),
+        acts: `<button class="btn primary" data-go="system">Back up now →</button>` },
+      { id: "conv", level: "advisory", sev: lost.length, inst: "log", title: `${lost.length} expenses have no purchase-date bitcoin price`,
+        why: "Their bitcoin cost is shown as missing, never guessed. Totals that include them are marked partial until a dated price is saved.",
+        detail: `<ul class="rows">${lost.map((e) => li(esc(e.name), `Nov ${e.day}`, F.usd(e.cents))).join("")}</ul>`,
+        acts: `<button class="btn primary" data-go="log">Review missing prices →</button>` },
     ].filter(Boolean);
   }
   const isAcked = (a) => S.acks[a.id] && S.acks[a.id].level === a.level && a.sev <= S.acks[a.id].sev;
@@ -197,30 +229,57 @@
   function drawer(m) {
     if (S.drawer === null) return "";
     const list = m.alerts.slice().sort((a, b) => RANK[b.level] - RANK[a.level]);
-    return `<div class="scrim" data-close></div><aside class="drawer" role="dialog" aria-label="Active alerts" aria-modal="true">
-      <header><h2>Alerts · ${list.length} active</h2>${list.some((a) => !isAcked(a)) ? `<button class="btn sm" data-ackall>Acknowledge all</button>` : ""}<button class="btn sm ghost" data-close aria-label="Close">Close <kbd>Esc</kbd></button></header>
-      <div class="body">${list.length ? list.map((a) => `<article class="alert ${a.level}${S.drawer === a.id ? " focus" : ""}">
-        <span class="flagchip ${a.level}">${I[a.level]}${a.level}${isAcked(a) ? " · acknowledged" : ""}</span>
-        <h3>${esc(a.title)}</h3><p>${esc(a.why)}</p>
-        <div class="acts"><button class="btn primary" data-go="${a.go}">${a.act} →</button>${isAcked(a) ? "" : `<button class="btn ghost" data-ack="${a.id}">Acknowledge</button>`}</div>
-        ${isAcked(a) ? `<p class="hint">Stays lit until fixed. Comes back to your attention if it gets worse.</p>` : ""}</article>`).join("")
+    const name = (a) => LAMPS.find((l) => l[0] === a.id)[1];
+    const one = list.find((a) => a.id === S.drawer);
+    const close = `<button class="btn sm ghost" data-close aria-label="Close">Close <kbd>Esc</kbd></button>`;
+    if (one) {
+      const others = list.filter((a) => a !== one);
+      return `<div class="scrim" data-close></div><aside class="drawer" role="dialog" aria-label="${name(one)}" aria-modal="true">
+        <header><h2>${name(one)}</h2>${close}</header>
+        <div class="body"><article class="alert ${one.level}">
+          <span class="flagchip ${one.level}">${I[one.level]}${one.level}${isAcked(one) ? " · acknowledged" : ""}</span>
+          <h3>${esc(one.title)}</h3><p>${esc(one.why)}</p>${one.detail}
+          <div class="acts">${one.acts}${isAcked(one) ? "" : `<button class="btn ghost" data-ack="${one.id}">Acknowledge</button>`}</div>
+          ${isAcked(one) ? `<p class="hint">Stays lit until fixed. Comes back to your attention if it gets worse.</p>` : ""}</article>
+          ${others.length ? `<div class="hint" style="margin-top:6px">Other alerts</div><div class="others">${others.map((a) => `<button class="lamp on l-${a.level}${isAcked(a) ? " acked" : ""}" data-open="${a.id}">${I[a.level]}<span>${name(a)}</span></button>`).join("")}</div>` : ""}
+        </div></aside>`;
+    }
+    return `<div class="scrim" data-close></div><aside class="drawer" role="dialog" aria-label="All alerts" aria-modal="true">
+      <header><h2>All alerts · ${list.length} active</h2>${list.some((a) => !isAcked(a)) ? `<button class="btn sm" data-ackall>Acknowledge all</button>` : ""}${close}</header>
+      <div class="body">${list.length ? list.map((a) => `<button class="alert ${a.level} alert-row" data-open="${a.id}">
+        <span class="flagchip ${a.level}">${I[a.level]}${name(a)}${isAcked(a) ? " · acknowledged" : ""}</span><span class="t">${esc(a.title)}</span><span class="dim">Details →</span></button>`).join("")
         : `<p class="sub">${I.ok} All normal. Nothing needs you.</p>`}
         <p class="hint">Thresholds are adjustable in Settings → Alerts.</p></div></aside>`;
   }
 
   function confirmSheet(m) {
-    const b = S.confirm && (m.bills || []).find((x) => x.name === S.confirm);
+    const b = S.confirm && (m.bills || []).find((x) => x.name === S.confirm.name);
     if (!b) return "";
-    return `<div class="scrim" data-cancel></div><div class="sheet" role="dialog" aria-modal="true" aria-label="Destroy ${esc(b.name)}">
-      <h2>Destroy ${esc(b.name)}</h2>
+    const fixed = b.debt || b.card;
+    if (S.confirm.mode === "payoff") {
+      const amt = m.payoffOf(b), enough = amt <= m.checking, label = esc(b.name.replace(" payment", ""));
+      return `<div class="scrim" data-cancel></div><div class="sheet" role="dialog" aria-modal="true" aria-label="Pay off ${label}">
+        <h2>Pay off ${label} and destroy it?</h2>
+        <p class="sub">This pays the whole balance, <b class="num">${F.usd(amt)}</b>, from checking. The bill is destroyed and stops coming back, which frees <b class="num">${F.usd(b.cents)}</b> a month.</p>
+        ${enough ? `<div class="sub num">Ammo after this: <b>${F.usd(m.checking - amt)}</b></div>${b.card ? `<p class="hint">A card bill comes back if you use the card again.</p>` : ""}` : `<p class="sub"><b class="warnc">Not enough ammo.</b> Checking holds <span class="num">${F.usd(m.checking)}</span>; you need <b class="num">${F.usd(amt - m.checking)}</b> more.</p>`}
+        <div class="acts"><button class="btn primary" data-fire id="fire"${enough ? "" : " disabled"}>Pay off <kbd>⏎</kbd></button><button class="btn ghost" data-cancel>Cancel <kbd>Esc</kbd></button></div></div>`;
+    }
+    if (S.confirm.mode === "destroy")
+      return `<div class="scrim" data-cancel></div><div class="sheet" role="dialog" aria-modal="true" aria-label="Destroy ${esc(b.name)}">
+        <h2>Destroy ${esc(b.name)} for good?</h2>
+        <p class="sub">It stops coming back. That frees <b class="num">${F.usd(b.cents)}</b> a month, <b class="num">${F.usd(b.cents * 12)}</b> a year you could stack instead.</p>
+        <p class="hint">This removes the bill here only. Cancel it with the provider too, or it will still be charged.</p>
+        <div class="acts"><button class="btn primary" data-fire id="fire">Destroy <kbd>⏎</kbd></button><button class="btn ghost" data-cancel>Keep it <kbd>Esc</kbd></button></div></div>`;
+    return `<div class="scrim" data-cancel></div><div class="sheet" role="dialog" aria-modal="true" aria-label="Pay ${esc(b.name)}">
+      <h2>Pay ${esc(b.name)}</h2>
       <p class="sub">This records the payment in your ledger. Change the date or amount if the real payment was different.</p>
       <div class="sheet-fields">
         <label class="field"><span>Paid on</span><input value="${F.date(0)}" aria-label="Paid on"></label>
         <label class="field"><span>Amount</span><input class="num" value="${F.usd(b.cents)}" aria-label="Amount"></label>
         <label class="field" style="grid-column:1/-1"><span>From</span><input value="Everyday checking" aria-label="From account"></label>
       </div>
-      <div class="sub num">Ammo after this: <b>${F.usd(m.checking - b.cents)}</b></div>
-      <div class="acts"><button class="btn primary" data-fire="${esc(b.name)}" id="fire">Destroy <kbd>⏎</kbd></button><button class="btn ghost" data-cancel>Cancel <kbd>Esc</kbd></button></div></div>`;
+      <div class="sub num">Ammo after this: <b>${F.usd(m.checking - b.cents)}</b>${fixed ? "" : " · it comes back next month"}</div>
+      <div class="acts"><button class="btn primary" data-fire id="fire">Pay <kbd>⏎</kbd></button><button class="btn ghost" data-cancel>Cancel <kbd>Esc</kbd></button>${fixed ? `<button class="btn ghost" style="margin-left:auto" data-payoff="${esc(b.name)}">Pay it off instead</button>` : `<button class="btn ghost" style="margin-left:auto" data-destroy="${esc(b.name)}">Destroy it for good instead</button>`}</div></div>`;
   }
 
   /* ---------- Instruments ---------- */
@@ -245,22 +304,27 @@
   }
 
   function iStack(m, cls) {
-    const s = m.stack, gain = s.held - s.monthStart;
+    const s = m.stack, gain = s.held - s.monthStart, n = s.rates.length, now = s.rates[n - 1][1], last = s.rates[n - 2][1];
+    const best = Math.max(...s.rates.slice(0, -1).map((r) => r[1])), avg = sum(s.rates.map((r) => r[1])) / n;
     return inst(cls, "Stack", "bitcoin held", `
       <div class="split">
-        <div class="chart" data-chart="tape" style="width:74px;height:158px;flex:none"></div>
+        <div class="chart" data-chart="tape" style="width:74px;height:132px;flex:none"></div>
         <div style="flex:1;display:grid;gap:6px;align-content:start">
           <div class="num hero btc">${F.btc(s.held)}</div>
           <div class="sub"><b class="num btc">▲ ${F.btc(gain)}</b> this month</div>
-          <div class="sub num">${s.buys.length} buys · ${F.usd(s.stackUsd)} · ${s.rate.toFixed(1)}% of income</div>
-          <div class="chart" data-chart="spark" style="height:46px"></div>
+          <div class="sub num">${s.buys.length} buys for ${F.usd(s.stackUsd)}</div>
+          <div class="chart" data-chart="spark" style="height:42px"></div>
         </div>
+      </div>
+      <div class="rate">
+        <div><span class="lbl">Stack rate</span><b class="num btc">${now.toFixed(1)}%</b><span class="sub">of income stacked</span></div>
+        <div style="flex:1;min-width:0;display:grid;gap:3px"><div class="chart" data-chart="rate" style="height:50px"></div>
+          <div class="sub">${now >= last ? "▲" : "▼"} ${Math.abs(now - last).toFixed(1)} pts vs Oct${now > best ? ` · <span class="btc" style="font-weight:700">best yet</span>` : ` · avg ${avg.toFixed(1)}%`}</div></div>
       </div>
       <div style="display:grid;gap:4px"><div class="split sub" style="justify-content:space-between"><span>Next milestone <b class="num btc">${F.btc(22000000)}</b></span><span class="num">${F.btc(22000000 - s.held)} to go</span></div>
         <div class="meter" role="img" aria-label="Progress to the next million"><i style="width:${((s.held - 21000000) / 10000).toFixed(1)}%;background:var(--btc)"></i></div>
         <div class="sub"><span class="badge">6-month streak</span> Best month <b class="num btc">${F.btc(700000)}</b> in Sep</div></div>
-      <ul class="rows" style="flex:1;align-content:start">${s.wallets.map(([n, v]) => `<li style="grid-template-columns:1fr auto"><span>${n}</span><span class="num">${F.btc(v)}</span></li>`).join("")}</ul>
-      <div class="sub" style="border-top:1px solid var(--hairline);padding-top:8px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><span class="num">${F.btc(D.price.perDollar)} per $1</span><span class="dim">${D.price.source} · ${D.price.when}</span></div>`,
+      <div class="sub" style="border-top:1px solid var(--hairline);padding-top:8px;margin-top:auto;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><span class="num">${F.btc(D.price.perDollar)} per $1</span><span class="dim">${D.price.source} · ${D.price.when}</span></div>`,
       { link: ["stack", "Stack"] });
   }
 
@@ -290,18 +354,20 @@
     const f = flag(m, "bills"), r = m.runway, short = r.low < 0;
     const late = m.bills.filter((b) => b.day < 0), up = m.bills.filter((b) => b.day >= 0);
     const need = r.dueBefore, pct = Math.min(100, (need / Math.max(m.checking, 1)) * 100);
-    const next = late.concat(up).slice(0, 3);
-    return inst(cls, "Bills to destroy", "checking is your ammo", `
+    const next = late.concat(up).slice(0, 3), off = m.boom ? " disabled" : "";
+    return inst(cls, "Bills", "pay them, or destroy them for good", `
       <div class="split" style="align-items:flex-end;flex-wrap:wrap;gap:6px 16px">
         <div class="kv"><div><span>Ammo · in checking</span><b style="font-size:var(--t-read)">${F.usd(m.checking)}</b></div></div>
         <div style="flex:1 1 210px;display:grid;gap:5px;padding-bottom:3px">
           <div class="bar ammo${short ? " short" : ""}" role="img" aria-label="${F.usd(need)} of ${F.usd(m.checking)} is needed for bills before payday"><i style="width:${pct.toFixed(1)}%"></i></div>
-          <div class="sub">${need ? `Bills before the ${F.date(r.firstPay)} reload need <b class="num">${F.usd(need)}</b>. ${short ? `<b style="color:var(--warn)">${F.usd(-r.low)} short.</b>` : `<b class="ok">Enough ammo.</b>`}` : `Nothing left to destroy before the ${F.date(r.firstPay)} reload.`}</div>
+          <div class="sub">${need ? `Bills before the ${F.date(r.firstPay)} reload need <b class="num">${F.usd(need)}</b>. ${short ? `<b style="color:var(--warn)">${F.usd(-r.low)} short.</b>` : `<b class="ok">Enough ammo.</b>`}` : `Nothing left to pay before the ${F.date(r.firstPay)} reload.`}</div>
         </div>
       </div>
       <div class="chart" data-chart="lane" style="height:104px"></div>
-      ${next.length ? `<ul class="rows">${next.map((b) => `<li style="grid-template-columns:minmax(0,1fr) auto auto;align-items:center"><span class="nm">${esc(b.name)} <small class="num ${b.day < 0 ? "overdue" : "dim"}">· ${b.day < 0 ? `${-b.day} days overdue` : b.day === 0 ? "due today" : `${F.date(b.day)}, in ${b.day} days`}</small></span><span class="num">${F.usd(b.cents)}</span><button class="btn sm" data-destroy="${esc(b.name)}" aria-label="Destroy ${esc(b.name)}: record payment of ${F.usd(b.cents)}"${m.boom ? " disabled" : ""}>Destroy</button></li>`).join("")}</ul>` : `<div class="sub ok">${I.ok} All clear. Every bill in the next 30 days is destroyed.</div>`}
-      <div class="sub" style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;border-top:1px solid var(--hairline);padding-top:8px"><span><span class="badge">${m.destroyed.n} destroyed</span> this month · <span class="num">${F.usd(m.destroyed.cents)}</span></span>${!short && r.low > 0 ? `<span>Spare ammo after bills <b class="num">${F.usd(r.low)}</b> <button class="btn sm copper" data-go="stack">Stack it →</button></span>` : `<span class="dim">Destroy = record the payment</span>`}</div>`,
+      ${next.length ? `<ul class="rows">${next.map((b) => `<li style="grid-template-columns:minmax(0,1fr) auto auto auto;align-items:center"><span class="nm">${esc(b.name)} <small class="num ${b.day < 0 ? "overdue" : "dim"}">· ${b.day < 0 ? `${-b.day} days overdue` : b.day === 0 ? "due today" : `${F.date(b.day)}, in ${b.day} days`}</small></span><span class="num">${F.usd(b.cents)}</span><button class="btn sm" data-pay="${esc(b.name)}" aria-label="Pay ${esc(b.name)}, ${F.usd(b.cents)}"${off}>Pay</button>${b.debt || b.card ? `<button class="btn sm ghost" data-payoff="${esc(b.name)}" aria-label="Pay off ${esc(b.name)} in full and destroy it"${off}>Pay off</button>` : `<button class="btn sm ghost" data-destroy="${esc(b.name)}" aria-label="Destroy ${esc(b.name)} for good"${off}>Destroy</button>`}</li>`).join("")}</ul>` : `<div class="sub ok">${I.ok} All clear. Every bill in the next 30 days is paid.</div>`}
+      <div class="sub" style="display:flex;justify-content:space-between;gap:6px 12px;flex-wrap:wrap;border-top:1px solid var(--hairline);padding-top:8px">
+        <span><span class="badge">${m.paidStats.n} paid</span> this month <span class="badge" style="margin-left:6px">${m.goneStats.n} destroyed</span> <span class="num">${F.usd(m.goneStats.cents)}</span> a month freed</span>
+        ${!short && r.low > 0 ? `<span>Spare ammo <b class="num">${F.usd(r.low)}</b> <button class="btn sm copper" data-go="stack">Stack it →</button></span>` : ""}</div>`,
       { flag: f, link: ["bills", `All ${m.bills.length}`] });
   }
 
@@ -362,7 +428,7 @@
     const steps = [
       [true, "Add your checking account", "On: Checking, Spend pace, Transactions"],
       [false, "Set your next paycheck", "Turns on: Cash ahead", "Set payday"],
-      [false, "Add recurring bills", "Turns on: Cash ahead, Bills to destroy", "Add bills"],
+      [false, "Add recurring bills", "Turns on: Cash ahead, Bills", "Add bills"],
       [false, "Record your bitcoin", "Turns on: Stack", "Add bitcoin"],
       [false, "Choose a price source", "Turns on: bitcoin cost on every expense", "Choose"],
       [false, "Make an encrypted backup", "Turns on: backup reminders", "Back up"],
@@ -387,7 +453,7 @@
         ${iInop("c4", "Cash ahead", "checking after known bills", `No bills or payday on file yet, so nothing is known to be due. Add them and this shows whether <b class="num">${F.usd(m.checking)}</b> covers everything before your next paycheck.`, "Add bills and payday")}
         <div class="band">Turns on as you add data</div>
         ${iInop("c3", "Stack", "bitcoin held", "Record what you hold. Bitcoin is your saving; this is where it shows.", "Add bitcoin")}
-        ${iInop("c3", "Bills to destroy", "what is due", "Add a bill and it shows up here as a target, with your checking balance as ammo.", "Add a bill")}
+        ${iInop("c3", "Bills", "what is due", "Add a bill and it shows up here as a target, with your checking balance as ammo.", "Add a bill")}
         ${iWait("c3", "Spending bridge", "what changed since last month", 3, 30, "days", "Needs one full month to compare against. Ready December 1.")}
         ${iWait("c3", "Two systems", "the same life, priced two ways", 3, 60, "days", "Needs two full months and a price source. Ready about February 1.")}
       </div>`;
@@ -424,7 +490,7 @@
     </div>`;
   }
   const STUB = {
-    bills: ["Bills", "Every bill as a target at full size, a 30-day view, recurring bills and your paycheck schedule. Destroying a bill records its payment after you confirm; nothing ever posts by itself."],
+    bills: ["Bills", "Every bill as a target at full size, a 30-day view, recurring bills and your paycheck schedule. Pay records a payment after you confirm. Destroy cancels a bill for good and shows what that frees each year."],
     stack: ["Stack", "Your bitcoin: holdings by wallet, every buy with the price actually paid, milestones and streaks, and the Two systems view at full size. Price source and provenance live here."],
     accounts: ["Accounts", "Checking, cards, reserve, brokerage, property and loans in one place. Bitcoin and dollars are listed in their own units; no combined net worth figure."],
     horizon: ["Retirement", "The existing retirement planner, restyled: saved scenarios side by side in both systems. Everything here is hypothetical and drawn in amethyst."],
@@ -496,23 +562,24 @@
   }
 
   document.addEventListener("click", (e) => {
-    const el = e.target.closest("[data-destroy],[data-fire],[data-cancel],[data-set],[data-go],[data-open],[data-close],[data-ack],[data-ackall],[data-master],[data-drill],[data-drill-clear]");
+    const el = e.target.closest("[data-pay],[data-payoff],[data-destroy],[data-fire],[data-cancel],[data-set],[data-go],[data-open],[data-close],[data-ack],[data-ackall],[data-master],[data-drill],[data-drill-clear]");
     if (!el) return;
     const d = el.dataset;
-    if (d.destroy) {
+    if (d.pay || d.destroy || d.payoff) {
       if (S.boom) return;
-      S.confirm = d.destroy;
+      S.confirm = { name: d.pay || d.destroy || d.payoff, mode: d.pay ? "pay" : d.destroy ? "destroy" : "payoff" };
+      S.drawer = null;
       render();
       return document.getElementById("fire")?.focus();
     }
     if ("cancel" in d) { S.confirm = null; return render(); }
-    if (d.fire) {
+    if ("fire" in d) {
+      S.boom = S.confirm;
       S.confirm = null;
-      S.boom = d.fire;
       render();
-      return setTimeout(() => { S.paid.push(S.boom); S.boom = null; render(); }, matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 520);
+      return setTimeout(() => { ({ pay: S.paid, destroy: S.gone, payoff: S.paidOff })[S.boom.mode].push(S.boom.name); S.boom = null; render(); }, matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 520);
     }
-    if (d.set) { const [k, v] = d.set.split(":"); S[k] = v; if (k !== "theme" && k !== "lens") { S.acks = {}; S.drawer = null; S.drill = null; S.paid = []; S.confirm = null; } }
+    if (d.set) { const [k, v] = d.set.split(":"); S[k] = v; if (k !== "theme" && k !== "lens") { S.acks = {}; S.drawer = null; S.drill = null; S.paid = []; S.gone = []; S.paidOff = []; S.confirm = null; } }
     else if (d.go) { S.screen = d.go; S.drawer = null; window.scrollTo(0, 0); }
     else if (d.open) S.drawer = d.open;
     else if ("close" in d) S.drawer = null;
@@ -549,7 +616,10 @@
   let rz;
   window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(draw, 80); });
   const q = new URLSearchParams(location.search);
-  for (const k of ["screen", "data", "cond", "theme", "lens", "confirm"]) if (q.get(k)) S[k] = q.get(k);
+  for (const k of ["screen", "data", "cond", "theme", "lens", "drawer"]) if (q.get(k) !== null) S[k] = q.get(k);
+  if (q.get("pay")) S.confirm = { name: q.get("pay"), mode: "pay" };
+  if (q.get("destroy")) S.confirm = { name: q.get("destroy"), mode: "destroy" };
+  if (q.get("payoff")) S.confirm = { name: q.get("payoff"), mode: "payoff" };
   document.fonts?.ready.then(render);
   render();
 })();

@@ -153,10 +153,10 @@
     const zone = late.length ? 62 : 16, x = (d) => zone + (d / 30) * (W - zone - 24), cy = (H - 16) / 2 + 4;
     const max = Math.max(1, ...bills.map((b) => b.cents)), size = (c) => 12 + 24 * Math.sqrt(c / max);
     const target = (b, tx, ty) => {
-      const s = size(b.cents), warn = b.day < 0, boom = m.boom === b.name, col = warn ? "var(--warn)" : "var(--usd)";
-      const burst = boom ? `<g class="burst">${Array.from({ length: 8 }, (_, k) => { const a = (k * Math.PI) / 4; return `<line x1="${(Math.cos(a) * s * 0.7).toFixed(1)}" y1="${(Math.sin(a) * s * 0.7).toFixed(1)}" x2="${(Math.cos(a) * s * 1.25).toFixed(1)}" y2="${(Math.sin(a) * s * 1.25).toFixed(1)}" stroke="var(--ink)" stroke-width="2" stroke-linecap="round"/>`; }).join("")}</g>` : "";
-      return `<g transform="translate(${tx.toFixed(1)},${ty.toFixed(1)})" data-destroy="${esc(b.name)}" class="target" ${tip(`${b.name} ${F.usd(b.cents)}\n${warn ? `${-b.day} days overdue` : `Due ${F.date(b.day)}, in ${b.day} days`}\nClick to destroy (record the payment)`)}>
-        <g class="${boom ? "boom" : ""}"><circle r="${s / 2}" fill="${warn ? "var(--warn)" : "var(--usd-soft)"}" stroke="${col}" stroke-width="1.6"${b.card ? ' stroke-dasharray="4 3"' : ""}/>
+      const s = size(b.cents), warn = b.day < 0, boom = m.boom && m.boom.name === b.name, blast = boom && m.boom.mode !== "pay", col = warn ? "var(--warn)" : "var(--usd)";
+      const burst = blast ? `<g class="burst">${Array.from({ length: 8 }, (_, k) => { const a = (k * Math.PI) / 4; return `<line x1="${(Math.cos(a) * s * 0.7).toFixed(1)}" y1="${(Math.sin(a) * s * 0.7).toFixed(1)}" x2="${(Math.cos(a) * s * 1.25).toFixed(1)}" y2="${(Math.sin(a) * s * 1.25).toFixed(1)}" stroke="var(--ink)" stroke-width="2" stroke-linecap="round"/>`; }).join("")}</g>` : "";
+      return `<g transform="translate(${tx.toFixed(1)},${ty.toFixed(1)})" data-pay="${esc(b.name)}" class="target" ${tip(`${b.name} ${F.usd(b.cents)}\n${warn ? `${-b.day} days overdue` : `Due ${F.date(b.day)}, in ${b.day} days`}\nClick to pay, or destroy it for good`)}>
+        <g class="${blast ? "boom" : boom ? "hit" : ""}"><circle r="${s / 2}" fill="${warn ? "var(--warn)" : "var(--usd-soft)"}" stroke="${col}" stroke-width="1.6"${b.card ? ' stroke-dasharray="4 3"' : ""}/>
         ${s > 22 ? `<circle r="${s * 0.29}" fill="none" stroke="${warn ? "var(--lamp-on-ink)" : col}" stroke-width="1.2"/>` : ""}
         <circle r="${Math.max(1.8, s * 0.1)}" fill="${warn ? "var(--lamp-on-ink)" : col}"/></g>${burst}</g>`;
     };
@@ -173,6 +173,18 @@
       flip = crowd ? -flip : 1; prevX = tx; prevS = s;
     }
     el.innerHTML = svg(W, H, out, `${up.length} bills in the next 30 days${late.length ? `, ${late.length} past due` : ""}. Nearest is furthest left.`);
+  };
+
+  /* Stack rate: share of income stacked each month. Higher is better. */
+  CH.rate = (el, m) => {
+    const W = el.clientWidth, H = el.clientHeight, r = m.stack.rates, n = r.length, top = Math.max(...r.map((d) => d[1])) * 1.1;
+    const bw = Math.min(26, (W - 4) / n - 5), step = (W - bw) / (n - 1), y = (v) => 2 + (1 - v / top) * (H - 16);
+    const avg = r.reduce((a, d) => a + d[1], 0) / n;
+    el.innerHTML = svg(W, H,
+      r.map((d, i) => `<rect x="${i * step}" y="${y(d[1])}" width="${bw}" height="${H - 14 - y(d[1])}" rx="2" fill="var(--btc)" opacity="${i === n - 1 ? 1 : 0.38}" ${tip(`${d[0]} · ${d[1].toFixed(1)}% of income stacked${i === n - 1 ? " so far" : ""}`)}/>
+        <text x="${i * step + bw / 2}" y="${H - 2}" text-anchor="middle"${i === n - 1 ? ' class="lbl"' : ""}>${d[0]}</text>`).join("") +
+      `<line x1="0" x2="${W}" y1="${y(avg)}" y2="${y(avg)}" stroke="var(--ink-3)" stroke-dasharray="2 3"/>`,
+      `Stack rate by month. This month ${r[n - 1][1].toFixed(1)}%, average ${avg.toFixed(1)}%.`);
   };
 
   /* Two systems: the same monthly cost of living, indexed to the first full month. */

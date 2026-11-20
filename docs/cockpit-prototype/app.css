@@ -1311,3 +1311,77 @@ table.log {
   gap: 8px;
   margin-top: 2px;
 }
+
+/* Paid target: a quiet fade. The burst is kept for bills destroyed for good. */
+.hit {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: hit 0.5s var(--ease) forwards;
+}
+@keyframes hit {
+  to {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+}
+/* Stack rate block */
+.rate {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  border-top: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+  padding: 8px 0;
+}
+.rate > div:first-child {
+  display: grid;
+  gap: 1px;
+}
+.rate .lbl {
+  font-size: var(--t-micro);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.rate > div:first-child > b {
+  font-size: var(--t-read);
+  font-weight: 400;
+  line-height: 1.1;
+}
+.rate > div:last-child {
+  overflow: hidden;
+}
+/* Alert detail */
+.alert .rows {
+  margin: 2px 0;
+}
+.alert .kv {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 2px;
+}
+.alert .kv b {
+  font-size: var(--t-body);
+}
+.warnc {
+  color: var(--warn);
+}
+.others {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.others .lamp {
+  cursor: pointer;
+}
+.alert-row {
+  text-align: left;
+  cursor: pointer;
+  grid-template-columns: 1fr;
+}
+.alert-row .t {
+  font-size: var(--t-body);
+  font-weight: 700;
+}
+.alert-row:hover {
+  border-color: var(--ink-3);
+}
