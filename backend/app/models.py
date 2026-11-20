@@ -255,6 +255,9 @@ class RecurringBill(Base):
     anchor_day: Mapped[int]
     anchor_month: Mapped[int]
     archived: Mapped[bool] = mapped_column(Boolean, default=False)
+    # The debt this bill pays down, and the day the bill was destroyed for good.
+    pays_account_id: Mapped[int | None] = mapped_column(ForeignKey("accounts.id"))
+    destroyed_on: Mapped[str | None] = mapped_column(String(10))
 
 
 class BillOccurrence(Base):
@@ -305,3 +308,47 @@ class EntryReview(Base):
     __tablename__ = "entry_reviews"
     entry_id: Mapped[int] = mapped_column(ForeignKey("journal_entries.id"), primary_key=True)
     reviewed_at: Mapped[str] = mapped_column(default=now)
+
+
+class IncomeSchedule(Base):
+    """An expected paycheck. Scheduling never posts income by itself."""
+
+    __tablename__ = "income_schedules"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"))
+    name: Mapped[str] = mapped_column(String(120))
+    # Decimal string in the linked account's currency.
+    amount: Mapped[str] = mapped_column(String(80))
+    frequency: Mapped[str] = mapped_column(String(12))
+    next_date: Mapped[str] = mapped_column(String(10))
+    anchor_day: Mapped[int] = mapped_column(Integer)
+    archived: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[str] = mapped_column(default=now)
+
+
+class CardTerms(Base):
+    """Credit limit and statement due day for a credit-card account."""
+
+    __tablename__ = "card_terms"
+    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"), primary_key=True)
+    # Stored in the linked account's currency.
+    credit_limit_minor: Mapped[int | None] = mapped_column(BigInteger)
+    due_day: Mapped[int | None] = mapped_column(Integer)
+
+
+class AlertAcknowledgement(Base):
+    """An alert light the owner has seen. It returns to attention if it gets worse."""
+
+    __tablename__ = "alert_acknowledgements"
+    alert_id: Mapped[str] = mapped_column(String(20), primary_key=True)
+    level: Mapped[str] = mapped_column(String(10))
+    magnitude: Mapped[str] = mapped_column(String(80))
+    acknowledged_at: Mapped[str] = mapped_column(default=now)
+
+
+class AlertSettings(Base):
+    """Alert thresholds as validated JSON; a single row."""
+
+    __tablename__ = "alert_settings"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    settings: Mapped[str] = mapped_column(Text)
