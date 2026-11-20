@@ -265,6 +265,152 @@
   line-height: 1.6;
 }
 
+/* Restore: the step that says what will be replaced */
+.set-confirm {
+  display: grid;
+  gap: var(--s2);
+  padding: var(--s3);
+  border: 1px solid var(--warn);
+  border-radius: 8px;
+  background: var(--well);
+  font-size: var(--t-small);
+}
+.set-confirm p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.set-page input[type="file"] {
+  width: 100%;
+  min-width: 0;
+  font: inherit;
+  font-size: var(--t-small);
+  color: var(--ink-2);
+}
+.set-page code {
+  font-family: var(--font-num);
+  font-size: 0.95em;
+  color: var(--ink);
+  background: var(--well);
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
+/* Lists with one action per row: payee rules, node wallets */
+.set-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.set-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--s3);
+  align-items: center;
+  padding: 7px 0;
+  border-top: 1px solid var(--hairline);
+}
+.set-list li:first-child {
+  border-top: 0;
+}
+.set-list li > span {
+  display: grid;
+}
+.set-list small {
+  color: var(--ink-3);
+  font-size: var(--t-label);
+}
+.set-clip {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.set-list .set-clip > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.set-kv {
+  margin: 0;
+  padding-top: var(--s2);
+  border-top: 1px solid var(--hairline);
+}
+
+/* Categories: name, spending type, usual account, remove */
+.set-cats {
+  list-style: none;
+  margin: 2px 0 var(--s3);
+  padding: 0;
+}
+.set-cats li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 168px 168px auto;
+  gap: var(--s2);
+  align-items: center;
+  padding: 5px 0;
+  border-top: 1px solid var(--hairline);
+}
+.set-cats.income li {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.set-cats li:first-child {
+  border-top: 0;
+}
+.set-cats b {
+  font-weight: 400;
+}
+.set-cats select {
+  min-width: 0;
+  width: 100%;
+  min-height: 28px;
+  padding: 0 6px;
+  border-radius: 7px;
+  border: 1px solid var(--bezel);
+  background: var(--well);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--t-small);
+}
+
+/* Missing prices: the rows that will be priced, scrolling inside their own box */
+.set-scroll {
+  max-height: 240px;
+  overflow: auto;
+  border-top: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+}
+.set-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--t-small);
+}
+.set-table th {
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+  text-align: left;
+  font-size: var(--t-micro);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-weight: 400;
+  padding: 5px 6px;
+  white-space: nowrap;
+}
+.set-table td {
+  padding: 5px 6px;
+  border-top: 1px solid var(--hairline);
+  white-space: nowrap;
+}
+.set-table .r {
+  text-align: right;
+}
+.set-table td.set-clip {
+  max-width: 150px;
+}
+
 @media (max-width: 1180px) {
   .set-page .grid2 > * {
     grid-column: 1 / -1;
@@ -316,6 +462,31 @@
   }
   .set-rates td {
     white-space: normal;
+  }
+  .set-pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .set-cats li {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px var(--s2);
+    padding: 8px 0;
+  }
+  .set-cats li > select {
+    grid-column: 1 / -1;
+    min-height: 40px;
+  }
+  .set-cats li > b {
+    grid-row: 1;
+  }
+  .set-cats li > .btn {
+    grid-row: 1;
+    grid-column: 2;
+  }
+  .set-hide-s {
+    display: none;
+  }
+  .set-table td.set-clip {
+    max-width: 110px;
   }
 }
 @media (prefers-reduced-motion: reduce) {

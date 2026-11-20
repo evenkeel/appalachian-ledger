@@ -1,33 +1,54 @@
-import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { api, download, setCsrf } from "../../lib/api";
-import type { AlertsData } from "../dashboard/Alerts";
 import { Panel } from "../dashboard/panels";
 import type { Route } from "../lib/router";
 import { useSession } from "../lib/session";
 import { AlertLights } from "./AlertLights";
+import { Backup, Restore } from "./Backup";
 import { BitcoinPrice } from "./BitcoinPrice";
-import { Note, moment, today, useAction } from "./controls";
+import { Categories, PayeeRules } from "./Categories";
+import { ImportCsv } from "./ImportCsv";
+import { MissingPrices } from "./MissingPrices";
+import { Node } from "./Node";
+import { Note, useAction, useLists } from "./controls";
 import "./settings.css";
 
 const LEGACY = "/legacy.html?page=Settings";
 
 /** Each section saves on its own and says what happened. */
 export function Settings({ go, onChanged }: { go: (route: Route) => void; onChanged: () => void }) {
+  const { lists, error, reload } = useLists();
   return (
     <div className="page set-page">
       <h1>Settings</h1>
       <p className="intro">Everything here stays on this machine. Each section has its own save, and tells you when it has saved.</p>
       <div className="grid2">
+        <div className="band">Alerts and price</div>
         <AlertLights go={go} onChanged={onChanged} />
         <div className="c5 set-col">
           <BitcoinPrice onChanged={onChanged} />
+          <MissingPrices onChanged={onChanged} />
           <Appearance />
         </div>
+
+        <div className="band">Your data</div>
         <Backup onChanged={onChanged} />
-        <Password />
+        <Restore />
         <div className="c4 set-col">
+          <ImportCsv lists={lists} onChanged={onChanged} />
           <Export />
+        </div>
+
+        <div className="band">Categories and rules</div>
+        <Categories lists={lists} error={error} reload={reload} />
+        <div className="c5 set-col">
+          <PayeeRules lists={lists} reload={reload} />
+          <Node lists={lists} />
+        </div>
+
+        <div className="band">This ledger</div>
+        <Password />
+        <div className="c4">
           <More />
         </div>
       </div>
@@ -62,80 +83,6 @@ function Appearance() {
         </div>
       </div>
       <div className="hint">The same switches as the top bar. Recorded amounts never change; only how totals and charts are priced.</div>
-    </Panel>
-  );
-}
-
-type LastBackup = { state: "reading" } | { state: "at"; stamp: string } | { state: "light"; text: string } | { state: "none" } | { state: "unread" };
-
-function Backup({ onChanged }: { onChanged: () => void }) {
-  const action = useAction();
-  const [last, setLast] = useState<LastBackup>({ state: "reading" });
-
-  const readLast = useCallback(async () => {
-    try {
-      const [events, alerts] = await Promise.all([api<{ action: string; created_at: string }[]>("/audit"), api<AlertsData>("/alerts")]);
-      // The record lists the newest actions first.
-      const made = events.find((event) => event.action === "backup.export");
-      const light = alerts.active.find((alert) => alert.id === "backup");
-      setLast(made ? { state: "at", stamp: made.created_at } : light ? { state: "light", text: light.title } : { state: "none" });
-    } catch {
-      setLast({ state: "unread" });
-    }
-  }, []);
-  useEffect(() => {
-    void readLast();
-  }, [readLast]);
-
-  function make(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const data = new FormData(form);
-    const passphrase = String(data.get("passphrase") ?? "");
-    void action.run(async () => {
-      if (passphrase.length < 12 || passphrase.length > 200) throw new Error("Use a passphrase of 12 to 200 characters.");
-      if (passphrase !== String(data.get("again") ?? "")) throw new Error("The two passphrases do not match. Nothing was made.");
-      await download("/backup", `ledger-${today()}.albackup`, { passphrase });
-      form.reset();
-      await readLast();
-      onChanged();
-      return "Encrypted backup made. Check your downloads, then keep a copy off this machine.";
-    });
-  }
-
-  return (
-    <Panel className="c4" name="Backup" plain="encrypted, kept by you">
-      <div className="sub">
-        {last.state === "reading" && "Checking when the last backup was made…"}
-        {last.state === "at" && (
-          <>
-            Last backup made <b>{moment(last.stamp)}</b>.
-          </>
-        )}
-        {last.state === "light" && <b>{last.text}.</b>}
-        {last.state === "none" && "No backup appears in the latest recorded actions."}
-        {last.state === "unread" && "Could not read when the last backup was made."}
-      </div>
-      <form className="set-form plain" onSubmit={make}>
-        <label className="field">
-          <span>Passphrase</span>
-          <input type="password" name="passphrase" autoComplete="new-password" minLength={12} maxLength={200} required />
-        </label>
-        <label className="field">
-          <span>Passphrase again</span>
-          <input type="password" name="again" autoComplete="new-password" maxLength={200} required />
-        </label>
-        <div className="hint">At least 12 characters. It is not stored anywhere: without it, the backup cannot be opened.</div>
-        <div className="set-actions">
-          <button className="btn primary" disabled={action.busy}>
-            {action.busy ? "Making backup…" : "Make encrypted backup"}
-          </button>
-        </div>
-        <Note note={action.note} />
-      </form>
-      <p className="hint set-foot">
-        Restoring a backup has not moved to the new design yet. <a href={LEGACY}>Restore in the previous interface</a>
-      </p>
     </Panel>
   );
 }
@@ -211,15 +158,10 @@ function Export() {
 
 function More() {
   return (
-    <Panel name="More settings" plain="not rebuilt yet" inop>
-      <div className="sub">These still work in the previous interface, on the same ledger:</div>
+    <Panel name="Previous interface" plain="what is still only there" inop>
+      <div className="sub">Everything on this screen has moved here. One thing has not:</div>
       <ul className="set-more">
-        <li>Restore from a backup</li>
-        <li>Import a CSV file</li>
-        <li>Categories and default payment accounts</li>
-        <li>Payee rules</li>
-        <li>Watch-only node wallets</li>
-        <li>Review expenses that are missing a bitcoin price</li>
+        <li>The record of every action taken on this ledger (the audit trail)</li>
       </ul>
       <div>
         <a className="btn sm" href={LEGACY}>

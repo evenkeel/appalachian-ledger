@@ -5,7 +5,7 @@ import { Settings } from "./Settings";
 import { SPECS, check, sortServerErrors } from "./thresholds";
 
 vi.mock("../../lib/api", () => ({ api: vi.fn(), download: vi.fn(), setCsrf: vi.fn() }));
-const session = { theme: "night", lens: "USD", setTheme: vi.fn(), setLens: vi.fn() };
+const session = { theme: "night", lens: "USD", setTheme: vi.fn(), setLens: vi.fn(), signOut: vi.fn(async () => {}) };
 vi.mock("../lib/session", () => ({ useSession: () => session }));
 
 const defaults = {
@@ -31,6 +31,19 @@ const preferences = {
   category_payment_defaults: { "3": 2 },
   payee_rules: [],
 };
+const accounts = [
+  { id: 2, name: "Everyday checking", kind: "checking", role: "asset", currency: "USD", archived: false },
+  { id: 8, name: "Ridgeline Visa", kind: "credit_card", role: "liability", currency: "USD", archived: false },
+  { id: 5, name: "Cold storage", kind: "bitcoin_wallet", role: "asset", currency: "BITCOIN", archived: false },
+  { id: 6, name: "Old checking", kind: "checking", role: "asset", currency: "USD", archived: true },
+  { id: 9, name: "Blue Ridge home", kind: "real_estate", role: "asset", currency: "USD", archived: false },
+];
+const categories = [
+  { id: 2, name: "Groceries", kind: "expense", spending_type: "essential" },
+  { id: 3, name: "Dining", kind: "expense", spending_type: null },
+  { id: 1, name: "Salary", kind: "income", spending_type: null },
+];
+const pause = () => new Promise((resolve) => setTimeout(resolve, 450));
 const price = { usd_per_btc: "118600.00", bitcoin_per_usd: "843", source: "Manual", day: "2026-11-19", observed_at: null, stale: false };
 
 type Reply = (body: unknown) => unknown;
@@ -43,6 +56,7 @@ beforeEach(() => {
   vi.mocked(setCsrf).mockReset();
   session.setTheme.mockReset();
   session.setLens.mockReset();
+  session.signOut.mockClear();
   let saved = structuredClone(defaults) as Record<string, unknown>;
   replies = {
     "GET /settings/alert-thresholds": () => saved,
@@ -53,8 +67,10 @@ beforeEach(() => {
     "GET /rates": () => [{ id: 1, day: "2026-11-19", usd_per_btc: "118600.00", source: "Manual", method: "manual", fetched_at: "" }],
     "GET /dashboard": () => ({ price }),
     "POST /rates": () => ({ id: 2 }),
-    "GET /audit": () => [],
-    "GET /alerts": () => ({ lights: [], active: [] }),
+    "GET /backup/status": () => ({ last_backup_at: null }),
+    "GET /accounts": () => accounts,
+    "GET /categories": () => categories,
+    "GET /prices/conversions": () => ({ missing: 0, items: [] }),
     "POST /auth/password": () => ({ username: "owner", csrf: "fresh-token" }),
   };
   vi.mocked(api).mockImplementation(async (path: string, method = "GET", body?: unknown) => {
@@ -221,10 +237,7 @@ describe("appearance, backup, password and export", () => {
   });
 
   it("makes a backup only when the two passphrases match, and shows when the last one was made", async () => {
-    replies["GET /audit"] = () => [
-      { action: "transaction.create", created_at: "2026-11-19T15:00:00+00:00" },
-      { action: "backup.export", created_at: "2026-11-12T15:00:00+00:00" },
-    ];
+    replies["GET /backup/status"] = () => ({ last_backup_at: "2026-11-12T15:00:00+00:00" });
     const onChanged = open();
     const panel = screen.getByRole("region", { name: "Backup: encrypted, kept by you" });
     await waitFor(() => expect(panel).toHaveTextContent(/Last backup made Nov 12, 2026/));
@@ -234,18 +247,21 @@ describe("appearance, backup, password and export", () => {
     expect(await screen.findByText("The two passphrases do not match. Nothing was made.")).toBeInTheDocument();
     expect(download).not.toHaveBeenCalled();
 
+    replies["GET /backup/status"] = () => ({ last_backup_at: "2026-11-19T18:30:00+00:00" });
     fireEvent.change(screen.getByLabelText("Passphrase again"), { target: { value: "correct horse battery" } });
     fireEvent.click(screen.getByRole("button", { name: "Make encrypted backup" }));
     await screen.findByText(/^Encrypted backup made\./);
     expect(download).toHaveBeenCalledWith("/backup", expect.stringMatching(/^ledger-\d{4}-\d{2}-\d{2}\.albackup$/), { passphrase: "correct horse battery" });
     expect(onChanged).toHaveBeenCalledTimes(1);
     expect(screen.getByLabelText("Passphrase")).toHaveValue("");
+    // The time is read again from the server, not assumed.
+    expect(panel).toHaveTextContent(/Last backup made Nov 19, 2026/);
   });
 
-  it("falls back to the backup light when the record does not show a backup", async () => {
-    replies["GET /alerts"] = () => ({ lights: [], active: [{ id: "backup", title: "This ledger has never been backed up" }] });
+  it("says a ledger that was never backed up has never been backed up", async () => {
     open();
     expect(await screen.findByText("This ledger has never been backed up.")).toBeInTheDocument();
+    expect(calls("GET", "/backup/status")).toHaveLength(1);
   });
 
   it("changes the password, adopts the new session token and reports a wrong current password", async () => {
@@ -291,7 +307,260 @@ describe("appearance, backup, password and export", () => {
       ["/export/csv", "ledger-transactions.csv"],
       ["/export/journal", "ledger-journal.json"],
     ]);
-    expect(screen.getByRole("link", { name: "Open Settings in the previous interface" })).toHaveAttribute("href", "/legacy.html?page=Settings");
-    expect(screen.getByRole("link", { name: "Restore in the previous interface" })).toHaveAttribute("href", "/legacy.html?page=Settings");
+    // Only the audit trail is still in the previous interface.
+    const rest = screen.getByRole("region", { name: "Previous interface: what is still only there" });
+    expect(within(rest).getAllByRole("listitem")).toHaveLength(1);
+    expect(within(rest).getByRole("link", { name: "Open Settings in the previous interface" })).toHaveAttribute("href", "/legacy.html?page=Settings");
+  });
+});
+
+describe("restore", () => {
+  const backupFile = () => new File(["encrypted bytes"], "ledger-2026-11-01.albackup");
+  const choose = (passphrase: string) => {
+    fireEvent.change(screen.getByLabelText("Backup file"), { target: { files: [backupFile()] } });
+    change("Backup passphrase", passphrase);
+    fireEvent.click(screen.getByRole("button", { name: "Restore this backup…" }));
+  };
+
+  it("asks a second time, sends the file and passphrase as a form, then ends the session", async () => {
+    replies["POST /restore"] = () => ({ ok: true, message: "Restored and verified. Sign in with the restored owner credentials." });
+    open();
+    choose("correct horse battery");
+    expect(calls("POST", "/restore")).toHaveLength(0);
+    const confirm = screen.getByRole("group", { name: "Confirm restore" });
+    expect(confirm).toHaveTextContent("This replaces everything in this ledger with what is in ledger-2026-11-01.albackup, and signs you out.");
+
+    fireEvent.click(within(confirm).getByRole("button", { name: "Yes, replace this ledger" }));
+    expect(await screen.findByText("Restored and verified. Sign in with the restored owner credentials.")).toHaveAttribute("role", "status");
+    const sent = calls("POST", "/restore");
+    expect(sent).toHaveLength(1);
+    const body = sent[0][2] as FormData;
+    expect(body).toBeInstanceOf(FormData);
+    expect([...body.keys()].sort()).toEqual(["file", "passphrase"]);
+    expect(body.get("passphrase")).toBe("correct horse battery");
+    expect((body.get("file") as File).name).toBe("ledger-2026-11-01.albackup");
+
+    expect(session.signOut).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Sign in again" }));
+    expect(session.signOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the server's refusal, keeps the session and lets the owner try again", async () => {
+    replies["POST /restore"] = () => {
+      throw new Error("Backup passphrase is incorrect or backup is damaged");
+    };
+    open();
+    choose("not the right phrase");
+    fireEvent.click(screen.getByRole("button", { name: "Yes, replace this ledger" }));
+    expect(await screen.findByText("Backup passphrase is incorrect or backup is damaged")).toHaveAttribute("role", "alert");
+    expect(session.signOut).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Sign in again" })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("group", { name: "Confirm restore" })).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Restore this backup…" })).toBeInTheDocument();
+  });
+
+  it("does not reach the confirmation without a file and a passphrase, and cancelling sends nothing", async () => {
+    open();
+    fireEvent.click(screen.getByRole("button", { name: "Restore this backup…" }));
+    expect(await screen.findByText("Choose the backup file first.")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Backup file"), { target: { files: [backupFile()] } });
+    change("Backup passphrase", "too short");
+    fireEvent.click(screen.getByRole("button", { name: "Restore this backup…" }));
+    expect(await screen.findByText(/^Enter the passphrase the backup was made with/)).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Confirm restore" })).not.toBeInTheDocument();
+
+    change("Backup passphrase", "correct horse battery");
+    fireEvent.click(screen.getByRole("button", { name: "Restore this backup…" }));
+    fireEvent.click(within(screen.getByRole("group", { name: "Confirm restore" })).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("group", { name: "Confirm restore" })).not.toBeInTheDocument();
+    expect(calls("POST", "/restore")).toHaveLength(0);
+  });
+});
+
+describe("csv import", () => {
+  const csv = () => new File(["date,kind,amount,description,category\n"], "october.csv", { type: "text/csv" });
+
+  it("posts the chosen account and file and reports what the server imported and skipped", async () => {
+    replies["POST /import/csv"] = () => ({ imported: 12, duplicates: 3 });
+    const onChanged = open();
+    const account = await screen.findByLabelText("Into account");
+    await waitFor(() => expect(within(account).getByRole("option", { name: "Ridgeline Visa · dollars" })).toBeInTheDocument());
+    // Closed accounts and valued assets cannot take imported entries.
+    expect(within(account).queryByRole("option", { name: /Old checking|Blue Ridge home/ })).not.toBeInTheDocument();
+
+    fireEvent.change(account, { target: { value: "8" } });
+    fireEvent.change(screen.getByLabelText("CSV file"), { target: { files: [csv()] } });
+    fireEvent.click(screen.getByRole("button", { name: "Import" }));
+    expect(await screen.findByText("Imported 12 entries. Skipped 3 rows already in the ledger.")).toBeInTheDocument();
+    const body = calls("POST", "/import/csv")[0][2] as FormData;
+    expect(body.get("account_id")).toBe("8");
+    expect((body.get("file") as File).name).toBe("october.csv");
+    expect(onChanged).toHaveBeenCalledTimes(1);
+  });
+
+  it("names the columns the server requires and shows which row it refused", async () => {
+    replies["POST /import/csv"] = () => {
+      throw new Error("CSV row 4: Unknown category or mismatched category type");
+    };
+    const onChanged = open();
+    const panel = screen.getByRole("region", { name: "Import a CSV file: income and expenses" });
+    for (const column of ["date", "kind", "amount", "description", "category", "external_id", "notes"]) expect(within(panel).getAllByText(column, { selector: "code" }).length).toBeGreaterThan(0);
+
+    await waitFor(() => expect(within(screen.getByLabelText("Into account")).getAllByRole("option").length).toBeGreaterThan(1));
+    fireEvent.click(screen.getByRole("button", { name: "Import" }));
+    expect(await within(panel).findByRole("alert")).toHaveTextContent("Choose the account these entries belong to.");
+    expect(calls("POST", "/import/csv")).toHaveLength(0);
+    fireEvent.change(screen.getByLabelText("Into account"), { target: { value: "2" } });
+    fireEvent.change(screen.getByLabelText("CSV file"), { target: { files: [csv()] } });
+    fireEvent.click(screen.getByRole("button", { name: "Import" }));
+    expect(await screen.findByText("CSV row 4: Unknown category or mismatched category type")).toHaveAttribute("role", "alert");
+    expect(onChanged).not.toHaveBeenCalled();
+  });
+});
+
+describe("categories", () => {
+  it("adds a category and reads the list again", async () => {
+    replies["POST /categories"] = () => ({ id: 7 });
+    open();
+    await screen.findByLabelText("Spending type for Groceries");
+    change("New category", "  Garden  ");
+    fireEvent.click(screen.getByRole("button", { name: "Add category" }));
+    await screen.findByText("Added Garden.");
+    expect(calls("POST", "/categories")).toEqual([["/categories", "POST", { name: "Garden", kind: "expense" }]]);
+    expect(calls("GET", "/categories")).toHaveLength(2);
+  });
+
+  it("removes a category only on a second press, and shows why the server refused", async () => {
+    replies["DELETE /categories/3"] = () => ({ ok: true });
+    replies["DELETE /categories/2"] = () => {
+      throw new Error("This category is used by transactions and cannot be deleted.");
+    };
+    open();
+    fireEvent.click(await screen.findByRole("button", { name: "Remove Dining" }));
+    // A double-click lands on the same button; it is not the confirmation.
+    fireEvent.click(screen.getByRole("button", { name: "Yes, remove: Remove Dining" }));
+    expect(calls("DELETE", "/categories/3")).toHaveLength(0);
+    await pause();
+    fireEvent.click(screen.getByRole("button", { name: "Yes, remove: Remove Dining" }));
+    await screen.findByText("Removed Dining.");
+    expect(calls("DELETE", "/categories/3")).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove Groceries" }));
+    await pause();
+    fireEvent.click(screen.getByRole("button", { name: "Yes, remove: Remove Groceries" }));
+    expect(await screen.findByText("This category is used by transactions and cannot be deleted.")).toHaveAttribute("role", "alert");
+    expect(screen.getByLabelText("Spending type for Groceries")).toBeInTheDocument();
+  });
+
+  it("saves a spending type, and a usual account on top of the freshest saved defaults", async () => {
+    replies["PUT /categories/3/spending-type"] = () => ({ ok: true });
+    replies["PUT /settings/payment-defaults"] = () => ({ ok: true });
+    open();
+    expect(await screen.findByLabelText("Spending type for Groceries")).toHaveValue("essential");
+    expect(screen.getByLabelText("Usually paid from, for Dining")).toHaveValue("2");
+    expect(screen.queryByLabelText("Spending type for Salary")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Spending type for Dining"), { target: { value: "discretionary" } });
+    await screen.findByText("Dining is now discretionary.");
+    expect(calls("PUT", "/categories/3/spending-type")).toEqual([["/categories/3/spending-type", "PUT", { spending_type: "discretionary" }]]);
+
+    // Another screen saved a default for a different category after this one loaded.
+    replies["GET /settings"] = () => ({ preferences: { ...preferences, category_payment_defaults: { "3": 2, "11": 8 } } });
+    fireEvent.change(screen.getByLabelText("Usually paid from, for Groceries"), { target: { value: "8" } });
+    await screen.findByText("Groceries is usually paid from Ridgeline Visa.");
+    expect(calls("PUT", "/settings/payment-defaults")).toEqual([["/settings/payment-defaults", "PUT", { category_payment_defaults: { "3": 2, "11": 8, "2": 8 } }]]);
+  });
+
+  it("removes one payee rule from the rules the server holds now", async () => {
+    const rules = [
+      { match: "Mountain Market", category_id: 2, account_id: 8 },
+      { match: "Payroll", category_id: 1, account_id: null },
+    ];
+    replies["GET /settings"] = () => ({ preferences: { ...preferences, payee_rules: rules } });
+    replies["PUT /settings/payee-rules"] = () => ({ ok: true });
+    open();
+    const panel = await screen.findByRole("region", { name: "Payee rules: 2 rules" });
+    expect(within(panel).getByText("Expense · Groceries · Ridgeline Visa")).toBeInTheDocument();
+    fireEvent.click(within(panel).getByRole("button", { name: "Remove the rule for Mountain Market" }));
+    await pause();
+    fireEvent.click(within(panel).getByRole("button", { name: /^Yes, remove/ }));
+    await screen.findByText("Removed the rule for “Mountain Market”.");
+    expect(calls("PUT", "/settings/payee-rules")).toEqual([["/settings/payee-rules", "PUT", { payee_rules: [rules[1]] }]]);
+  });
+});
+
+describe("missing prices", () => {
+  const items = [
+    { entry_id: 41, rate_id: 7, date: "2026-10-03", description: "Hardware store", source: "Manual", method: "manual", usd_per_btc: "110000.00", bitcoin: "38182", usd: "42.00" },
+    { entry_id: 44, rate_id: 9, date: "2026-10-09", description: "Fuel", source: "Coinbase", method: "daily_close", usd_per_btc: "112500.00", bitcoin: "48889", usd: "55.00" },
+  ];
+
+  it("attaches exactly the previewed prices and nothing else", async () => {
+    replies["GET /prices/conversions"] = () => ({ missing: 3, items });
+    replies["POST /prices/conversions"] = () => {
+      replies["GET /prices/conversions"] = () => ({ missing: 1, items: [] });
+      return { attached: 2 };
+    };
+    const onChanged = open();
+    const panel = screen.getByRole("region", { name: "Missing prices: entries recorded without a bitcoin price" });
+    await waitFor(() => expect(panel).toHaveTextContent("3 entries have no bitcoin price. 2 can be priced now from a price already saved for that day; 1 has no saved price for its day yet."));
+    expect(within(panel).getByRole("row", { name: /Hardware store/ })).toHaveTextContent("Oct 3Hardware store$42.00₿38,182Manual");
+    expect(panel).toHaveTextContent("Nothing is guessed");
+    expect(calls("POST", "/prices/conversions")).toHaveLength(0);
+
+    fireEvent.click(within(panel).getByRole("button", { name: "Attach 2 saved prices" }));
+    await screen.findByText("Attached a saved price to 2 entries.");
+    expect(calls("POST", "/prices/conversions")).toEqual([
+      [
+        "/prices/conversions",
+        "POST",
+        {
+          items: [
+            { entry_id: 41, rate_id: 7 },
+            { entry_id: 44, rate_id: 9 },
+          ],
+        },
+      ],
+    ]);
+    expect(onChanged).toHaveBeenCalledTimes(1);
+    // The preview is read again; what is left cannot be priced yet, so there is nothing to attach.
+    await waitFor(() => expect(panel).toHaveTextContent("1 entry has no bitcoin price. 0 can be priced now"));
+    expect(within(panel).queryByRole("button", { name: /^Attach/ })).not.toBeInTheDocument();
+  });
+
+  it("says so when every entry already has a price", async () => {
+    open();
+    expect(await screen.findByText("Every entry has a bitcoin price for its day. Nothing to do.")).toBeInTheDocument();
+  });
+
+  it("shows the server's message when a previewed price changed before it was attached", async () => {
+    replies["GET /prices/conversions"] = () => ({ missing: 2, items });
+    replies["POST /prices/conversions"] = () => {
+      throw new Error("The selected price changed since review. Refresh the preview.");
+    };
+    const onChanged = open();
+    fireEvent.click(await screen.findByRole("button", { name: "Attach 2 saved prices" }));
+    expect(await screen.findByText("The selected price changed since review. Refresh the preview.")).toHaveAttribute("role", "alert");
+    expect(onChanged).not.toHaveBeenCalled();
+  });
+});
+
+describe("your own node", () => {
+  it("explains that no node is set up and asks the server nothing about one", async () => {
+    open();
+    expect(await screen.findByText("No Bitcoin Core node is set up on this server. The ledger works fully without one.")).toBeInTheDocument();
+    expect(vi.mocked(api).mock.calls.some(([path]) => String(path).startsWith("/node"))).toBe(false);
+  });
+
+  it("compares a connected watch-only wallet with the ledger in whole bitcoin", async () => {
+    replies["GET /settings"] = () => ({ preferences, node_configured: true, demo: false });
+    replies["GET /node/wallets"] = () => [{ id: 4, account_id: 5, wallet: "ledger-watch", last_checked: null }];
+    replies["GET /node/wallets/4/reconcile"] = () => ({ balance_bitcoin: "23025800", pending_bitcoin: "0", ledger_balance: "23000000", difference: "25800", transactions: [], checked_at: "2026-11-19T18:30:00+00:00", history_limit: 100 });
+    open();
+    fireEvent.click(await screen.findByRole("button", { name: "Compare ledger-watch with the ledger" }));
+    const result = await screen.findByLabelText("ledger-watch compared with the ledger");
+    expect(result).toHaveTextContent("On the node₿23,025,800");
+    expect(result).toHaveTextContent("In the ledger₿23,000,000");
+    expect(result).toHaveTextContent("Difference₿25,800");
   });
 });
