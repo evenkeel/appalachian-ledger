@@ -1,6 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <rect width="48" height="48" rx="10" fill="#F8F7F3"/>
-  <path d="M4 28C9 25 11 21 15 21C19 21 20 16 24 16C29 16 33 22 38 24L44 30V35H4Z" fill="#A9C1CF"/>
-  <path d="M16 31C21 28 25 26 29 23C33 19 36 22 39 24C41 26 43 26 44 28V35H16Z" fill="#DB8046"/>
-  <path d="M4 33C9 32 13 26 18 26C23 26 26 31 30 30C34 29 35 27 38 28C41 28 42 31 44 32V36H4Z" fill="#304E5D"/>
+  <clipPath id="t"><rect width="48" height="48" rx="11"/></clipPath>
+  <g clip-path="url(#t)">
+    <rect width="48" height="48" fill="#F8F7F3"/>
+    <g transform="translate(-3 18.5) scale(.36)">
+      <path fill="#A9C1CF" d="M0,22C7.5,19.5 28.67,7 45,7C61.33,7 80.5,20.67 98,22C115.5,23.33 141.33,16.17 150,15V90H0Z"/>
+      <path fill="#DB8046" d="M0,31C8.33,30.67 32,31.67 50,29C68,26.33 91.33,15.67 108,15C124.67,14.33 143,23.33 150,25V90H0Z"/>
+      <path fill="#304E5D" d="M0,33C7,32 25.67,26.17 42,27C58.33,27.83 80,36.83 98,38C116,39.17 141.33,34.67 150,34V90H0Z"/>
+    </g>
+  </g>
 </svg>

@@ -1,4 +1,4 @@
-/** The same three rolling ridges used in the wordmark and sign-in landscape. */
+/** Three gentle layered hills: light blue, orange for bitcoin, dark blue. */
 export function MountainMark({ size = 30 }: { size?: number }) {
   return (
     <img

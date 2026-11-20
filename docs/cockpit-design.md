@@ -8,7 +8,7 @@ Changed in the third draft: the logo redrawn as three gentle, layered hills (app
 
 Changed in this draft: bills are **paid** or **destroyed** (cancelled, or paid off in full); each alert light opens its own detail; **stack rate** is a headline number in Stack.
 
-Nothing in the running app has changed yet.
+**Build status.** Steps 1–4 of the build order are in the app: design system and logo, shell and navigation, the dashboard's day-one panels on real data, and the alert lights. Steps 5–10 are not built; those screens open in the previous interface at `/legacy.html`.
 This document and the clickable prototype in [`docs/cockpit-prototype/`](cockpit-prototype/) are the whole of step 2.
 
 ## See it first
@@ -222,9 +222,9 @@ New tables (one migration each, no change to journal tables):
 | --- | --- |
 | `income_schedules` | Expected paychecks: account, amount, frequency (adds biweekly and semi-monthly), next date. Never posts by itself |
 | `card_terms` | Credit limit and payment due day per card account |
-| `alert_acknowledgements` | Light id, level and magnitude at acknowledgement, time |
+| `alert_acknowledgements`, `alert_settings` | What was acknowledged (light, level, magnitude, time) and the saved thresholds |
 
-Thresholds and the setup checklist state go in the existing owner preferences JSON. New read endpoints: `GET /api/dashboard` (panel readings) and `GET /api/alerts`. Existing endpoints stay until the new screens replace their callers.
+Thresholds have their own table because the owner preferences are a strict schema; the setup checklist is derived from the ledger. All of this is one additive migration, `0014_dashboard`. New read endpoints: `GET /api/dashboard` (panel readings) and `GET /api/alerts`. Existing endpoints stay until the new screens replace their callers.
 
 Restore today refuses a backup from an older schema. I will extend it: authenticate, validate at the backup's own revision, migrate a temporary copy forward, validate again, then swap. Older backups then import directly.
 
