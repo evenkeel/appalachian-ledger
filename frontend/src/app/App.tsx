@@ -7,6 +7,7 @@ import { AlertDrawer, AlertsButton, useAlerts } from "./dashboard/Alerts";
 import { Dashboard } from "./dashboard/Dashboard";
 import type { DashboardData } from "./dashboard/types";
 import { StackedLockup } from "./design/Logo";
+import { Learn } from "./learn/Learn";
 import { useRoute } from "./lib/router";
 import { SessionProvider, useSession } from "./lib/session";
 import { Settings } from "./settings/Settings";
@@ -100,9 +101,11 @@ function Screens() {
         ) : route === "activity" ? (
           <Activity onChanged={changed} />
         ) : route === "spending" ? (
-          <Spending go={go} drill={drill} onDrill={setDrill} />
+          <Spending go={go} drill={drill} onDrill={setDrill} onChanged={changed} />
         ) : route === "bills" ? (
           <Bills go={go} onChanged={changed} />
+        ) : route === "learn" ? (
+          <Learn go={go} />
         ) : route === "stack" ? (
           <Stack go={go} />
         ) : route === "settings" ? (

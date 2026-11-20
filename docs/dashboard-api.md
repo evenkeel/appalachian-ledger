@@ -165,3 +165,10 @@ Paying a bill for the month keeps using the existing `POST /api/recurring-bills/
 | --- | --- |
 | `GET /api/recurring-bills/destroyed` | Bills destroyed for good, newest first: `id`, `name`, `amount`, `currency`, `frequency`, `monthly_amount`, `destroyed_on`, `account`, `category`, and `paid_off` (true when the bill was linked to a debt). |
 | `POST /api/recurring-bills/{id}/restore` | Brings a destroyed bill back. Never posts. The next due date keeps its day of the month and moves to today or later. `409` if the bill was not destroyed. |
+
+## Backups
+
+| Endpoint | Does |
+| --- | --- |
+| `GET /api/backup/status` | `{"last_backup_at": "<ISO UTC time>"}` for the last encrypted backup made on this ledger, or `null` if there has been none. |
+| `POST /api/restore` | Unchanged request and reply. A backup made by an older version is first upgraded in a temporary copy by the same migrations that run at startup, then validated like any other; the live ledger is replaced only if every check passes. A backup from a newer version is refused with `422`. |

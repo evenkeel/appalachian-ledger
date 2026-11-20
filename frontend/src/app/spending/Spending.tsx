@@ -9,9 +9,10 @@ import type { DashboardData } from "../dashboard/types";
 import { btc, fromCents, longMonth, plural, usd } from "../lib/format";
 import type { Route } from "../lib/router";
 import { useSession } from "../lib/session";
+import { AllowancesPanel } from "./Allowances";
 
 /** Spend pace, Spending bridge and Money flow at full size, with the entries behind any number. */
-export function Spending({ go, drill, onDrill }: { go: (route: Route) => void; drill: string | null; onDrill: (key: string | null) => void }) {
+export function Spending({ go, drill, onDrill, onChanged }: { go: (route: Route, sub?: string) => void; drill: string | null; onDrill: (key: string | null) => void; onChanged?: () => void }) {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState("");
   const load = useCallback(() => {
@@ -42,10 +43,22 @@ export function Spending({ go, drill, onDrill }: { go: (route: Route) => void; d
         )}
       </div>
     );
-  return <Loaded data={data} spending={spending} go={go} drill={drill} onDrill={onDrill} />;
+  return (
+    <Loaded
+      data={data}
+      spending={spending}
+      go={go}
+      drill={drill}
+      onDrill={onDrill}
+      onChanged={() => {
+        load();
+        onChanged?.();
+      }}
+    />
+  );
 }
 
-function Loaded({ data, spending, go, drill, onDrill }: { data: DashboardData; spending: SpendingData; go: (route: Route) => void; drill: string | null; onDrill: (key: string | null) => void }) {
+function Loaded({ data, spending, go, drill, onDrill, onChanged }: { data: DashboardData; spending: SpendingData; go: (route: Route, sub?: string) => void; drill: string | null; onDrill: (key: string | null) => void; onChanged: () => void }) {
   const { lens } = useSession();
   const analysis = useAnalysis(spending, data, lens);
   const picked = drill ? analysis.categories.find((category) => category.key === drill) : undefined;
@@ -81,18 +94,14 @@ function Loaded({ data, spending, go, drill, onDrill }: { data: DashboardData; s
             Select a bridge row or a spending stream to list its entries here.
           </p>
         )}
-        <CostOfLivingPanel className="c7" data={data} periods={spending.periods} onWhy={() => go("learn")} />
-        <Panel className="c5" name="Budgets and history" plain="not rebuilt yet" inop>
-          <div className="sub">Category allowances, the six-month category trends and the long-range history still live in the previous interface.</div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <a className="btn sm" href="/legacy.html?page=Budgets">
-              Open Budgets
-            </a>
-            <a className="btn sm" href="/legacy.html?page=Expenses">
-              Open Expenses
-            </a>
-          </div>
-        </Panel>
+        <CostOfLivingPanel className="c7" data={data} periods={spending.periods} onWhy={() => go("learn", "cost-of-living")} />
+        <AllowancesPanel className="c5" month={data.month} elapsed={data.budgets.month_elapsed_percent} categories={spending.categories} onChanged={onChanged} />
+        <p className="hint" style={{ gridColumn: "1/-1" }}>
+          Earlier months and long-range category history are still in the previous interface:{" "}
+          <a className="inst-link" href="/legacy.html?page=Expenses">
+            open Expenses →
+          </a>
+        </p>
       </div>
     </div>
   );

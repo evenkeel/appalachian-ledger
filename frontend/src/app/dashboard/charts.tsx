@@ -89,8 +89,14 @@ export function CashAheadChart({ data }: { data: DashboardData }) {
             else before += segment;
             const amount = coordinate(event.amount),
               radius = 2.5 + 4.5 * Math.sqrt(amount / maxBill);
-            if (amount >= maxBill * 0.95 && day(event.date) < firstPay) {
-              const left = x(firstPay) - ex < 110 && ex > 110;
+            // Name the largest bill only where the name has clear room; its tooltip carries it otherwise.
+            const wide = event.name.length * 6.4 + 8;
+            const later = cash.events.slice(index + 1).map((other) => x(day(other.date)));
+            const roomRight = Math.min(W - pad.r, ...later) - (ex + radius + 4);
+            const earlier = cash.events.slice(0, index).map((other) => x(day(other.date)));
+            const roomLeft = ex - 6 - Math.max(pad.l, ...earlier);
+            if (amount >= maxBill * 0.95 && day(event.date) < firstPay && (roomRight >= wide || roomLeft >= wide)) {
+              const left = roomRight < wide;
               marks.push(
                 <text
                   key={`l${index}`}

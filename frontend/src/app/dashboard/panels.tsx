@@ -7,7 +7,7 @@ import { BillsLane, CashAheadChart, PaceChart, StackRateBars, StackSpark, StackT
 import type { BillMode } from "./Sheets";
 import type { Bill, DashboardData } from "./types";
 
-type Go = (route: Route) => void;
+type Go = (route: Route, sub?: string) => void;
 /** Set when an alert light concerns this panel: it takes the alert's colour and a chip that opens it. */
 export type Flag = { level: "advisory" | "caution" | "warning"; onOpen: () => void } | undefined;
 
@@ -91,7 +91,7 @@ export function CashAheadPanel({ className, data, flag, go, onPaycheck, own }: {
         plain="checking after known bills"
         needs="Add your checking account first. This panel then shows whether it covers every bill before your next paycheck."
         action={
-          <button className="btn sm" onClick={() => go("accounts")}>
+          <button className="btn sm" onClick={() => go("accounts", "add")}>
             Add an account
           </button>
         }
@@ -112,7 +112,7 @@ export function CashAheadPanel({ className, data, flag, go, onPaycheck, own }: {
         action={
           <span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {!own && (
-              <button className="btn sm" onClick={() => go("bills")}>
+              <button className="btn sm" onClick={() => go("bills", "add")}>
                 Add bills
               </button>
             )}
@@ -193,7 +193,7 @@ export function StackPanel({ className, data, flag, go }: { className?: string; 
         plain="bitcoin held"
         needs="Record what you hold. Bitcoin is your saving; this is where it shows."
         action={
-          <button className="btn sm" onClick={() => go("accounts")}>
+          <button className="btn sm" onClick={() => go("accounts", "add-bitcoin")}>
             Add bitcoin
           </button>
         }
@@ -374,7 +374,7 @@ export function BillsPanel({
         plain="what is due"
         needs="Add a bill and it shows up here as a target, with your checking balance as ammo."
         action={
-          <button className="btn sm" onClick={() => go("bills")}>
+          <button className="btn sm" onClick={() => go("bills", "add")}>
             Add a bill
           </button>
         }
@@ -524,18 +524,18 @@ export function BudgetsPanel({ className, data, flag, go }: { className?: string
     return (
       <NotSetUp
         className={className}
-        name="Budgets"
-        plain="dollar allowances"
+        name="Allowances"
+        plain="dollar limits by category"
         needs="Set a monthly allowance for a category and it appears here with how much is used."
         action={
-          <a className="btn sm" href="/legacy.html?page=Budgets">
+          <button className="btn sm" onClick={() => go("spending")}>
             Set an allowance
-          </a>
+          </button>
         }
       />
     );
   return (
-    <Panel className={className} flag={flag} name="Budgets" plain="dollar allowances" link={{ label: "Budgets", onClick: () => go("spending") }}>
+    <Panel className={className} flag={flag} name="Allowances" plain="dollar limits by category" link={{ label: "Change", onClick: () => go("spending") }}>
       <div style={{ display: "grid", gap: 9 }}>
         {items.slice(0, 5).map((item) => (
           <div key={item.category_id} style={{ display: "grid", gap: 4 }}>
@@ -560,10 +560,10 @@ export function BudgetsPanel({ className, data, flag, go }: { className?: string
 export function SetupPanel({ className, data, demoEnabled, go, onPaycheck, onDemo }: { className?: string; data: DashboardData; demoEnabled: boolean; go: Go; onPaycheck: () => void; onDemo: () => void }) {
   const s = data.setup;
   const steps: { done: boolean; title: string; sub: string; action?: ReactNode }[] = [
-    { done: s.has_account, title: "Add your checking account", sub: "Turns on: Cash ahead, Spend pace", action: <button className="btn sm" onClick={() => go("accounts")}>Add account</button> },
+    { done: s.has_account, title: "Add your checking account", sub: "Turns on: Cash ahead, Spend pace", action: <button className="btn sm" onClick={() => go("accounts", "add")}>Add account</button> },
     { done: s.has_paycheck, title: "Set your next paycheck", sub: "Turns on: payday in Cash ahead", action: s.has_account ? <button className="btn sm" onClick={onPaycheck}>Set payday</button> : undefined },
-    { done: s.has_bills, title: "Add recurring bills", sub: "Turns on: Cash ahead, Bills", action: <button className="btn sm" onClick={() => go("bills")}>Add bills</button> },
-    { done: s.has_bitcoin, title: "Record your bitcoin", sub: "Turns on: Stack", action: <button className="btn sm" onClick={() => go("accounts")}>Add bitcoin</button> },
+    { done: s.has_bills, title: "Add recurring bills", sub: "Turns on: Cash ahead, Bills", action: <button className="btn sm" onClick={() => go("bills", "add")}>Add bills</button> },
+    { done: s.has_bitcoin, title: "Record your bitcoin", sub: "Turns on: Stack", action: <button className="btn sm" onClick={() => go("accounts", "add-bitcoin")}>Add bitcoin</button> },
     { done: s.has_price_source, title: "Choose a price source", sub: "Turns on: bitcoin cost on every expense", action: <button className="btn sm" onClick={() => go("settings")}>Choose</button> },
     { done: s.has_backup, title: "Make an encrypted backup", sub: "Turns on: backup reminders", action: <button className="btn sm" onClick={() => go("settings")}>Back up</button> },
   ];

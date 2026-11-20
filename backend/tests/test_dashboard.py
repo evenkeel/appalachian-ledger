@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timezone
 from types import SimpleNamespace
 
 from sqlalchemy import func, select
@@ -968,6 +968,14 @@ def test_bitcoin_bills_need_a_price_before_they_count_in_dollar_totals(owner):
     assert owner.post(f"/api/recurring-bills/{hosting['id']}/destroy").json() == {"monthly_freed": "20000"}
     assert reading()["bills"]["destroyed"] == {"count": 1, "monthly_freed": "20.00"}
     assert reading(date(2026, 3, 9))["bills"]["destroyed"] == {"count": 1, "monthly_freed": None}
+
+
+def test_backup_status_reports_the_last_encrypted_backup(owner):
+    assert owner.get("/api/backup/status").json() == {"last_backup_at": None}
+    assert owner.post("/api/backup", json={"passphrase": "correct horse battery"}).is_success
+    made = owner.get("/api/backup/status").json()["last_backup_at"]
+    age = datetime.now(timezone.utc) - datetime.fromisoformat(made)
+    assert 0 <= age.total_seconds() < 60
 
 
 def test_backup_and_restore_keep_schedules_card_terms_and_bill_links(owner):

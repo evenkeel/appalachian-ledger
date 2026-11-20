@@ -6,6 +6,7 @@ import { Panel } from "../dashboard/panels";
 import { Sheet, TwoStep } from "../dashboard/Sheets";
 import type { DashboardData } from "../dashboard/types";
 import { btc, cents, coordinate, fromCents, plural, usd } from "../lib/format";
+import { subPath } from "../lib/router";
 import type { Route } from "../lib/router";
 import { useSession } from "../lib/session";
 
@@ -68,7 +69,9 @@ export function Accounts({ go, onChanged }: { go: (route: Route) => void; onChan
   const [state, setState] = useState<{ accounts: Account[]; data: DashboardData } | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [sheet, setSheet] = useState<"new" | Account | null>(null);
+  // #/accounts/add and #/accounts/add-bitcoin open the form straight away, for the setup checklist.
+  const asked = subPath();
+  const [sheet, setSheet] = useState<"new" | Account | null>(asked.startsWith("add") ? "new" : null);
   const [showClosed, setShowClosed] = useState(false);
 
   const load = useCallback(async () => {
@@ -256,7 +259,7 @@ export function Accounts({ go, onChanged }: { go: (route: Route) => void; onChan
           </ul>
         </Panel>
       )}
-      {sheet === "new" && <AddSheet today={data.today} onClose={() => setSheet(null)} onDone={done} />}
+      {sheet === "new" && <AddSheet today={data.today} first={asked === "add-bitcoin" ? "bitcoin_wallet" : "checking"} onClose={() => setSheet(null)} onDone={done} />}
       {sheet !== null && sheet !== "new" && <ChangeSheet account={sheet} card={cards.get(sheet.id)} today={data.today} onClose={() => setSheet(null)} onDone={done} />}
     </div>
   );
@@ -333,8 +336,8 @@ function Mix({ bitcoin, dollars, other }: { bitcoin: bigint; dollars: bigint; ot
   );
 }
 
-function AddSheet({ today, onClose, onDone }: { today: string; onClose: () => void; onDone: (message: string) => void }) {
-  const [kind, setKind] = useState("checking");
+function AddSheet({ today, first, onClose, onDone }: { today: string; first: string; onClose: () => void; onDone: (message: string) => void }) {
+  const [kind, setKind] = useState(first);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const debt = DEBT_KINDS.includes(kind);

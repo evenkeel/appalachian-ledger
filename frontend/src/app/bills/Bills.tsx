@@ -8,6 +8,7 @@ import type { BillMode, Paycheck } from "../dashboard/Sheets";
 import type { Bill, DashboardData } from "../dashboard/types";
 import { LevelIcon } from "../design/icons";
 import { bitcoinFor, btc, cents, fromCents, plural, shortDate, usd } from "../lib/format";
+import { subPath } from "../lib/router";
 import type { Route } from "../lib/router";
 
 interface Destroyed {
@@ -79,7 +80,7 @@ export function Bills({ go, onChanged }: { go: (route: Route) => void; onChanged
   const [sheet, setSheet] = useState<{ bill: Bill; mode: BillMode } | null>(null);
   const [gone, setGone] = useState<{ id: number; mode: BillMode } | null>(null);
   // "new" adds a bill; a number edits that bill.
-  const [form, setForm] = useState<"new" | number | null>(null);
+  const [form, setForm] = useState<"new" | number | null>(subPath() === "add" ? "new" : null);
   const [paycheck, setPaycheck] = useState<"new" | Paycheck | null>(null);
   const [removing, setRemoving] = useState<number | null>(null);
   const [notice, setNotice] = useState("");

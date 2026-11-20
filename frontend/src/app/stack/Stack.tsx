@@ -27,7 +27,7 @@ interface PriceStatus {
 const FIRST = 24;
 
 /** Your bitcoin: what you hold, every buy at the price paid, and the stack rate. */
-export function Stack({ go }: { go: (route: Route) => void }) {
+export function Stack({ go }: { go: (route: Route, sub?: string) => void }) {
   const [data, setData] = useState<DashboardData | null>(null);
   const [accounts, setAccounts] = useState<Account[] | null>(null);
   const [transfers, setTransfers] = useState<Transaction[] | null>(null);
@@ -125,7 +125,7 @@ export function Stack({ go }: { go: (route: Route) => void }) {
         <RatePanel className="c7" stack={data.stack} month={data.month} />
         <WalletsPanel className="c5" wallets={wallets} failed={"Wallets" in gaps} held={data.stack.held} go={go} />
         <BuysPanel className="c7" buys={buys} failed={"Buys" in gaps} data={data} go={go} />
-        <CostOfLivingPanel className="c7" data={data} periods={spending.periods} onWhy={() => go("learn")} />
+        <CostOfLivingPanel className="c7" data={data} periods={spending.periods} onWhy={() => go("learn", "cost-of-living")} />
         {price}
       </div>
     </div>

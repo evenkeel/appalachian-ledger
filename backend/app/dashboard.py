@@ -720,6 +720,18 @@ def archive_income_schedule(id: int, db=Depends(get_db, scope="function")):
     return {"ok": True}
 
 
+@router.get("/backup/status")
+def backup_status(db=Depends(get_db, scope="function")):
+    """When the last encrypted backup was made on this ledger, or null if never."""
+    made = db.scalar(
+        select(AuditEvent.created_at)
+        .where(AuditEvent.action == "backup.export")
+        .order_by(AuditEvent.id.desc())
+        .limit(1)
+    )
+    return {"last_backup_at": made}
+
+
 # ---------- Card terms ----------
 
 

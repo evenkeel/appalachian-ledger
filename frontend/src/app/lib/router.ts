@@ -19,7 +19,12 @@ export function parseRoute(hash: string): Route {
 }
 
 /** Hash routing: every screen has a link, and no server configuration is needed. */
-export function useRoute(): [Route, (route: Route) => void] {
+/** The part of the address after the screen name, such as "add" in #/bills/add. */
+export function subPath(hash = window.location.hash) {
+  return hash.replace(/^#\/?/, "").split("/").slice(1).join("/").split("?")[0];
+}
+
+export function useRoute(): [Route, (route: Route, sub?: string) => void] {
   const [route, setRoute] = useState<Route>(() => parseRoute(window.location.hash));
   useEffect(() => {
     const onChange = () => setRoute(parseRoute(window.location.hash));
@@ -28,8 +33,8 @@ export function useRoute(): [Route, (route: Route) => void] {
   }, []);
   return [
     route,
-    (next) => {
-      window.location.hash = `/${next}`;
+    (next, sub) => {
+      window.location.hash = sub ? `/${next}/${sub}` : `/${next}`;
       window.scrollTo(0, 0);
     },
   ];

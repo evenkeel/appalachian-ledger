@@ -25,7 +25,7 @@ export function Dashboard({
   onPayBillHandled,
   onDrill,
 }: {
-  go: (route: Route) => void;
+  go: (route: Route, sub?: string) => void;
   onData: (data: DashboardData) => void;
   /** Alert readings; null when the server has none to give. */
   alerts?: AlertsData | null;
@@ -160,7 +160,7 @@ export function Dashboard({
       {alerts && <Lights data={alerts} onOpen={(id) => onAlert?.(id)} />}
       <div className="panel">
         {setupDone ? (
-          <CostOfLivingPanel className="c4" data={data} periods={spending.periods} onWhy={() => go("learn")} />
+          <CostOfLivingPanel className="c4" data={data} periods={spending.periods} onWhy={() => go("learn", "cost-of-living")} />
         ) : (
           <SetupPanel
             className="c4"
@@ -183,7 +183,7 @@ export function Dashboard({
         <Panel className={setupDone ? "c12" : "c8"} name="Transactions" plain="latest entries" link={{ label: "All activity", onClick: () => go("activity") }}>
           {recent.length ? <EntryTable rows={recent.slice(0, 6)} account={false} /> : <div className="sub">Nothing recorded this month yet.</div>}
         </Panel>
-        {!setupDone && <CostOfLivingPanel className="c4" data={data} periods={spending.periods} onWhy={() => go("learn")} />}
+        {!setupDone && <CostOfLivingPanel className="c4" data={data} periods={spending.periods} onWhy={() => go("learn", "cost-of-living")} />}
       </div>
       {sheet && (
         <BillSheet
@@ -211,7 +211,7 @@ export function Dashboard({
 }
 
 /** Money flow and Spending bridge share one spending analysis in the current lens. */
-function MonthDetail({ data, spending, go, onDrill }: { data: DashboardData; spending: SpendingData; go: (route: Route) => void; onDrill: (key: string) => void }) {
+function MonthDetail({ data, spending, go, onDrill }: { data: DashboardData; spending: SpendingData; go: (route: Route, sub?: string) => void; onDrill: (key: string) => void }) {
   const { lens } = useSession();
   const analysis = useAnalysis(spending, data, lens);
   return (

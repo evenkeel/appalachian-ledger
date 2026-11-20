@@ -1619,3 +1619,42 @@ a.btn {
   border-color: var(--bezel);
   background: var(--panel-2);
 }
+
+/* Allowances on the Spending screen */
+.alw {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+.alw li {
+  display: grid;
+  gap: 5px;
+}
+.alw-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 4px 12px;
+}
+.alw-link {
+  color: var(--ink-3);
+  font-size: var(--t-label);
+  min-height: 28px;
+  padding: 0 2px;
+}
+.alw-link:hover,
+.alw-link:focus-visible {
+  color: var(--ink);
+  text-decoration: underline;
+}
+.alw-form {
+  display: flex;
+  gap: 6px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.alw-form .field {
+  flex: 1 1 120px;
+}

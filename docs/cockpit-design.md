@@ -82,7 +82,7 @@ Panels that work on day one are on top. Panels that need history sit lower and s
 | **Stack** | Bitcoin held, this month's gain, buys and dollars paid, **stack rate**, next milestone, streak, best month, price and source | Balances, transfers into bitcoin accounts, `price_quotes` | Works with one holding | Monthly trend from month two |
 | **Spend pace** | Exact spending so far this month, against the same days last month | Expenses, `expense_costs` | Shows this month's line and says when comparison starts | Full comparison |
 | **Cards & debt** | Card balance against its limit, next payment, loan balance and change | Liability accounts, new `card_terms` | Works with one card or loan | Payoff pace, labelled hypothetical |
-| **Budgets** | Category spending against its dollar allowance, with a mark for how much of the month has passed | `budget_overview` | Works once one allowance is set | Same |
+| **Allowances** | Category spending against its dollar allowance, with a mark for how much of the month has passed | `budget_overview` | Works once one allowance is set | Same |
 | **Cost of living** | Monthly spending indexed to the first full month, in dollars and in bitcoin at purchase-date prices | `expense_costs` | "Collecting data — 19 of 60 days" with a meter and ready date | Becomes the headline panel |
 | **Spending bridge** | Which categories carry last month's total to this month's, same days of each | `analyzeSpending` | "Collecting data — n of 30 days" | Full |
 | **Money flow** | One picture of the month: income into bitcoin stacked (first, orange, the only bright stream), spending by category, other moves, and what is still in checking | `flow`, `stacked` | Works with income and one expense | Any month selectable |
