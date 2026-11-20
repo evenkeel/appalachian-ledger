@@ -8,7 +8,7 @@ Changed in the third draft: the logo redrawn as three gentle, layered hills (app
 
 Changed in this draft: bills are **paid** or **destroyed** (cancelled, or paid off in full); each alert light opens its own detail; **stack rate** is a headline number in Stack.
 
-**Build status.** Steps 1–6 of the build order are in the app, and most of step 7: the Bills screen (every bill, add and change, paychecks, destroyed bills that can be brought back), the Stack screen (wallets, every buy at the price paid, stack rate, price status), the Accounts screen (totals, add, rename, close, balance corrections, card limit and due day) and Settings (alert thresholds, bitcoin price, appearance, encrypted backup, password, exports). Still in the previous interface at `/legacy.html`: Retirement, budget editing and long-range spending history, restore, CSV import, categories, payee rules, node wallets, and holdings or valuations for investment and property accounts. Steps 8–10 are not built.
+**Build status.** Steps 1–9 of the build order are in the app: the dashboard and alert lights; Transactions, Spending (with allowance editing), Bills, Stack, Accounts and Settings screens; the setup checklist, whose steps open the right form directly; and Learn. From step 10, restoring a backup made by an older version is done and tested. Still in the previous interface at `/legacy.html`: Retirement, spending for earlier months and long-range history, and holdings or valuations for investment and property accounts. The old screens have not been removed.
 This document and the clickable prototype in [`docs/cockpit-prototype/`](cockpit-prototype/) are the whole of step 2.
 
 ## See it first
