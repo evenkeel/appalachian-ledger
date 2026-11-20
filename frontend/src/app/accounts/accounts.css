@@ -1,0 +1,130 @@
+/* Accounts: one account's detail, its holdings, values and entries. Shared pieces come from design/app.css. */
+.acc-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+}
+.acc-head h2 {
+  margin: 0;
+  font-size: var(--t-title);
+  font-weight: 700;
+}
+.acc-head h2:focus {
+  outline: none;
+}
+.acc-head h2:focus-visible {
+  outline: 2px solid var(--btc);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+.acc-head .acc-bal {
+  font-family: var(--font-num);
+  font-size: var(--t-lead);
+}
+.acc-head .acc-grow {
+  flex: 1;
+}
+.acc-part {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--hairline);
+  padding-top: 10px;
+}
+.acc-part h3 {
+  margin: 0;
+  font-size: var(--t-micro);
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.acc-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+/* A wide table scrolls inside its own box, never the page. */
+.acc-scroll {
+  overflow-x: auto;
+  min-width: 0;
+}
+.acc-scroll .log td small {
+  display: block;
+  color: var(--ink-3);
+  font-size: var(--t-label);
+}
+.acc-scroll .log td.w {
+  max-width: 320px;
+}
+.acc-up {
+  color: var(--ok);
+}
+.acc-down {
+  color: var(--ink-2);
+}
+.acc-struck {
+  text-decoration: line-through;
+  color: var(--ink-3);
+}
+.acc-values {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  max-width: 420px;
+}
+.acc-values li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 0;
+  border-top: 1px solid var(--hairline);
+  font-size: var(--t-small);
+}
+.acc-values li:first-child {
+  border-top: 0;
+}
+.acc-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-end;
+}
+.acc-form .field {
+  flex: 1 1 140px;
+  max-width: 220px;
+}
+/* Holdings editor: each holding is a small block so it fits the sheet at any width. */
+.acc-holdings {
+  display: grid;
+  gap: 10px;
+  max-height: 38vh;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.acc-holding {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  align-items: end;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--hairline);
+}
+.acc-holding .btn {
+  justify-self: start;
+}
+@media (max-width: 720px) {
+  .acc-form .field {
+    max-width: none;
+  }
+  .acc-form input,
+  .acc-holding input {
+    font-size: 16px;
+  }
+  .acc-acts .btn.sm,
+  .acc-form .btn.sm {
+    min-height: 44px;
+  }
+}

@@ -438,10 +438,10 @@
   .set-page .field input,
   .set-page .field select,
   .set-num input {
-    min-height: 40px;
+    min-height: 44px;
   }
   .set-page .btn {
-    min-height: 40px;
+    min-height: 44px;
   }
   .set-rule {
     grid-template-columns: 44px minmax(0, 1fr);
@@ -473,7 +473,7 @@
   }
   .set-cats li > select {
     grid-column: 1 / -1;
-    min-height: 40px;
+    min-height: 44px;
   }
   .set-cats li > b {
     grid-row: 1;

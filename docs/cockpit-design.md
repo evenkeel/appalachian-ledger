@@ -8,7 +8,7 @@ Changed in the third draft: the logo redrawn as three gentle, layered hills (app
 
 Changed in this draft: bills are **paid** or **destroyed** (cancelled, or paid off in full); each alert light opens its own detail; **stack rate** is a headline number in Stack.
 
-**Build status.** Steps 1–9 of the build order are in the app: the dashboard and alert lights; Transactions, Spending (with allowance editing), Bills, Stack, Accounts and Settings screens; the setup checklist, whose steps open the right form directly; and Learn. From step 10, restoring a backup made by an older version is done and tested. Still in the previous interface at `/legacy.html`: Retirement, spending for earlier months and long-range history, and holdings or valuations for investment and property accounts. The old screens have not been removed.
+**Build status.** Every screen in this brief is built in the new interface: Dashboard, Transactions, Spending, Bills, Stack, Accounts, Retirement, Learn and Settings, with the setup checklist and the alert lights. Nothing in the new interface links to the previous one any more. The previous interface is still shipped at `/legacy.html` and its code is still in `frontend/src/components/`; removing it is the last step and has not been done. Measured: text and signal colours pass WCAG AA (4.5:1) on every surface in both themes, and every control is at least 44px tall at phone width. Not checked: the Docker image build (the production bundle itself was served and loaded).
 This document and the clickable prototype in [`docs/cockpit-prototype/`](cockpit-prototype/) are the whole of step 2.
 
 ## See it first

@@ -1761,3 +1761,40 @@ a.btn {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Phones: every control is at least 44px tall, the size a thumb needs. */
+@media (max-width: 720px) {
+  .main main .btn,
+  .main main .btn.sm,
+  .sheet .btn,
+  .drawer .btn,
+  .main main .seg button,
+  .main main .inst-link,
+  .main main .alw-link,
+  .main main .lamp,
+  .main main summary,
+  .main main .set-switch,
+  .main main .bl .btn.sm,
+  .main main input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]),
+  .main main select,
+  .sheet input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+  .sheet select,
+  .glare button,
+  .glare .price {
+    min-height: 44px;
+  }
+  .main main .inst-link,
+  .main main .alw-link {
+    display: inline-flex;
+    align-items: center;
+  }
+  .main main .check-line,
+  .sheet .check-line {
+    min-height: 44px;
+  }
+  .main main a:not(.btn) {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+}

@@ -193,34 +193,3 @@ export function Shell({
     </>
   );
 }
-
-/** Screens that are not rebuilt yet open in the previous interface, on the same ledger. */
-const LEGACY: Partial<Record<Route, { page: string; note: string }>> = {
-  retirement: { page: "Retirement", note: "Saved scenarios and projections." },
-};
-
-export function ComingSoon({ route }: { route: Route }) {
-  const legacy = LEGACY[route];
-  return (
-    <div className="page">
-      <h1>{TITLE[route]}</h1>
-      <section className="inst inop" style={{ maxWidth: 560 }}>
-        <div className="inst-h">
-          <span className="inst-name">Being rebuilt</span>
-        </div>
-        <p className="sub" style={{ margin: 0 }}>
-          {legacy
-            ? `${legacy.note} This screen has not moved to the new design yet. It still works in the previous interface, on the same ledger.`
-            : "This section is planned and has not been built yet."}
-        </p>
-        {legacy && (
-          <div>
-            <a className="btn primary" href={`/legacy.html?page=${encodeURIComponent(legacy.page)}`}>
-              Open {legacy.page} in the previous interface
-            </a>
-          </div>
-        )}
-      </section>
-    </div>
-  );
-}

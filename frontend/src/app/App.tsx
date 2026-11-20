@@ -9,9 +9,10 @@ import type { DashboardData } from "./dashboard/types";
 import { StackedLockup } from "./design/Logo";
 import { Learn } from "./learn/Learn";
 import { useRoute } from "./lib/router";
+import { Retirement } from "./retirement/Retirement";
 import { SessionProvider, useSession } from "./lib/session";
 import { Settings } from "./settings/Settings";
-import { ComingSoon, Shell } from "./shell/Shell";
+import { Shell } from "./shell/Shell";
 import type { PriceReading } from "./shell/Shell";
 import { SignIn } from "./shell/SignIn";
 import { Spending } from "./spending/Spending";
@@ -106,14 +107,14 @@ function Screens() {
           <Bills go={go} onChanged={changed} />
         ) : route === "learn" ? (
           <Learn go={go} />
+        ) : route === "retirement" ? (
+          <Retirement go={go} />
         ) : route === "stack" ? (
           <Stack go={go} />
         ) : route === "settings" ? (
           <Settings go={go} onChanged={changed} />
-        ) : route === "accounts" ? (
-          <Accounts go={go} onChanged={changed} />
         ) : (
-          <ComingSoon route={route} />
+          <Accounts go={go} onChanged={changed} />
         )}
       </Shell>
       {drawer !== null && alerts.data && (

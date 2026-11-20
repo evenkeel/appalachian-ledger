@@ -9,39 +9,16 @@ import { btc, cents, coordinate, fromCents, plural, usd } from "../lib/format";
 import { subPath } from "../lib/router";
 import type { Route } from "../lib/router";
 import { useSession } from "../lib/session";
+import "./accounts.css";
+import { AccountDetail } from "./Detail";
+import { PaymentSheet } from "./Payment";
+import { KIND, native } from "./shared";
+import type { Account } from "./shared";
 
-export interface Account {
-  id: number;
-  name: string;
-  kind: string;
-  role: "asset" | "liability";
-  currency: "USD" | "BITCOIN";
-  holding_type: "debt" | "valued_asset" | "bitcoin" | "dollars";
-  archived: boolean;
-  exclude_from_liquid_usd: boolean;
-  balance: string;
-  balance_minor: string;
-  bitcoin: string | null;
-  usd: string | null;
-}
+export type { Account } from "./shared";
+
 type Card = DashboardData["debt"]["cards"][number];
 
-const KIND: Record<string, string> = {
-  checking: "Checking",
-  savings: "Savings",
-  cash: "Cash",
-  bitcoin_wallet: "Bitcoin wallet",
-  credit_card: "Credit card",
-  loan: "Loan",
-  mortgage: "Mortgage",
-  brokerage: "Brokerage",
-  real_estate: "Home or property",
-  vehicle: "Vehicle",
-  stock: "Stock",
-  etf: "Fund",
-  other_asset: "Other asset",
-  other_liability: "Other debt",
-};
 /** Kinds offered when adding an account, in the order people usually need them. */
 const ADD_KINDS = ["checking", "bitcoin_wallet", "credit_card", "savings", "cash", "loan", "mortgage", "brokerage", "real_estate", "vehicle", "other_asset", "other_liability"];
 const DEBT_KINDS = ["credit_card", "loan", "mortgage", "other_liability"];
@@ -51,7 +28,6 @@ const GROUPS: { key: Account["holding_type"]; name: string; plain: string; empty
   { key: "debt", name: "Cards and debt", plain: "what you owe", empty: "No cards or loans. Nothing owed." },
   { key: "valued_asset", name: "Investments and property", plain: "valued in dollars", empty: "Nothing here yet. Add a brokerage account, a home or a vehicle if you track them." },
 ];
-const native = (account: Account) => (account.currency === "USD" ? usd(account.balance) : btc(account.balance));
 const isAmmo = (account: Account) => account.currency === "USD" && (account.kind === "checking" || account.kind === "cash") && !account.exclude_from_liquid_usd;
 /** Exact sum of dollar values; null when any value has no price behind it. */
 function sum(values: (string | null)[]) {
@@ -73,6 +49,10 @@ export function Accounts({ go, onChanged }: { go: (route: Route) => void; onChan
   const asked = subPath();
   const [sheet, setSheet] = useState<"new" | Account | null>(asked.startsWith("add") ? "new" : null);
   const [showClosed, setShowClosed] = useState(false);
+  // The account whose detail is open, the debt being paid, and a counter that tells the detail to read its entries again.
+  const [detail, setDetail] = useState<number | null>(null);
+  const [paying, setPaying] = useState<number | null>(null);
+  const [version, setVersion] = useState(0);
 
   const load = useCallback(async () => {
     try {
@@ -127,10 +107,14 @@ export function Accounts({ go, onChanged }: { go: (route: Route) => void; onChan
   })();
   const done = (message: string) => {
     setSheet(null);
+    setPaying(null);
     setNotice(message);
+    setVersion((n) => n + 1);
     void load();
     onChanged?.();
   };
+  const opened = open.find((account) => account.id === detail);
+  const debt = open.find((account) => account.id === paying);
 
   return (
     <div className="page">
@@ -202,7 +186,15 @@ export function Accounts({ go, onChanged }: { go: (route: Route) => void; onChan
                 {rows.length ? (
                   <ul className="bl two">
                     {rows.map((account) => (
-                      <Row key={account.id} account={account} card={cards.get(account.id)} onChange={() => setSheet(account)} />
+                      <Row
+                        key={account.id}
+                        account={account}
+                        card={cards.get(account.id)}
+                        open={detail === account.id}
+                        onDetail={() => setDetail(detail === account.id ? null : account.id)}
+                        onPay={() => setPaying(account.id)}
+                        onChange={() => setSheet(account)}
+                      />
                     ))}
                   </ul>
                 ) : (
@@ -211,6 +203,18 @@ export function Accounts({ go, onChanged }: { go: (route: Route) => void; onChan
               </Panel>
             );
           })}
+        {opened && (
+          <AccountDetail
+            account={opened}
+            today={data.today}
+            version={version}
+            onActivity={() => go("activity")}
+            onDone={done}
+            onPay={() => setPaying(opened.id)}
+            onChange={() => setSheet(opened)}
+            onClose={() => setDetail(null)}
+          />
+        )}
       </div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
         {open.length > 0 && (
@@ -222,11 +226,6 @@ export function Accounts({ go, onChanged }: { go: (route: Route) => void; onChan
           <button className="btn sm ghost" aria-expanded={showClosed} onClick={() => setShowClosed(!showClosed)}>
             {showClosed ? "Hide" : "Show"} {plural(closed.length, "closed account")}
           </button>
-        )}
-        {accounts.length > 0 && (
-          <a className="btn sm ghost" href="/legacy.html?page=Accounts">
-            Holdings, valuations and account history in the previous interface
-          </a>
         )}
       </div>
       {showClosed && closed.length > 0 && (
@@ -261,11 +260,12 @@ export function Accounts({ go, onChanged }: { go: (route: Route) => void; onChan
       )}
       {sheet === "new" && <AddSheet today={data.today} first={asked === "add-bitcoin" ? "bitcoin_wallet" : "checking"} onClose={() => setSheet(null)} onDone={done} />}
       {sheet !== null && sheet !== "new" && <ChangeSheet account={sheet} card={cards.get(sheet.id)} today={data.today} onClose={() => setSheet(null)} onDone={done} />}
+      {debt && <PaymentSheet debt={debt} accounts={open} today={data.today} onClose={() => setPaying(null)} onDone={done} />}
     </div>
   );
 }
 
-function Row({ account, card, onChange }: { account: Account; card?: Card; onChange: () => void }) {
+function Row({ account, card, open, onDetail, onPay, onChange }: { account: Account; card?: Card; open: boolean; onDetail: () => void; onPay: () => void; onChange: () => void }) {
   const other = account.currency === "USD" ? null : account.usd === null ? "no price" : usd(account.usd);
   const use = card?.utilization != null ? Math.min(100, coordinate(card.utilization)) : null;
   return (
@@ -275,6 +275,7 @@ function Row({ account, card, onChange }: { account: Account; card?: Card; onCha
         <small>
           {KIND[account.kind] ?? account.kind}
           {isAmmo(account) && " · ammo"}
+          {account.portfolio && ` · ${account.portfolio.holdings.length === 1 ? "1 holding" : `${account.portfolio.holdings.length} holdings`}${account.portfolio.holdings.some((holding) => holding.stale) ? " · quote stale" : ""}`}
           {account.kind === "credit_card" &&
             (card?.limit ? ` · ${card.utilization ?? "0"}% of ${usd(card.limit)} used` : " · no limit set")}
           {account.kind === "credit_card" && (card?.due_day ? ` · due on day ${card.due_day}` : " · no due day set")}
@@ -290,6 +291,14 @@ function Row({ account, card, onChange }: { account: Account; card?: Card; onCha
         {account.role === "liability" ? <small>owed</small> : other && <small>{other}</small>}
       </div>
       <div className="bl-acts">
+        {account.role === "liability" && (
+          <button className="btn sm" onClick={onPay} aria-label={`Record a payment to ${account.name}`}>
+            Pay
+          </button>
+        )}
+        <button className="btn sm ghost" aria-expanded={open} onClick={onDetail} aria-label={`${open ? "Hide" : "Show"} the detail for ${account.name}`}>
+          {open ? "Hide" : "Details"}
+        </button>
         <button className="btn sm ghost" onClick={onChange} aria-label={`Change ${account.name}`}>
           Change
         </button>
@@ -437,6 +446,8 @@ function ChangeSheet({ account, card, today, onClose, onDone }: { account: Accou
   const [busy, setBusy] = useState(false);
   const ledgerBalance = account.holding_type !== "valued_asset";
   const checking = account.kind === "checking" && account.currency === "USD";
+  // The mortgage is never consumer debt, so the choice is offered for other debts only.
+  const consumer = account.role === "liability" && account.kind !== "mortgage";
   const clean = (value: FormDataEntryValue | null) => String(value ?? "").replace(/[$₿,\s]/g, "");
 
   async function run(action: () => Promise<string>) {
@@ -469,6 +480,7 @@ function ChangeSheet({ account, card, today, onClose, onDone }: { account: Accou
         name,
         archived: false,
         ...(checking ? { exclude_from_liquid_usd: fields.get("ammo") !== "on" } : {}),
+        ...(consumer ? { exclude_from_consumer_debt: fields.get("not_consumer") === "on" } : {}),
       });
       if (account.kind === "credit_card") {
         const limit = clean(fields.get("credit_limit"));
@@ -519,10 +531,16 @@ function ChangeSheet({ account, card, today, onClose, onDone }: { account: Accou
             <input type="checkbox" name="ammo" defaultChecked={!account.exclude_from_liquid_usd} /> Count this account as ammo for bills
           </label>
         )}
+        {consumer && (
+          <label className="check-line">
+            <input type="checkbox" name="not_consumer" defaultChecked={account.exclude_from_consumer_debt ?? false} /> Leave this out of consumer debt
+          </label>
+        )}
         <p className="hint">
           {ledgerBalance
             ? "Changing the balance adds a dated correction entry for the difference. Earlier entries stay as they were."
-            : "This account is valued, not counted: update its value or holdings in the previous interface."}
+            : "This account is valued, not counted: record a new value or edit its holdings from Details."}
+          {consumer && " Leaving a debt out only changes the consumer debt figure in reports; it still counts toward total debt and net worth."}
         </p>
         {error && (
           <p className="gate-error" role="alert">
