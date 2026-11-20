@@ -1,0 +1,326 @@
+/* Settings screen. Every class here starts with set-; colours and sizes come from the design tokens. */
+
+.set-page .grid2 {
+  align-items: start;
+}
+.set-col {
+  display: grid;
+  gap: var(--s3);
+  min-width: 0;
+}
+.set-page a:not(.btn) {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.set-page .field input[type="password"],
+.set-page .field input[type="date"] {
+  font-family: var(--font-ui);
+}
+
+/* A section's own form, set off from what is above it. */
+.set-form {
+  display: grid;
+  gap: var(--s2);
+  padding-top: var(--s3);
+  border-top: 1px solid var(--hairline);
+}
+.set-form.plain {
+  padding-top: 0;
+  border-top: 0;
+}
+.set-sub {
+  font-size: var(--t-micro);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.set-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s2);
+}
+.set-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+.set-foot {
+  margin: 0;
+  padding-top: var(--s2);
+  border-top: 1px solid var(--hairline);
+}
+.set-foot .inst-link {
+  color: var(--ink);
+}
+
+/* What a save did. A word carries the outcome as well as the colour. */
+.set-note {
+  margin: 0;
+  font-size: var(--t-small);
+  line-height: 1.4;
+}
+.set-note.ok {
+  color: var(--ok);
+}
+.set-note.ok::before {
+  content: "Done · ";
+  font-weight: 700;
+}
+.set-note.error {
+  color: var(--warn);
+}
+.set-note.error::before {
+  content: "Problem · ";
+  font-weight: 700;
+}
+
+/* On / off */
+.set-switch {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 44px;
+  min-height: 36px;
+  justify-content: center;
+  font-size: var(--t-micro);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.set-switch i {
+  position: relative;
+  width: 34px;
+  height: 18px;
+  border-radius: 9px;
+  border: 1px solid var(--bezel);
+  background: var(--well);
+  transition: background var(--d-micro) var(--ease);
+}
+.set-switch i::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--ink-3);
+  transition: transform var(--d-micro) var(--ease);
+}
+.set-switch[aria-checked="true"] {
+  color: var(--ink);
+}
+.set-switch[aria-checked="true"] i {
+  background: var(--ok);
+  border-color: var(--ok);
+}
+.set-switch[aria-checked="true"] i::after {
+  transform: translateX(16px);
+  background: var(--bg);
+}
+.set-switch[disabled] {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Alert lights: one row per light */
+.set-rules {
+  list-style: none;
+  margin: 0 0 var(--s3);
+  padding: 0;
+}
+.set-rule {
+  display: grid;
+  grid-template-columns: 44px minmax(140px, 1fr) minmax(0, 1.7fr);
+  gap: var(--s1) var(--s3);
+  align-items: start;
+  padding: 9px 0;
+  border-top: 1px solid var(--hairline);
+}
+.set-rule:first-child {
+  border-top: 0;
+  padding-top: 2px;
+}
+.set-rule-name {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.set-rule-name b {
+  font-size: var(--t-body);
+}
+.set-rule.off .set-rule-name b,
+.set-rule.off .set-fields {
+  opacity: 0.5;
+}
+.set-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px var(--s4);
+  min-width: 0;
+}
+.set-num {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--t-small);
+  color: var(--ink-2);
+}
+.set-num input {
+  width: 68px;
+  min-height: 30px;
+  padding: 0 8px;
+  border-radius: 7px;
+  border: 1px solid var(--bezel);
+  background: var(--well);
+  color: var(--ink);
+  font: inherit;
+  text-align: right;
+}
+.set-num input[aria-invalid="true"] {
+  border-color: var(--warn);
+}
+.set-rule-error {
+  grid-column: 2 / -1;
+  margin: 0;
+  color: var(--warn);
+  font-size: var(--t-small);
+}
+
+/* Bitcoin price */
+.set-price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px var(--s2);
+}
+.set-price > b {
+  font-size: var(--t-read);
+  font-weight: 400;
+  line-height: 1.1;
+}
+.set-price-usd {
+  margin-left: auto;
+  white-space: nowrap;
+}
+.set-price .hint {
+  flex-basis: 100%;
+}
+.set-price .tag {
+  margin-left: 6px;
+}
+.set-line {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: var(--s3);
+  align-items: center;
+}
+.set-line > span:last-child {
+  display: grid;
+  gap: 1px;
+}
+.set-rates {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--t-small);
+  border-top: 1px solid var(--hairline);
+}
+.set-rates caption {
+  caption-side: top;
+  text-align: left;
+  padding: var(--s2) 0 var(--s1);
+  font-size: var(--t-micro);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.set-rates td {
+  padding: 3px 0;
+  white-space: nowrap;
+}
+.set-rates td + td {
+  padding-left: var(--s3);
+  text-align: right;
+}
+
+/* Appearance */
+.set-choice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  font-size: var(--t-small);
+  color: var(--ink-2);
+}
+
+/* More settings */
+.set-more {
+  margin: 0;
+  padding-left: 18px;
+  font-size: var(--t-small);
+  color: var(--ink-2);
+  line-height: 1.6;
+}
+
+@media (max-width: 1180px) {
+  .set-page .grid2 > * {
+    grid-column: 1 / -1;
+  }
+  .set-page .grid2 > .c4:not(.set-col) {
+    grid-column: span 6;
+  }
+  .set-col {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+}
+@media (max-width: 720px) {
+  .set-page .grid2 > .c4:not(.set-col) {
+    grid-column: 1 / -1;
+  }
+  .set-col {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* 16px stops iOS from zooming the page when a field takes focus. */
+  .set-page input,
+  .set-page select {
+    font-size: 16px;
+  }
+  .set-page .field input,
+  .set-page .field select,
+  .set-num input {
+    min-height: 40px;
+  }
+  .set-page .btn {
+    min-height: 40px;
+  }
+  .set-rule {
+    grid-template-columns: 44px minmax(0, 1fr);
+  }
+  .set-fields {
+    grid-column: 2;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .set-num {
+    flex-wrap: wrap;
+  }
+  .set-num input {
+    width: 84px;
+  }
+  .set-price-usd {
+    margin-left: 0;
+  }
+  .set-rates td {
+    white-space: normal;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .set-switch i,
+  .set-switch i::after {
+    transition: none;
+  }
+}

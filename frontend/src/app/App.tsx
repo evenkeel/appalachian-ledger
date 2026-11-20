@@ -1,15 +1,20 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { api } from "../lib/api";
+import { Accounts } from "./accounts/Accounts";
 import { Activity } from "./activity/Activity";
+import { Bills } from "./bills/Bills";
 import { AlertDrawer, AlertsButton, useAlerts } from "./dashboard/Alerts";
 import { Dashboard } from "./dashboard/Dashboard";
 import type { DashboardData } from "./dashboard/types";
 import { StackedLockup } from "./design/Logo";
 import { useRoute } from "./lib/router";
 import { SessionProvider, useSession } from "./lib/session";
+import { Settings } from "./settings/Settings";
 import { ComingSoon, Shell } from "./shell/Shell";
 import type { PriceReading } from "./shell/Shell";
 import { SignIn } from "./shell/SignIn";
 import { Spending } from "./spending/Spending";
+import { Stack } from "./stack/Stack";
 
 function Screens() {
   const { phase, error, retry } = useSession();
@@ -17,6 +22,20 @@ function Screens() {
   const [price, setPrice] = useState<PriceReading | null | undefined>(undefined);
   const onData = useCallback((data: DashboardData) => setPrice(data.price), []);
   const alerts = useAlerts(phase === "ready");
+  const refreshAlerts = alerts.refresh;
+  // The top bar's price is read here too, so it is right on every screen and after any change.
+  const refreshPrice = useCallback(() => {
+    api<DashboardData>("/dashboard")
+      .then((data) => setPrice(data.price))
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
+    if (phase === "ready") refreshPrice();
+  }, [phase, refreshPrice]);
+  const changed = useCallback(() => {
+    void refreshAlerts();
+    refreshPrice();
+  }, [refreshAlerts, refreshPrice]);
   // null = closed, "" = the full list, otherwise one alert's own detail.
   const [drawer, setDrawer] = useState<string | null>(null);
   const [payBill, setPayBill] = useState<number | null>(null);
@@ -79,9 +98,17 @@ function Screens() {
             }}
           />
         ) : route === "activity" ? (
-          <Activity onChanged={() => void alerts.refresh()} />
+          <Activity onChanged={changed} />
         ) : route === "spending" ? (
           <Spending go={go} drill={drill} onDrill={setDrill} />
+        ) : route === "bills" ? (
+          <Bills go={go} onChanged={changed} />
+        ) : route === "stack" ? (
+          <Stack go={go} />
+        ) : route === "settings" ? (
+          <Settings go={go} onChanged={changed} />
+        ) : route === "accounts" ? (
+          <Accounts go={go} onChanged={changed} />
         ) : (
           <ComingSoon route={route} />
         )}

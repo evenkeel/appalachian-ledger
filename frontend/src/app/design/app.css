@@ -10,7 +10,8 @@ body {
   font-size: var(--t-body);
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
+  /* clip, not hidden: hidden turns the body into a scroll container and unsticks the rail and top bar. */
+  overflow-x: clip;
 }
 button {
   font: inherit;
@@ -1471,4 +1472,150 @@ a.btn {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Bills, paychecks and destroyed bills: one row each, wrapping to two lines on a phone. */
+.bl {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.bl li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px 112px auto;
+  gap: 4px 14px;
+  align-items: center;
+  padding: 8px 0;
+  border-top: 1px solid var(--hairline);
+}
+.bl.two li {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+.bl li > div {
+  display: grid;
+  min-width: 0;
+}
+.bl small {
+  color: var(--ink-3);
+  font-size: var(--t-label);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bl small.overdue {
+  color: var(--warn);
+  font-weight: 700;
+}
+.bl-name b {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bl-amt {
+  text-align: right;
+}
+.bl .bl-acts {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.kv.glance {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+}
+.kv.glance b small {
+  font-weight: 400;
+  color: var(--ink-2);
+  font-size: var(--t-small);
+}
+.page > .narrow {
+  max-width: 560px;
+}
+@media (max-width: 720px) {
+  .bl li,
+  .bl.two li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .bl .bl-acts {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+  .bl .btn.sm {
+    min-height: 36px;
+    padding-inline: 12px;
+  }
+  .bl li > .bl-due {
+    grid-row: 2;
+    grid-column: 1;
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+  }
+  .bl li > .bl-due + .bl-amt {
+    grid-row: 1;
+    grid-column: 2;
+  }
+}
+
+/* Accounts: totals row, card use bar and the ammo checkbox. */
+.kv.worth {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+.kv.worth div > small {
+  display: block;
+  color: var(--ink-3);
+  font-size: var(--t-label);
+}
+.bl .bar {
+  margin-top: 5px;
+  max-width: 220px;
+}
+.bar.warn > i {
+  background: var(--caution);
+}
+.bar.over > i {
+  background: var(--warn);
+}
+.check-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--t-small);
+  min-height: 32px;
+}
+.check-line input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--btc);
+}
+
+/* Phone: the screens that do not fit the bottom bar. */
+.more {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.more .nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink-2);
+  min-height: 48px;
+  padding: 8px 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  font-size: var(--t-small);
+}
+.more .nav svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+.more .nav[aria-current="page"] {
+  color: var(--ink);
+  border-color: var(--bezel);
+  background: var(--panel-2);
 }

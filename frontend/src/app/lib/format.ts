@@ -52,3 +52,11 @@ export function btcShort(value: number) {
   if (abs >= 1e3) return `${Math.round(abs / 1e3)}k`;
   return String(abs);
 }
+
+/** Whole bitcoin a dollar amount buys at a quote of bitcoin per $1, rounded down. An estimate for labels only. */
+export function bitcoinFor(centsValue: bigint, bitcoinPerUsd: string) {
+  if (!/^\d+(\.\d+)?$/.test(bitcoinPerUsd)) return null;
+  const [whole, fraction = ""] = bitcoinPerUsd.split(".");
+  const scaled = BigInt(whole + fraction.padEnd(8, "0").slice(0, 8));
+  return (centsValue * scaled) / 10_000_000_000n;
+}

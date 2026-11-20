@@ -136,7 +136,7 @@ export function Dashboard({
       <>
         {alerts && <Lights data={alerts} onOpen={(id) => onAlert?.(id)} />}
         <div className="panel">
-          <SetupPanel className="c5" data={data} demoEnabled={demoEnabled} onPaycheck={() => setPaycheck(true)} onDemo={loadDemo} />
+          <SetupPanel className="c5" data={data} demoEnabled={demoEnabled} go={go} onPaycheck={() => setPaycheck(true)} onDemo={loadDemo} />
           <div className="c7 col" style={{ gridTemplateRows: "none", alignContent: "start" }}>
             <CashAheadPanel data={data} go={go} onPaycheck={() => setPaycheck(true)} />
             <BillsPanel data={data} go={go} gone={null} onAct={() => {}} onStack={() => {}} />
@@ -165,7 +165,7 @@ export function Dashboard({
           <SetupPanel
             className="c4"
             data={data}
-            demoEnabled={demoEnabled}
+            demoEnabled={demoEnabled} go={go}
             onPaycheck={() => setPaycheck(true)}
             onDemo={loadDemo}
           />

@@ -157,4 +157,11 @@ Paying a bill for the month keeps using the existing `POST /api/recurring-bills/
 | --- | --- |
 | `POST /api/alerts/{id}/acknowledge` | Stores the alert's current level and magnitude. It stays in `active` with `acknowledged: true` until it clears, and returns to `false` if its level rises or its magnitude grows past the stored value. |
 | `POST /api/alerts/acknowledge-all` | The same for every active caution and warning. |
-| `GET/PUT /api/settings/alert-thresholds` | Thresholds and per-light on/off, stored in owner preferences. Defaults are in `docs/cockpit-design.md`. |
+| `GET/PUT /api/settings/alert-thresholds` | Thresholds and per-light on/off, stored in their own `alert_settings` table. `PUT {}` restores the defaults, which are in `docs/cockpit-design.md`. |
+
+## Destroyed bills
+
+| Endpoint | Does |
+| --- | --- |
+| `GET /api/recurring-bills/destroyed` | Bills destroyed for good, newest first: `id`, `name`, `amount`, `currency`, `frequency`, `monthly_amount`, `destroyed_on`, `account`, `category`, and `paid_off` (true when the bill was linked to a debt). |
+| `POST /api/recurring-bills/{id}/restore` | Brings a destroyed bill back. Never posts. The next due date keeps its day of the month and moves to today or later. `409` if the bill was not destroyed. |

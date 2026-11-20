@@ -793,6 +793,54 @@ def destroy_recurring_bill(id: int, db=Depends(get_db, scope="function")):
     return {"monthly_freed": freed}
 
 
+@router.get("/recurring-bills/destroyed")
+def destroyed_recurring_bills(db=Depends(get_db, scope="function")):
+    """Bills destroyed for good, newest first, each with what it used to cost a month."""
+    rows = db.scalars(
+        select(RecurringBill)
+        .where(RecurringBill.destroyed_on.is_not(None))
+        .order_by(RecurringBill.destroyed_on.desc(), RecurringBill.id.desc())
+    )
+    result = []
+    for bill in rows:
+        acc = db.get(Account, bill.account_id)
+        amount = to_minor(bill.amount, acc.currency)
+        result.append(
+            {
+                "id": bill.id,
+                "name": bill.description,
+                "amount": original(amount, acc.currency),
+                "currency": acc.currency,
+                "frequency": bill.frequency,
+                "monthly_amount": original(monthly_minor(amount, bill.frequency), acc.currency),
+                "destroyed_on": bill.destroyed_on,
+                "account": acc.name,
+                "category": db.get(Category, bill.category_id).name,
+                "paid_off": bill.pays_account_id is not None,
+            }
+        )
+    return result
+
+
+@router.post("/recurring-bills/{id}/restore")
+def restore_recurring_bill(id: int, db=Depends(get_db, scope="function")):
+    """Bring a destroyed bill back. Never posts; the next due date moves to today or later."""
+    bill = recurring.get_bill(db, id, include_archived=True)
+    if bill.destroyed_on is None:
+        raise HTTPException(409, "This bill was not destroyed")
+    ledger.account(db, bill.account_id)
+    today = str(date.today())
+    while bill.next_due < today:
+        following = recurring.advance(bill)
+        if following is None:
+            bill.next_due = today
+            break
+        bill.next_due = following
+    bill.archived, bill.destroyed_on = False, None
+    ledger.audit(db, "recurring_bill.restore", bill.id, {"next_due": bill.next_due})
+    return recurring.bill_dict(db, bill) | {"pays_account_id": bill.pays_account_id}
+
+
 @router.post("/recurring-bills/{id}/pay-off")
 def pay_off_recurring_bill(id: int, data: PayOffInput, db=Depends(get_db, scope="function")):
     bill = recurring.get_bill(db, id)

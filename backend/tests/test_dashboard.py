@@ -138,6 +138,7 @@ def test_writes_are_refused_without_the_csrf_token(owner):
     assert owner.put(f"/api/accounts/{card}/card-terms", json={"credit_limit": "500", "due_day": 5}).status_code == 403
     assert owner.put(f"/api/recurring-bills/{rent['id']}/pays-account", json={"account_id": card}).status_code == 403
     assert owner.post(f"/api/recurring-bills/{rent['id']}/destroy").status_code == 403
+    assert owner.post(f"/api/recurring-bills/{rent['id']}/restore").status_code == 403
     assert owner.post(f"/api/recurring-bills/{rent['id']}/pay-off", json={"date": "2026-03-01"}).status_code == 403
     assert owner.get("/api/dashboard").status_code == 200
     assert [row["id"] for row in owner.get("/api/income-schedules").json()] == [pay["id"]]
@@ -520,6 +521,43 @@ def test_pay_off_is_refused_when_the_paying_account_is_short(owner):
     assert owner.post(f"/api/recurring-bills/{car['id']}/pay-off", json={"date": "2026-03-01"}).status_code == 200
     balances = {row["id"]: row["balance"] for row in owner.get("/api/accounts").json()}
     assert balances[loan] == "0.00" and balances[checking] == "0.00"
+
+
+def test_destroyed_bills_are_listed_and_can_be_brought_back(owner):
+    checking = new_account(owner, "Checking", amount="1000")
+    gym = bill(owner, checking, "Gym", "30.00", "2026-01-05")
+    yearly = bill(owner, checking, "Domain", "24.00", "2026-01-20", "yearly")
+    bill(owner, checking, "Rent", "400.00", "2026-03-15")
+    assert owner.get("/api/recurring-bills/destroyed").json() == []
+    assert owner.post(f"/api/recurring-bills/{gym['id']}/restore").status_code == 409
+    for item in (gym, yearly):
+        assert owner.post(f"/api/recurring-bills/{item['id']}/destroy").is_success
+    before = journal_count()
+    listed = owner.get("/api/recurring-bills/destroyed").json()
+    assert [row["name"] for row in listed] == ["Domain", "Gym"]
+    assert listed[0] | {"destroyed_on": None} == {
+        "id": yearly["id"],
+        "name": "Domain",
+        "amount": "24.00",
+        "currency": "USD",
+        "frequency": "yearly",
+        "monthly_amount": "2.00",
+        "destroyed_on": None,
+        "account": "Checking",
+        "category": listed[0]["category"],
+        "paid_off": False,
+    }
+    assert listed[0]["destroyed_on"] == date.today().isoformat()
+
+    restored = owner.post(f"/api/recurring-bills/{gym['id']}/restore")
+    assert restored.status_code == 200, restored.text
+    # The due date rolls forward on its own day of the month, never into the past.
+    assert restored.json()["next_due"] >= date.today().isoformat()
+    assert restored.json()["next_due"][-2:] == "05"
+    assert [row["name"] for row in owner.get("/api/recurring-bills/destroyed").json()] == ["Domain"]
+    assert sorted(row["description"] for row in owner.get("/api/recurring-bills").json()) == ["Gym", "Rent"]
+    assert owner.post(f"/api/recurring-bills/{gym['id']}/restore").status_code == 409
+    assert journal_count() == before
 
 
 def test_pays_account_must_be_a_debt_in_the_same_currency(owner):

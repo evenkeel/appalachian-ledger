@@ -7,7 +7,7 @@ import type { Bill, DashboardData } from "./types";
 export type BillMode = "pay" | "destroy" | "payoff";
 
 /** A small modal: Escape cancels, focus starts on the main action and returns on close. */
-function Sheet({ label, onClose, children }: { label: string; onClose: () => void; children: ReactNode }) {
+export function Sheet({ label, onClose, children }: { label: string; onClose: () => void; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
@@ -39,6 +39,25 @@ function Sheet({ label, onClose, children }: { label: string; onClose: () => voi
         {children}
       </div>
     </>
+  );
+}
+
+/** A button that needs a second, separate press: a double-click on the first one does nothing more. */
+export function TwoStep({ ask, confirm, disabled, onConfirm }: { ask: string; confirm: string; disabled?: boolean; onConfirm: () => void }) {
+  const [armedAt, setArmedAt] = useState<number | null>(null);
+  return (
+    <button
+      type="button"
+      className="btn ghost"
+      style={{ marginLeft: "auto" }}
+      disabled={disabled}
+      onClick={() => {
+        if (armedAt === null) setArmedAt(Date.now());
+        else if (Date.now() - armedAt > 400) onConfirm();
+      }}
+    >
+      {armedAt === null ? ask : confirm}
+    </button>
   );
 }
 
@@ -204,7 +223,18 @@ export function BillSheet({
 }
 
 /** A planned paycheck. It never posts by itself; it only tells Cash ahead when ammo reloads. */
-export function PaycheckSheet({ data, onClose, onDone }: { data: DashboardData; onClose: () => void; onDone: () => void }) {
+export interface Paycheck {
+  id: number;
+  account_id: number;
+  account: string;
+  name: string;
+  amount: string;
+  frequency: string;
+  next_date: string;
+  next_occurrence: string | null;
+}
+
+export function PaycheckSheet({ data, schedule, onClose, onDone }: { data: DashboardData; schedule?: Paycheck; onClose: () => void; onDone: () => void }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   async function save(event: FormEvent<HTMLFormElement>) {
@@ -213,7 +243,7 @@ export function PaycheckSheet({ data, onClose, onDone }: { data: DashboardData; 
     setBusy(true);
     setError("");
     try {
-      await api("/income-schedules", "POST", {
+      await api(schedule ? `/income-schedules/${schedule.id}` : "/income-schedules", schedule ? "PUT" : "POST", {
         account_id: Number(form.get("account_id")),
         name: form.get("name"),
         amount: String(form.get("amount")).replace(/[$,\s]/g, ""),
@@ -227,22 +257,22 @@ export function PaycheckSheet({ data, onClose, onDone }: { data: DashboardData; 
     }
   }
   return (
-    <Sheet label="Set your next paycheck" onClose={onClose}>
-      <h2>Set your next paycheck</h2>
+    <Sheet label={schedule ? `Change ${schedule.name}` : "Set your next paycheck"} onClose={onClose}>
+      <h2>{schedule ? `Change ${schedule.name}` : "Set your next paycheck"}</h2>
       <p className="sub">Used to show whether checking covers your bills until payday. It never records income by itself.</p>
       <form onSubmit={save} style={{ display: "grid", gap: 10 }}>
         <div className="sheet-fields">
           <label className="field">
             <span>Name</span>
-            <input name="name" defaultValue="Paycheck" required maxLength={120} data-autofocus />
+            <input name="name" defaultValue={schedule?.name ?? "Paycheck"} required maxLength={120} data-autofocus />
           </label>
           <label className="field">
             <span>Take-home amount</span>
-            <input name="amount" className="num" inputMode="decimal" placeholder="0.00" required />
+            <input name="amount" className="num" inputMode="decimal" placeholder="0.00" defaultValue={schedule?.amount} required />
           </label>
           <label className="field">
             <span>How often</span>
-            <select name="frequency" defaultValue="biweekly">
+            <select name="frequency" defaultValue={schedule?.frequency ?? "biweekly"}>
               <option value="weekly">Every week</option>
               <option value="biweekly">Every two weeks</option>
               <option value="semimonthly">Twice a month</option>
@@ -251,11 +281,11 @@ export function PaycheckSheet({ data, onClose, onDone }: { data: DashboardData; 
           </label>
           <label className="field">
             <span>Next payday</span>
-            <input name="next_date" type="date" min={data.today} required />
+            <input name="next_date" type="date" min={schedule ? undefined : data.today} defaultValue={schedule?.next_occurrence ?? schedule?.next_date} required />
           </label>
           <label className="field" style={{ gridColumn: "1/-1" }}>
             <span>Lands in</span>
-            <select name="account_id">
+            <select name="account_id" defaultValue={schedule?.account_id}>
               {data.ammo.accounts.map((account) => (
                 <option key={account.id} value={account.id}>
                   {account.name}

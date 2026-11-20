@@ -1,4 +1,6 @@
+import { useState } from "react";
 import type { ReactNode } from "react";
+import { Sheet } from "../dashboard/Sheets";
 import { NavIcon } from "../design/icons";
 import { btc } from "../lib/format";
 import { Lockup, Tile } from "../design/Logo";
@@ -26,7 +28,9 @@ const TITLE: Record<Route, string> = {
   learn: "Learn",
   settings: "Settings",
 };
-const TABS: Route[] = ["dashboard", "activity", "bills", "stack"];
+// The phone bar holds four screens; everything else is under More.
+const TABS: Route[] = ["dashboard", "bills", "stack"];
+const MORE: Route[] = ["activity", "spending", "accounts", "retirement", "learn", "settings"];
 
 export interface PriceReading {
   bitcoin_per_usd: string;
@@ -50,6 +54,7 @@ export function Shell({
   children: ReactNode;
 }) {
   const { lens, setLens, theme, setTheme, signOut, username, demo } = useSession();
+  const [more, setMore] = useState(false);
   const link = (item: { route: Route; label: string }) => (
     <button
       key={item.route}
@@ -59,6 +64,12 @@ export function Shell({
     >
       {NavIcon[item.route]}
       <span>{item.label}</span>
+    </button>
+  );
+  const tabButton = (tab: Route) => (
+    <button key={tab} aria-current={route === tab ? "page" : undefined} onClick={() => go(tab)}>
+      {NavIcon[tab]}
+      {NAV.find((item) => item.route === tab)!.label}
     </button>
   );
   return (
@@ -133,33 +144,59 @@ export function Shell({
         </div>
       </div>
       <nav className="tabbar" aria-label="Main">
-        {TABS.slice(0, 2).map((tab) => (
-          <button key={tab} aria-current={route === tab ? "page" : undefined} onClick={() => go(tab)}>
-            {NavIcon[tab]}
-            {NAV.find((item) => item.route === tab)!.label}
-          </button>
-        ))}
+        {TABS.slice(0, 2).map(tabButton)}
         <button aria-label="Add entry" onClick={() => go("activity")}>
           <span className="plus">{NavIcon.plus}</span>
         </button>
-        {TABS.slice(2).map((tab) => (
-          <button key={tab} aria-current={route === tab ? "page" : undefined} onClick={() => go(tab)}>
-            {NavIcon[tab]}
-            {NAV.find((item) => item.route === tab)!.label}
-          </button>
-        ))}
+        {TABS.slice(2).map(tabButton)}
+        <button aria-current={MORE.includes(route) ? "page" : undefined} aria-haspopup="dialog" onClick={() => setMore(true)}>
+          {NavIcon.more}
+          More
+        </button>
       </nav>
+      {more && (
+        <Sheet label="More screens" onClose={() => setMore(false)}>
+          <h2>More</h2>
+          <div className="more">
+            {MORE.map((item, index) => (
+              <button
+                key={item}
+                className="nav"
+                data-autofocus={index === 0 ? true : undefined}
+                aria-current={route === item ? "page" : undefined}
+                onClick={() => {
+                  setMore(false);
+                  go(item);
+                }}
+              >
+                {NavIcon[item]}
+                <span>{item === "settings" ? "Settings" : item === "activity" ? "Transactions" : NAV.find((entry) => entry.route === item)!.label}</span>
+              </button>
+            ))}
+            <button className="nav" onClick={() => setTheme(theme === "night" ? "day" : "night")}>
+              {theme === "night" ? NavIcon.sun : NavIcon.moon}
+              <span>{theme === "night" ? "Day theme" : "Night theme"}</span>
+            </button>
+            <button
+              className="nav"
+              onClick={() => {
+                setMore(false);
+                void signOut();
+              }}
+            >
+              {NavIcon.lock}
+              <span>Lock</span>
+            </button>
+          </div>
+        </Sheet>
+      )}
     </>
   );
 }
 
 /** Screens that are not rebuilt yet open in the previous interface, on the same ledger. */
 const LEGACY: Partial<Record<Route, { page: string; note: string }>> = {
-  bills: { page: "Expenses", note: "Recurring bills and the upcoming calendar." },
-  stack: { page: "Stacking", note: "Bitcoin buys and holdings over time." },
-  accounts: { page: "Accounts", note: "Accounts, cards, assets and loans." },
   retirement: { page: "Retirement", note: "Saved scenarios and projections." },
-  settings: { page: "Settings", note: "Prices, backup, security, categories and export." },
 };
 
 export function ComingSoon({ route }: { route: Route }) {

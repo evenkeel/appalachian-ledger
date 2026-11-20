@@ -74,6 +74,7 @@ export const NavIcon = {
     </>,
   ),
   plus: line(<path d="M12 5v14M5 12h14" />),
+  more: line(<path d="M5 12h.01M12 12h.01M19 12h.01" strokeWidth="2.6" />),
   sun: line(
     <>
       <circle cx="12" cy="12" r="4" />
