@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { categoryKey } from "../../lib/spendingAnalysis";
 import { EntryTable } from "../activity/EntryTable";
-import { BridgePanel, MoneyFlowPanel, TwoSystemsPanel, useAnalysis, useSpendingData } from "../dashboard/history";
+import { BridgePanel, MoneyFlowPanel, CostOfLivingPanel, useAnalysis, useSpendingData } from "../dashboard/history";
 import type { SpendingData } from "../dashboard/history";
 import { PacePanel, Panel } from "../dashboard/panels";
 import type { DashboardData } from "../dashboard/types";
@@ -81,7 +81,7 @@ function Loaded({ data, spending, go, drill, onDrill }: { data: DashboardData; s
             Select a bridge row or a spending stream to list its entries here.
           </p>
         )}
-        <TwoSystemsPanel className="c7" data={data} periods={spending.periods} onWhy={() => go("learn")} />
+        <CostOfLivingPanel className="c7" data={data} periods={spending.periods} onWhy={() => go("learn")} />
         <Panel className="c5" name="Budgets and history" plain="not rebuilt yet" inop>
           <div className="sub">Category allowances, the six-month category trends and the long-range history still live in the previous interface.</div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

@@ -8,7 +8,7 @@ Changed in the third draft: the logo redrawn as three gentle, layered hills (app
 
 Changed in this draft: bills are **paid** or **destroyed** (cancelled, or paid off in full); each alert light opens its own detail; **stack rate** is a headline number in Stack.
 
-**Build status.** Steps 1–6 of the build order are in the app: design system and logo, shell and navigation, the dashboard's day-one panels on real data, the alert lights, the history panels (Two systems, Spending bridge, Money flow) with the Spending screen, and the Transactions screen with keyboard entry, corrections and removal. Steps 7–10 are not built; those screens open in the previous interface at `/legacy.html`.
+**Build status.** Steps 1–6 of the build order are in the app: design system and logo, shell and navigation, the dashboard's day-one panels on real data, the alert lights, the history panels (Cost of living, Spending bridge, Money flow) with the Spending screen, and the Transactions screen with keyboard entry, corrections and removal. Steps 7–10 are not built; those screens open in the previous interface at `/legacy.html`.
 This document and the clickable prototype in [`docs/cockpit-prototype/`](cockpit-prototype/) are the whole of step 2.
 
 ## See it first
@@ -61,7 +61,7 @@ Nine destinations instead of eleven, all with plain names.
 | **Activity** | Every transaction, fast keyboard entry, corrections, import | Transactions, Income |
 | **Spending** | Spend pace, Spending bridge, Money flow, categories, budgets, history | Expenses, Budgets, most of Reports |
 | **Bills** | Every bill as a target at full size, 30-day view, recurring bills, paycheck schedule | Upcoming expenses |
-| **Stack** | Bitcoin by wallet, every buy at the price paid, milestones, Two systems at full size, price source | Stacking, price settings |
+| **Stack** | Bitcoin by wallet, every buy at the price paid, milestones, Cost of living at full size, price source | Stacking, price settings |
 | **Accounts** | Checking, cards, reserve, brokerage, property, loans | Accounts, Assets & liabilities |
 | **Retirement** | Saved scenarios in both systems | Retirement |
 | **Learn** | The teaching space; contextual "Why" links land here | new |
@@ -73,7 +73,7 @@ The `$ / ₿` switch changes how analysis is priced (pace, bridge, money flow, h
 
 ## Panels
 
-Panels that work on day one are on top. Panels that need history sit lower and say what they are waiting for; none ever draws an empty chart. Once Two systems has two full months, it moves to the top-left slot.
+Panels that work on day one are on top. Panels that need history sit lower and say what they are waiting for; none ever draws an empty chart. Once Cost of living has two full months, it moves to the top-left slot.
 
 | Panel | Measures | Source | Day one | With history |
 | --- | --- | --- | --- | --- |
@@ -83,7 +83,7 @@ Panels that work on day one are on top. Panels that need history sit lower and s
 | **Spend pace** | Exact spending so far this month, against the same days last month | Expenses, `expense_costs` | Shows this month's line and says when comparison starts | Full comparison |
 | **Cards & debt** | Card balance against its limit, next payment, loan balance and change | Liability accounts, new `card_terms` | Works with one card or loan | Payoff pace, labelled hypothetical |
 | **Budgets** | Category spending against its dollar allowance, with a mark for how much of the month has passed | `budget_overview` | Works once one allowance is set | Same |
-| **Two systems** | Monthly cost of living indexed to the first full month, in dollars and in bitcoin at purchase-date prices | `expense_costs` | "Collecting data — 19 of 60 days" with a meter and ready date | Becomes the headline panel |
+| **Cost of living** | Monthly spending indexed to the first full month, in dollars and in bitcoin at purchase-date prices | `expense_costs` | "Collecting data — 19 of 60 days" with a meter and ready date | Becomes the headline panel |
 | **Spending bridge** | Which categories carry last month's total to this month's, same days of each | `analyzeSpending` | "Collecting data — n of 30 days" | Full |
 | **Money flow** | One picture of the month: income into bitcoin stacked (first, orange, the only bright stream), spending by category, other moves, and what is still in checking | `flow`, `stacked` | Works with income and one expense | Any month selectable |
 | **Retirement** | The default saved scenario: funded-to age, retirement age, monthly life in both systems | `planning_scenarios`, forecasting engine | "No scenario yet" with one action | Same |
@@ -113,7 +113,7 @@ What is in the design:
 - **Stack rate is the score.** It is the share of this month's income that went into bitcoin, the bitcoin version of a savings rate, and higher is better. It sits in the Stack panel as a headline number with the last six months as bars, the change from last month, and a "best yet" mark when it is a record.
 - **Supporting numbers**: next milestone of bitcoin held, the streak of months with a buy, and the best month so far. "Stack it" turns spare ammo into bitcoin, and the "No stack yet" light is the nudge.
 - **Bills destroyed** and the dollars a month that freed.
-- **Your own numbers make the purchasing-power point.** Two systems shows a month of life costing more dollars and less bitcoin. It stays honest when the price moves the other way.
+- **Your own numbers make the purchasing-power point.** Cost of living shows a month of life costing more dollars and less bitcoin. It stays honest when the price moves the other way.
 
 What I left out on purpose: relabelling every account as a weapon. That would be another metaphor to decode before a number can be read. The fuller framing of dollars, bitcoin and stocks belongs in Learn.
 
@@ -248,7 +248,7 @@ Each step runs end to end and is checked in a browser at desktop and phone width
 2. Shell and navigation.
 3. Dashboard with day-one panels (Cash ahead, Bills, Stack, Spend pace, Cards & debt, Budgets) and their migrations.
 4. Alert lights, thresholds, acknowledgement, trigger tests.
-5. History panels (Two systems, Spending bridge, Money flow).
+5. History panels (Cost of living, Spending bridge, Money flow).
 6. Activity and entry.
 7. Bills, Stack, Accounts, Spending, Retirement, Settings.
 8. Setup checklist.

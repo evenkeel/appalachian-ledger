@@ -101,7 +101,7 @@
         ["Cash reserve", 30000],
         ["Brokerage", 50000],
       ],
-      twoSystems: {
+      costOfLiving: {
         months: ["Jun", "Jul", "Aug", "Sep", "Oct"],
         usd: [281000, 286500, 279000, 290500, 294610],
         bitcoin: [2927083, 2865000, 2669856, 2665138, 2584298],

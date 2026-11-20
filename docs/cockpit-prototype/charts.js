@@ -187,7 +187,7 @@
       `Stack rate by month. This month ${r[n - 1][1].toFixed(1)}%, average ${avg.toFixed(1)}%.`);
   };
 
-  /* Two systems: the same monthly cost of living, indexed to the first full month. */
+  /* Cost of living: the same monthly spending, indexed to the first full month. */
   CH.dual = (el, m) => {
     const W = el.clientWidth, H = el.clientHeight, p = { l: 6, r: 92, t: 12, b: 18 };
     const t = m.two, n = t.months.length;

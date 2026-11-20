@@ -5,7 +5,7 @@ import type { Route } from "../lib/router";
 import { useSession } from "../lib/session";
 import { Lights } from "./Alerts";
 import type { AlertsData } from "./Alerts";
-import { BridgePanel, MoneyFlowPanel, TwoSystemsPanel, useAnalysis, useSpendingData } from "./history";
+import { BridgePanel, MoneyFlowPanel, CostOfLivingPanel, useAnalysis, useSpendingData } from "./history";
 import type { SpendingData } from "./history";
 import { BillsPanel, BudgetsPanel, CashAheadPanel, DebtPanel, PacePanel, Panel, SetupPanel, StackPanel } from "./panels";
 import { BillSheet, PaycheckSheet } from "./Sheets";
@@ -160,7 +160,7 @@ export function Dashboard({
       {alerts && <Lights data={alerts} onOpen={(id) => onAlert?.(id)} />}
       <div className="panel">
         {setupDone ? (
-          <TwoSystemsPanel className="c4" data={data} periods={spending.periods} onWhy={() => go("learn")} />
+          <CostOfLivingPanel className="c4" data={data} periods={spending.periods} onWhy={() => go("learn")} />
         ) : (
           <SetupPanel
             className="c4"
@@ -183,7 +183,7 @@ export function Dashboard({
         <Panel className={setupDone ? "c12" : "c8"} name="Transactions" plain="latest entries" link={{ label: "All activity", onClick: () => go("activity") }}>
           {recent.length ? <EntryTable rows={recent.slice(0, 6)} account={false} /> : <div className="sub">Nothing recorded this month yet.</div>}
         </Panel>
-        {!setupDone && <TwoSystemsPanel className="c4" data={data} periods={spending.periods} onWhy={() => go("learn")} />}
+        {!setupDone && <CostOfLivingPanel className="c4" data={data} periods={spending.periods} onWhy={() => go("learn")} />}
       </div>
       {sheet && (
         <BillSheet

@@ -1,4 +1,4 @@
-/* Panels that need history: Two systems, Spending bridge and Money flow.
+/* Panels that need history: Cost of living, Spending bridge and Money flow.
    All sums stay in integers or decimal strings; numbers are for coordinates only. */
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
@@ -81,7 +81,7 @@ export function useSpendingData(data: DashboardData | null): SpendingData {
 const signed = (percent: number) => `${percent >= 0 ? "+" : "−"}${Math.abs(percent).toFixed(1)}%`;
 
 /** The same monthly cost of living, indexed to the first full month, in both units. */
-export function TwoSystemsPanel({ className, data, periods, onWhy }: { className?: string; data: DashboardData; periods: Period[]; onWhy: () => void }) {
+export function CostOfLivingPanel({ className, data, periods, onWhy }: { className?: string; data: DashboardData; periods: Period[]; onWhy: () => void }) {
   const usable = periods.filter((p) => p.usd !== null && cents(p.usd) > 0n);
   const base = usable.find((p) => p.bitcoin !== null && p.missing_bitcoin === 0);
   const priced = usable.filter((p) => p.bitcoin !== null && p.missing_bitcoin === 0);
@@ -89,7 +89,7 @@ export function TwoSystemsPanel({ className, data, periods, onWhy }: { className
     return (
       <Collecting
         className={className}
-        name="Two systems"
+        name="Cost of living"
         plain="the same life, priced two ways"
         have={data.days_of_history}
         need={60}
@@ -107,7 +107,7 @@ export function TwoSystemsPanel({ className, data, periods, onWhy }: { className
   const bitcoin = (Number(lastPriced.bitcoin) / Number(base.bitcoin) - 1) * 100;
   const partial = months.filter((p) => p.bitcoin === null || p.missing_bitcoin > 0).length;
   return (
-    <Panel className={className} name="Two systems" plain="the same life, priced two ways" link={{ label: "Why", onClick: onWhy }}>
+    <Panel className={className} name="Cost of living" plain="the same life, priced two ways" link={{ label: "Why", onClick: onWhy }}>
       <div className="lead">
         Since {monthName(base.period)}, a month of your life costs <b className="num">{signed(dollars)}</b> in dollars and{" "}
         <b className="num btc">{signed(bitcoin)}</b> in bitcoin.

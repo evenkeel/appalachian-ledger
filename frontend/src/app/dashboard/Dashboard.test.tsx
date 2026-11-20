@@ -113,12 +113,12 @@ describe("dashboard", () => {
     current = { ...reading, days_of_history: 19, first_entry_date: "2026-11-01" };
     history = [];
     await show();
-    expect(await screen.findByLabelText("Two systems: the same life, priced two ways")).toHaveTextContent("Collecting data — 19 of 60 days");
+    expect(await screen.findByLabelText("Cost of living: the same life, priced two ways")).toHaveTextContent("Collecting data — 19 of 60 days");
   });
 
   it("shows the same life priced in both systems once two full months exist", async () => {
     await show();
-    const label = "Two systems: the same life, priced two ways";
+    const label = "Cost of living: the same life, priced two ways";
     await waitFor(() => expect(screen.getByLabelText(label)).toHaveTextContent("Since Jun, a month of your life costs +4.8% in dollars and −11.7% in bitcoin."));
     const two = screen.getByLabelText(label);
     expect(within(two).getByText("$2,946.10")).toBeInTheDocument();
@@ -128,7 +128,7 @@ describe("dashboard", () => {
   it("leaves a month out of the bitcoin line rather than guess a missing price", async () => {
     history = [...periods.slice(0, 4), { period: "2026-10", usd: "2946.10", bitcoin: null, missing_bitcoin: 3 }];
     await show();
-    const label = "Two systems: the same life, priced two ways";
+    const label = "Cost of living: the same life, priced two ways";
     await waitFor(() => expect(screen.getByLabelText(label)).toHaveTextContent("1 month left out of the bitcoin line"));
     expect(screen.getByLabelText(label)).toHaveTextContent("−8.9% in bitcoin"); // through September, the last fully priced month
   });

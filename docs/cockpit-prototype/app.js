@@ -147,7 +147,7 @@
       lens, fmt, t, checking, bills, runway, payoffOf, boom: S.boom, paidStats: { n: 6 + paid.size, cents: 121450 + paidCents }, goneStats: { n: 2 + gone.size, cents: 3198 + goneCents }, expenses: ex, bitcoinAt, missing, rate,
       pace: { cur, prev, from: 1 }, spent, spentUsd, prior: priorCats, bridge, flow, catNow, catNames,
       stack: { ...D.stack, buys: D.other.filter((o) => o.kind === "stack"), stackUsd, stackBtc, rate: (stackUsd / incomeUsd) * 100, rates: D.stack.rates.concat([["Nov", Math.round((stackUsd / incomeUsd) * 1000) / 10]]) },
-      incomeUsd, movesUsd, restUsd, two: D.twoSystems, card, mortgage: D.mortgage,
+      incomeUsd, movesUsd, restUsd, two: D.costOfLiving, card, mortgage: D.mortgage,
       log: ex.concat(D.other).sort((a, b) => b.day - a.day),
     };
     m.alerts = alerts(m);
@@ -330,7 +330,7 @@
 
   function iTwo(m, cls) {
     const t = m.two, n = t.months.length, du = (t.usd[n - 1] / t.usd[0] - 1) * 100, db = (t.bitcoin[n - 1] / t.bitcoin[0] - 1) * 100;
-    return inst(cls, "Two systems", "the same life, priced two ways", `
+    return inst(cls, "Cost of living", "the same life, priced two ways", `
       <div class="lead">Since ${t.months[0]}, a month of your life costs <b class="num">${F.pct(du)}</b> in dollars and <b class="num btc">${F.pct(db)}</b> in bitcoin.</div>
       <div class="chart" data-chart="dual" style="flex:1;min-height:132px"></div>
       <div class="kv"><div><span>${t.months[n - 1]} in dollars</span><b>${F.usd(t.usd[n - 1])}</b></div><div><span>${t.months[n - 1]} in bitcoin</span><b class="btc">${F.btc(t.bitcoin[n - 1])}</b></div></div>
@@ -455,7 +455,7 @@
         ${iInop("c3", "Stack", "bitcoin held", "Record what you hold. Bitcoin is your saving; this is where it shows.", "Add bitcoin")}
         ${iInop("c3", "Bills", "what is due", "Add a bill and it shows up here as a target, with your checking balance as ammo.", "Add a bill")}
         ${iWait("c3", "Spending bridge", "what changed since last month", 3, 30, "days", "Needs one full month to compare against. Ready December 1.")}
-        ${iWait("c3", "Two systems", "the same life, priced two ways", 3, 60, "days", "Needs two full months and a price source. Ready about February 1.")}
+        ${iWait("c3", "Cost of living", "the same life, priced two ways", 3, 60, "days", "Needs two full months and a price source. Ready about February 1.")}
       </div>`;
     }
     return `<div class="panel">
@@ -491,7 +491,7 @@
   }
   const STUB = {
     bills: ["Bills", "Every bill as a target at full size, a 30-day view, recurring bills and your paycheck schedule. Pay records a payment after you confirm. Destroy cancels a bill for good and shows what that frees each year."],
-    stack: ["Stack", "Your bitcoin: holdings by wallet, every buy with the price actually paid, milestones and streaks, and the Two systems view at full size. Price source and provenance live here."],
+    stack: ["Stack", "Your bitcoin: holdings by wallet, every buy with the price actually paid, milestones and streaks, and the Cost of living view at full size. Price source and provenance live here."],
     accounts: ["Accounts", "Checking, cards, reserve, brokerage, property and loans in one place. Bitcoin and dollars are listed in their own units; no combined net worth figure."],
     horizon: ["Retirement", "The existing retirement planner, restyled: saved scenarios side by side in both systems. Everything here is hypothetical and drawn in amethyst."],
     learn: ["Learn", "A short, well-made course on thinking in two monetary systems, using your own ledger as the worked example."],
