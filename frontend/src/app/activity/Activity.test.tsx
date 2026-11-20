@@ -11,12 +11,15 @@ const accounts = [
   { id: 5, name: "Cold storage", kind: "bitcoin_wallet", role: "asset", currency: "BITCOIN", archived: false },
   { id: 6, name: "Old account", kind: "checking", role: "asset", currency: "USD", archived: true },
 ];
+let preferences: { payee_rules?: { match: string; category_id: number; account_id: number | null }[]; category_payment_defaults?: Record<string, number> } = {};
 vi.mock("../../lib/api", () => ({
   api: vi.fn(async (path: string, method = "GET", body?: unknown) => {
     calls.push({ path, method, body });
     if (path === "/transactions" && method === "GET") return transactions;
     if (path === "/accounts") return accounts;
     if (path === "/categories") return categories;
+    if (path === "/settings") return { preferences };
+    if (path === "/settings/payee-rules") return { ok: true };
     return { ...transactions[0], ...(body as object), description: (body as { description?: string })?.description ?? "x", purchase_cost: null };
   }),
 }));
@@ -32,6 +35,7 @@ const set = (label: string | RegExp, value: string) => fireEvent.change(within(f
 const writes = () => calls.filter((call) => call.method !== "GET");
 
 beforeEach(() => {
+  preferences = {};
   calls.length = 0;
   window.scrollTo = vi.fn();
 });
@@ -103,6 +107,62 @@ describe("transactions", () => {
     expect(screen.getByLabelText("Correct entry")).toHaveTextContent("replaces “Dining 20”");
     fireEvent.keyDown(document.body, { key: "Escape" });
     expect(screen.getByLabelText("New entry")).toBeInTheDocument();
+  });
+
+  it("files a payee by its saved rule, and pays from the rule's account", async () => {
+    preferences = { payee_rules: [{ match: "trailhead", category_id: 4, account_id: 8 }] };
+    await show();
+    set("Payee or note", "Trailhead Fuel #12");
+    expect(within(form()).getByLabelText("Category")).toHaveValue("4");
+    expect(within(form()).getByLabelText("Paid from")).toHaveValue("8");
+    set("Amount", "48.10");
+    fireEvent.click(within(form()).getByRole("button", { name: /^Save/ }));
+    await waitFor(() => expect(writes()).toHaveLength(1));
+    expect(writes()[0].body).toMatchObject({ category_id: 4, account_id: 8, amount: "48.10", description: "Trailhead Fuel #12" });
+  });
+
+  it("fills a payee seen before, and leaves a category picked by hand alone", async () => {
+    await show();
+    set("Payee or note", "Dining 20");
+    expect(within(form()).getByLabelText("Category")).toHaveValue("3");
+    expect(within(form()).getByLabelText("Amount")).toHaveValue("22.40");
+    set("Category", "4");
+    set("Payee or note", "Groceries 21");
+    expect(within(form()).getByLabelText("Category")).toHaveValue("4");
+  });
+
+  it("uses a category's usual account unless the account was picked by hand", async () => {
+    preferences = { category_payment_defaults: { "3": 8 } };
+    await show();
+    set("Category", "3");
+    expect(within(form()).getByLabelText("Paid from")).toHaveValue("8");
+    set("Paid from", "3");
+    set("Category", "2");
+    set("Category", "3");
+    expect(within(form()).getByLabelText("Paid from")).toHaveValue("3");
+  });
+
+  it("remembers a payee only when asked, after the entry is saved", async () => {
+    preferences = { payee_rules: [{ match: "old rule", category_id: 2, account_id: null }] };
+    await show();
+    set("Payee or note", "Blue Ridge Coffee");
+    set("Category", "3");
+    set("Amount", "6.50");
+    fireEvent.click(within(form()).getByLabelText(/Always file this payee under Dining/));
+    fireEvent.click(within(form()).getByRole("button", { name: /^Save/ }));
+    await waitFor(() => expect(writes()).toHaveLength(2));
+    expect(writes()[0].path).toBe("/transactions");
+    expect(writes()[1]).toEqual({
+      path: "/settings/payee-rules",
+      method: "PUT",
+      body: {
+        payee_rules: [
+          { match: "old rule", category_id: 2, account_id: null },
+          { match: "Blue Ridge Coffee", category_id: 3, account_id: 3 },
+        ],
+      },
+    });
+    expect(await screen.findByRole("status")).toHaveTextContent("will be filed under Dining from now on");
   });
 
   it("marks an expense with no saved price as missing", async () => {

@@ -129,7 +129,7 @@ export function Categories({ lists, error, reload }: { lists: Lists | null; erro
       {group("expense")}
       {group("income")}
       <div className="hint">
-        The spending type sorts expenses into fixed, essential and discretionary. The usual account is offered when you pick the category in the previous interface's entry form; the new Transactions screen does not use it yet. A category that entries, budgets or bills still use cannot be removed.
+        The spending type sorts expenses into fixed, essential and discretionary. The usual account is chosen for you when you pick the category for a new expense in Transactions; you can still change it there. A category that entries, budgets or bills still use cannot be removed.
       </div>
       <Note note={action.note} />
       <form className="set-form" onSubmit={add}>
@@ -194,7 +194,7 @@ export function PayeeRules({ lists, reload }: { lists: Lists | null; reload: () 
       ) : (
         <div className="sub">{lists ? "No rules yet." : "Loading rules…"}</div>
       )}
-      <div className="hint">When an entry's description contains a rule's text, the previous interface's entry form fills in its category and account. Rules are made there too; the new Transactions screen does not use them yet.</div>
+      <div className="hint">When a new entry's payee contains a rule's text, Transactions fills in its category and account. Tick “Always file this payee under…” when saving an entry to make a rule.</div>
       <Note note={action.note} />
     </Panel>
   );

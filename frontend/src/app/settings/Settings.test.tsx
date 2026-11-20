@@ -307,10 +307,21 @@ describe("appearance, backup, password and export", () => {
       ["/export/csv", "ledger-transactions.csv"],
       ["/export/journal", "ledger-journal.json"],
     ]);
-    // Only the audit trail is still in the previous interface.
-    const rest = screen.getByRole("region", { name: "Previous interface: what is still only there" });
-    expect(within(rest).getAllByRole("listitem")).toHaveLength(1);
-    expect(within(rest).getByRole("link", { name: "Open Settings in the previous interface" })).toHaveAttribute("href", "/legacy.html?page=Settings");
+    // Nothing on this screen sends the owner back to the previous interface.
+    expect(document.querySelector('a[href*="legacy.html"]')).toBeNull();
+  });
+
+  it("shows the record of actions only when asked, in plain words", async () => {
+    open();
+    const panel = screen.getByRole("region", { name: "Record of actions: every change, newest first" });
+    expect(calls("GET", "/audit")).toHaveLength(0);
+    replies["GET /audit"] = () => [
+      { id: 9, action: "recurring_bill.destroy", entity: "4", detail: { monthly_freed: "22.99" }, created_at: "2026-11-19T15:02:00+00:00" },
+      { id: 8, action: "backup.export", entity: "1", detail: {}, created_at: "2026-11-18T09:30:00+00:00" },
+    ];
+    fireEvent.click(within(panel).getByRole("button", { name: "Show the latest actions" }));
+    expect(await within(panel).findByText("Recurring bill · destroy")).toBeInTheDocument();
+    expect(within(panel).getByText("Backup · export")).toBeInTheDocument();
   });
 });
 

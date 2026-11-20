@@ -1658,3 +1658,106 @@ a.btn {
 .alw-form .field {
   flex: 1 1 120px;
 }
+
+/* Spending by month: one column per month, each a button that opens the month. */
+.hist {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 6px;
+  align-items: end;
+  height: 168px;
+}
+.hist button {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 4px;
+  height: 100%;
+  min-width: 0;
+  border-radius: 6px;
+  padding: 2px 2px 4px;
+  color: var(--ink-3);
+  font-size: var(--t-micro);
+}
+.hist button:hover,
+.hist button[aria-pressed="true"] {
+  background: var(--panel-2);
+  color: var(--ink);
+}
+.hist-v,
+.hist-m {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+  text-align: center;
+}
+.hist-col {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  min-height: 0;
+}
+.hist-col i {
+  display: block;
+  width: min(100%, 44px);
+  border-radius: 3px 3px 0 0;
+  background: var(--usd);
+  opacity: 0.55;
+}
+.hist-col i.now {
+  opacity: 1;
+}
+.hist button[aria-pressed="true"] .hist-col i {
+  opacity: 1;
+  box-shadow: 0 0 0 2px var(--panel-2), 0 0 0 3px var(--ink-2);
+}
+.hist.btc .hist-col i {
+  background: var(--btc);
+}
+.hist-col i.partial {
+  background: none;
+  border: 1px dashed var(--adv);
+  border-bottom: 0;
+  opacity: 1;
+}
+.hist-detail {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid var(--hairline);
+  padding-top: 10px;
+}
+.hist-two {
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) minmax(0, 2fr);
+  gap: 18px;
+  align-items: start;
+}
+.hist-cats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+  font-size: var(--t-small);
+}
+.hist-cats li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 3px 10px;
+}
+.hist-cats .bar {
+  grid-column: 1 / -1;
+  height: 5px;
+}
+@media (max-width: 720px) {
+  .hist {
+    gap: 2px;
+    height: 132px;
+  }
+  .hist-v {
+    display: none;
+  }
+  .hist-two {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

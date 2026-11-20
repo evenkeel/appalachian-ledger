@@ -10,6 +10,7 @@ import { btc, fromCents, longMonth, plural, usd } from "../lib/format";
 import type { Route } from "../lib/router";
 import { useSession } from "../lib/session";
 import { AllowancesPanel } from "./Allowances";
+import { HistoryPanel } from "./History";
 
 /** Spend pace, Spending bridge and Money flow at full size, with the entries behind any number. */
 export function Spending({ go, drill, onDrill, onChanged }: { go: (route: Route, sub?: string) => void; drill: string | null; onDrill: (key: string | null) => void; onChanged?: () => void }) {
@@ -96,12 +97,7 @@ function Loaded({ data, spending, go, drill, onDrill, onChanged }: { data: Dashb
         )}
         <CostOfLivingPanel className="c7" data={data} periods={spending.periods} onWhy={() => go("learn", "cost-of-living")} />
         <AllowancesPanel className="c5" month={data.month} elapsed={data.budgets.month_elapsed_percent} categories={spending.categories} onChanged={onChanged} />
-        <p className="hint" style={{ gridColumn: "1/-1" }}>
-          Earlier months and long-range category history are still in the previous interface:{" "}
-          <a className="inst-link" href="/legacy.html?page=Expenses">
-            open Expenses →
-          </a>
-        </p>
+        <HistoryPanel className="c12" data={data} lens={lens} />
       </div>
     </div>
   );

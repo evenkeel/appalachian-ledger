@@ -1,3 +1,4 @@
+import { AuditTrail } from "./Audit";
 import type { FormEvent } from "react";
 import { api, download, setCsrf } from "../../lib/api";
 import { Panel } from "../dashboard/panels";
@@ -13,7 +14,6 @@ import { Node } from "./Node";
 import { Note, useAction, useLists } from "./controls";
 import "./settings.css";
 
-const LEGACY = "/legacy.html?page=Settings";
 
 /** Each section saves on its own and says what happened. */
 export function Settings({ go, onChanged }: { go: (route: Route) => void; onChanged: () => void }) {
@@ -48,9 +48,7 @@ export function Settings({ go, onChanged }: { go: (route: Route) => void; onChan
 
         <div className="band">This ledger</div>
         <Password />
-        <div className="c4">
-          <More />
-        </div>
+        <AuditTrail className="c8" />
       </div>
     </div>
   );
@@ -156,18 +154,3 @@ function Export() {
   );
 }
 
-function More() {
-  return (
-    <Panel name="Previous interface" plain="what is still only there" inop>
-      <div className="sub">Everything on this screen has moved here. One thing has not:</div>
-      <ul className="set-more">
-        <li>The record of every action taken on this ledger (the audit trail)</li>
-      </ul>
-      <div>
-        <a className="btn sm" href={LEGACY}>
-          Open Settings in the previous interface
-        </a>
-      </div>
-    </Panel>
-  );
-}

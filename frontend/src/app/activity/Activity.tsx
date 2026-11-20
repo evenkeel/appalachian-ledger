@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { api } from "../../lib/api";
+import { matchRule, payeeMemory, upsertRule } from "../../lib/payees";
+import type { PayeeRule, Preferences } from "../../lib/types";
 import type { Account, Category, Transaction } from "../../lib/types";
 import { btc, usd } from "../lib/format";
 import { EntryTable } from "./EntryTable";
@@ -35,16 +37,27 @@ export function Activity({ onChanged }: { onChanged?: () => void }) {
   const [formKey, setFormKey] = useState(0);
   const [source, setSource] = useState("");
   const [target, setTarget] = useState("");
+  // Saved payee rules and each category's usual account fill a new entry; anything picked by hand wins.
+  const [rules, setRules] = useState<PayeeRule[]>([]);
+  const [usual, setUsual] = useState<Record<string, number>>({});
+  const [categoryId, setCategoryId] = useState("");
+  const [remember, setRemember] = useState(false);
+  const byHand = useRef({ category: false, account: false });
+  const amount = useRef<HTMLInputElement>(null);
   const description = useRef<HTMLInputElement>(null);
   const search = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     try {
-      const [list, accountList, categoryList] = await Promise.all([
+      const [list, accountList, categoryList, settings] = await Promise.all([
         api<Transaction[]>("/transactions"),
         api<Account[]>("/accounts"),
         api<Category[]>("/categories"),
+        // Rules are a convenience; the form works without them.
+        api<{ preferences: Partial<Preferences> }>("/settings").catch(() => null),
       ]);
+      setRules(settings?.preferences?.payee_rules ?? []);
+      setUsual(settings?.preferences?.category_payment_defaults ?? {});
       setRows(list);
       setAccounts(accountList.filter((account) => !account.archived));
       setCategories(categoryList);
@@ -102,6 +115,25 @@ export function Activity({ onChanged }: { onChanged?: () => void }) {
   const choices = categories.filter(
     (category) => category.kind === (kind === "income" ? "income" : "expense"),
   );
+  const chosenCategory = choices.find((category) => String(category.id) === categoryId) ?? choices[0];
+  const learning = !editing && (kind === "expense" || kind === "income");
+  const memory = useMemo(() => (learning ? payeeMemory(rows ?? [], kind) : []), [learning, rows, kind]);
+  const choiceIds = useMemo(() => new Set(choices.map((category) => category.id)), [choices]);
+
+  function useAccount(id: number | null | undefined) {
+    if (id != null && !byHand.current.account && from.some((account) => account.id === id)) setSource(String(id));
+  }
+  /** A saved rule wins; otherwise an exact match with a past payee fills the category, account and amount. */
+  function describe(text: string) {
+    if (!learning || byHand.current.category) return;
+    const rule = matchRule(rules, text, choiceIds);
+    const known = memory.find((payee) => payee.description.toLowerCase() === text.trim().toLowerCase());
+    const category = rule?.category_id ?? known?.category_id;
+    if (category == null || !choiceIds.has(category)) return;
+    setCategoryId(String(category));
+    if (kind === "expense") useAccount(rule?.account_id ?? known?.account_id ?? usual[String(category)]);
+    if (known && amount.current && !amount.current.value.trim()) amount.current.value = known.amount;
+  }
 
   const shown = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -126,12 +158,18 @@ export function Activity({ onChanged }: { onChanged?: () => void }) {
     );
     setSource(String(row.account_id));
     setTarget(row.destination_id ? String(row.destination_id) : "");
+    setCategoryId(row.category_id ? String(row.category_id) : "");
+    byHand.current = { category: true, account: true };
+    setRemember(false);
     setFormKey((n) => n + 1);
     setNotice("");
     window.scrollTo(0, 0);
     setTimeout(() => description.current?.focus(), 0);
   }
   function reset(keepKind = true) {
+    byHand.current = { category: false, account: false };
+    setCategoryId("");
+    setRemember(false);
     setEditing(null);
     if (!keepKind) setKind("expense");
     setFormKey((n) => n + 1);
@@ -161,7 +199,7 @@ export function Activity({ onChanged }: { onChanged?: () => void }) {
         );
       body.destination_id = targetAccount.id;
       if (crossCurrency) body.destination_amount = clean(form.get("received"));
-    } else body.category_id = Number(form.get("category_id"));
+    } else body.category_id = chosenCategory?.id;
     setBusy(true);
     setError("");
     try {
@@ -170,11 +208,22 @@ export function Activity({ onChanged }: { onChanged?: () => void }) {
         editing ? "PUT" : "POST",
         body,
       );
-      setNotice(
-        editing
-          ? `Corrected “${saved.description}”. The original was reversed and replaced; nothing was edited in place.`
-          : `Saved “${saved.description}”${saved.kind === "expense" && saved.currency === "USD" && !saved.purchase_cost ? ". No bitcoin price was saved for that date; it will show as missing, never guessed" : ""}.`,
-      );
+      let message = editing
+        ? `Corrected “${saved.description}”. The original was reversed and replaced; nothing was edited in place.`
+        : `Saved “${saved.description}”${saved.kind === "expense" && saved.currency === "USD" && !saved.purchase_cost ? ". No bitcoin price was saved for that date; it will show as missing, never guessed" : ""}.`;
+      const text = String(body.description).trim();
+      if (learning && remember && chosenCategory && text.length >= 2) {
+        // The entry is already saved; a rule that fails to save must not undo it.
+        try {
+          const next = upsertRule(rules, { match: text.slice(0, 80), category_id: chosenCategory.id, account_id: kind === "expense" ? sourceAccount.id : null }, choiceIds);
+          await api("/settings/payee-rules", "PUT", { payee_rules: next });
+          setRules(next);
+          message += ` “${text}” will be filed under ${chosenCategory.name} from now on.`;
+        } catch (e) {
+          message += ` The rule could not be saved: ${(e as Error).message}`;
+        }
+      }
+      setNotice(message);
       reset();
       await load();
       onChanged?.();
@@ -272,7 +321,11 @@ export function Activity({ onChanged }: { onChanged?: () => void }) {
               key={item.kind}
               type="button"
               aria-pressed={kind === item.kind}
-              onClick={() => setKind(item.kind)}
+              onClick={() => {
+                setKind(item.kind);
+                setCategoryId("");
+                byHand.current.category = false;
+              }}
             >
               {item.label}
             </button>
@@ -304,15 +357,29 @@ export function Activity({ onChanged }: { onChanged?: () => void }) {
               required={kind !== "stack"}
               maxLength={500}
               placeholder={kind === "stack" ? "Bitcoin buy" : undefined}
+              list={learning ? "known-payees" : undefined}
+              onChange={(event) => describe(event.target.value)}
               autoFocus
             />
+            {learning && (
+              <datalist id="known-payees">
+                {memory.slice(0, 40).map((payee) => (
+                  <option key={payee.description} value={payee.description} />
+                ))}
+              </datalist>
+            )}
           </label>
           {kind === "expense" || kind === "income" ? (
             <label className="field">
               <span>Category</span>
               <select
                 name="category_id"
-                defaultValue={editing?.category_id ?? undefined}
+                value={chosenCategory ? String(chosenCategory.id) : ""}
+                onChange={(event) => {
+                  byHand.current.category = true;
+                  setCategoryId(event.target.value);
+                  if (kind === "expense" && !editing) useAccount(usual[event.target.value]);
+                }}
                 required
               >
                 {choices.map((category) => (
@@ -347,7 +414,10 @@ export function Activity({ onChanged }: { onChanged?: () => void }) {
             </span>
             <select
               value={sourceAccount ? String(sourceAccount.id) : ""}
-              onChange={(event) => setSource(event.target.value)}
+              onChange={(event) => {
+                byHand.current.account = true;
+                setSource(event.target.value);
+              }}
             >
               {from.map((account) => (
                 <option key={account.id} value={account.id}>
@@ -359,6 +429,7 @@ export function Activity({ onChanged }: { onChanged?: () => void }) {
           <label className="field">
             <span>{amountLabel}</span>
             <input
+              ref={amount}
               name="amount"
               className="num"
               inputMode="decimal"
@@ -386,7 +457,7 @@ export function Activity({ onChanged }: { onChanged?: () => void }) {
               />
             </label>
           )}
-          <span style={{ display: "flex", gap: 8 }}>
+          <span style={{ display: "flex", gap: "8px 16px", gridColumn: "1 / -1", flexWrap: "wrap", alignItems: "center" }}>
             <button className="btn primary" disabled={busy}>
               {editing ? "Save correction" : "Save"} <kbd>⏎</kbd>
             </button>
@@ -398,6 +469,12 @@ export function Activity({ onChanged }: { onChanged?: () => void }) {
               >
                 Cancel <kbd>Esc</kbd>
               </button>
+            )}
+            {learning && (
+              <label className="check-line">
+              <input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} /> Always file this payee under{" "}
+              {chosenCategory?.name ?? "this category"}
+              </label>
             )}
           </span>
         </form>

@@ -495,3 +495,46 @@
     transition: none;
   }
 }
+
+/* Record of actions */
+.set-audit {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  font-size: var(--t-small);
+}
+.set-audit li {
+  border-top: 1px solid var(--hairline);
+}
+.set-audit summary {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr);
+  gap: 10px;
+  padding: 6px 0;
+  cursor: pointer;
+  list-style: none;
+}
+.set-audit summary::-webkit-details-marker {
+  display: none;
+}
+.set-audit summary:hover {
+  color: var(--ink);
+}
+.set-audit pre {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--well);
+  font-family: var(--font-num);
+  font-size: var(--t-label);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--ink-2);
+}
+@media (max-width: 720px) {
+  .set-audit summary {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+}
