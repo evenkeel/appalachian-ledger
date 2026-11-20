@@ -119,7 +119,7 @@ describe("dashboard", () => {
   it("shows the same life priced in both systems once two full months exist", async () => {
     await show();
     const label = "Cost of living: the same life, priced two ways";
-    await waitFor(() => expect(screen.getByLabelText(label)).toHaveTextContent("Since Jun, a month of your life costs +4.8% in dollars and −11.7% in bitcoin."));
+    await waitFor(() => expect(screen.getByLabelText(label)).toHaveTextContent("Since June, a month of your life costs +4.8% in dollars and −11.7% in bitcoin."));
     const two = screen.getByLabelText(label);
     expect(within(two).getByText("$2,946.10")).toBeInTheDocument();
     expect(within(two).getByText("₿2,584,298")).toBeInTheDocument();

@@ -109,12 +109,12 @@ export function CostOfLivingPanel({ className, data, periods, onWhy }: { classNa
   return (
     <Panel className={className} name="Cost of living" plain="the same life, priced two ways" link={{ label: "Why", onClick: onWhy }}>
       <div className="lead">
-        Since {monthName(base.period)}, a month of your life costs <b className="num">{signed(dollars)}</b> in dollars and{" "}
+        Since {longMonth(base.period)}, a month of your life costs <b className="num">{signed(dollars)}</b> in dollars and{" "}
         <b className="num btc">{signed(bitcoin)}</b> in bitcoin.
       </div>
       <Frame
         style={{ flex: 1, minHeight: 132 }}
-        label={`Monthly cost of living indexed to ${monthName(base.period)}: dollars ${signed(dollars)}, bitcoin ${signed(bitcoin)}.`}
+        label={`Monthly cost of living indexed to ${longMonth(base.period)}: dollars ${signed(dollars)}, bitcoin ${signed(bitcoin)}.`}
       >
         {(W, H) => {
           const pad = { l: 6, r: 96, t: 12, b: 18 },
@@ -145,18 +145,18 @@ export function CostOfLivingPanel({ className, data, periods, onWhy }: { classNa
             <>
               <line x1={pad.l} x2={W - pad.r} y1={y(100)} y2={y(100)} stroke="var(--bezel)" strokeDasharray="3 4" />
               <text x={pad.l} y={y(100) - 4}>
-                {monthName(base.period)} = 100
+                {longMonth(base.period)} = 100
               </text>
               <path d={line(indexUsd)} fill="none" stroke="var(--usd)" strokeWidth="2" />
               <path d={line(indexBtc)} fill="none" stroke="var(--btc)" strokeWidth="2.4" />
               {months.map((p, i) => (
                 <g key={p.period}>
                   <circle cx={x(i)} cy={y(indexUsd[i])} r="3" fill="var(--usd)">
-                    <title>{`${monthName(p.period)} in dollars: ${usd(p.usd)}`}</title>
+                    <title>{`${longMonth(p.period)} in dollars: ${usd(p.usd)}`}</title>
                   </circle>
                   {indexBtc[i] !== null && (
                     <circle cx={x(i)} cy={y(indexBtc[i]!)} r="3" fill="var(--btc)">
-                      <title>{`${monthName(p.period)} in bitcoin: ${btc(p.bitcoin)}`}</title>
+                      <title>{`${longMonth(p.period)} in bitcoin: ${btc(p.bitcoin)}`}</title>
                     </circle>
                   )}
                   {(n <= 7 || i === 0 || i === n - 1) && (
@@ -178,11 +178,11 @@ export function CostOfLivingPanel({ className, data, periods, onWhy }: { classNa
       </Frame>
       <div className="kv">
         <div>
-          <span>{monthName(last.period)} in dollars</span>
+          <span>{longMonth(last.period)} in dollars</span>
           <b>{usd(last.usd)}</b>
         </div>
         <div>
-          <span>{monthName(lastPriced.period)} in bitcoin</span>
+          <span>{longMonth(lastPriced.period)} in bitcoin</span>
           <b className="btc">{btc(lastPriced.bitcoin)}</b>
         </div>
       </div>

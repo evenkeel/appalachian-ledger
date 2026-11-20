@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { LevelIcon } from "../design/icons";
-import { btc, cents, coordinate, fromCents, monthName, plural, shortDate, usd, usdWhole } from "../lib/format";
+import { btc, cents, coordinate, fromCents, longMonth, monthName, plural, shortDate, usd, usdWhole } from "../lib/format";
 import type { Route } from "../lib/router";
 import type { Lens } from "../lib/session";
 import { BillsLane, CashAheadChart, PaceChart, StackRateBars, StackSpark, StackTape, shift } from "./charts";
@@ -239,7 +239,7 @@ export function StackPanel({ className, data, flag, go }: { className?: string; 
               "Higher is better."
             ) : (
               <>
-                {Number(now) >= last ? "▲" : "▼"} {Math.abs(Number(now) - last).toFixed(1)} pts vs {monthName(earlier[earlier.length - 1].month)}
+                {Number(now) >= last ? "▲" : "▼"} {Math.abs(Number(now) - last).toFixed(1)} pts vs {longMonth(earlier[earlier.length - 1].month)}
                 {best !== null && Number(now) > best && (
                   <>
                     {" · "}
@@ -267,7 +267,7 @@ export function StackPanel({ className, data, flag, go }: { className?: string; 
           {stack.streak_months > 0 && <span className="badge">{stack.streak_months}-month streak</span>}{" "}
           {stack.best_month && (
             <>
-              Best month <b className="num btc">{btc(stack.best_month.bitcoin)}</b> in {monthName(stack.best_month.month)}
+              Best month <b className="num btc">{btc(stack.best_month.bitcoin)}</b> in {longMonth(stack.best_month.month)}
             </>
           )}
         </div>

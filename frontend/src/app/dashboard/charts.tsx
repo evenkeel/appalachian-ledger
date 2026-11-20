@@ -1,7 +1,7 @@
 /* Hand-built SVG charts. Numbers are used for coordinates only; every label and
    title is formatted from the exact decimal string the API returned. */
 import type { ReactNode } from "react";
-import { btc, btcShort, coordinate, daysBetween, monthName, shortDate, usd, usdWhole } from "../lib/format";
+import { btc, btcShort, coordinate, daysBetween, longMonth, monthName, shortDate, usd, usdWhole } from "../lib/format";
 import type { Lens } from "../lib/session";
 import { useSize } from "../lib/useSize";
 import type { Bill, DashboardData } from "./types";
@@ -375,7 +375,7 @@ function niceSpan(value: number) {
 export function StackSpark({ history }: { history: DashboardData["stack"]["history"] }) {
   if (history.length < 2) return null;
   return (
-    <Frame height={42} label={`Bitcoin held by month, ${monthName(history[0].month)} to ${monthName(history[history.length - 1].month)}.`}>
+    <Frame height={42} label={`Bitcoin held by month, ${longMonth(history[0].month)} to ${longMonth(history[history.length - 1].month)}.`}>
       {(W, H) => {
         const values = history.map((point) => coordinate(point.held));
         const lo = Math.min(...values),
@@ -389,7 +389,7 @@ export function StackSpark({ history }: { history: DashboardData["stack"]["histo
             <path d={d} fill="none" stroke="var(--btc)" strokeWidth="1.8" />
             {history.map((point, i) => (
               <circle key={point.month} cx={x(i)} cy={y(values[i])} r="2" fill="var(--btc)">
-                <title>{`${monthName(point.month)}: ${btc(point.held)}`}</title>
+                <title>{`${longMonth(point.month)}: ${btc(point.held)}`}</title>
               </circle>
             ))}
             <text x={x(0)} y={H - 1}>
@@ -410,7 +410,7 @@ export function StackRateBars({ rates }: { rates: DashboardData["stack"]["rates"
   const known = rates.filter((point) => point.rate !== null);
   if (!known.length) return null;
   return (
-    <Frame height={50} label={`Stack rate by month. ${known.map((p) => `${monthName(p.month)} ${p.rate}%`).join(", ")}.`}>
+    <Frame height={50} label={`Stack rate by month. ${known.map((p) => `${longMonth(p.month)} ${p.rate}%`).join(", ")}.`}>
       {(W, H) => {
         const n = rates.length;
         const top = Math.max(...known.map((p) => Number(p.rate)), 1) * 1.1;
@@ -432,7 +432,7 @@ export function StackRateBars({ rates }: { rates: DashboardData["stack"]["rates"
                     fill="var(--btc)"
                     opacity={i === n - 1 ? 1 : 0.38}
                   >
-                    <title>{`${monthName(point.month)}: ${point.rate}% of income stacked${i === n - 1 ? " so far" : ""}`}</title>
+                    <title>{`${longMonth(point.month)}: ${point.rate}% of income stacked${i === n - 1 ? " so far" : ""}`}</title>
                   </rect>
                 )}
                 <text x={i * stepX + bar / 2} y={H - 2} textAnchor="middle" className={i === n - 1 ? "lbl" : undefined}>
@@ -504,7 +504,7 @@ export function PaceChart({ pace, lens, month }: { pace: DashboardData["pace"]; 
               (value, i) =>
                 value !== null && (
                   <circle key={i} cx={x(i + 1)} cy={y(Number(value))} r="6" fill="transparent">
-                    <title>{`Day ${i + 1}: ${format(value)} so far${previous?.[i] != null ? `; ${prior} ${format(previous[i])}` : ""}`}</title>
+                    <title>{`Day ${i + 1}: ${format(value)} so far${previous?.[i] != null ? `; ${longMonth(shift(month, -1))} ${format(previous[i])}` : ""}`}</title>
                   </circle>
                 ),
             )}
