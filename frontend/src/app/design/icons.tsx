@@ -40,11 +40,18 @@ export const NavIcon = {
       <path d="M9 8h6M9 12h6" />
     </>,
   ),
+  // The bitcoin sign: a B with the two short strokes above and below.
   stack: line(
     <>
-      <path d="M12 3l9 5-9 5-9-5z" />
-      <path d="M3 13l9 5 9-5" />
-      <path d="M3 17.5l9 5 9-5" opacity=".5" />
+      <path d="M8 5.5h5.5a3.25 3.25 0 0 1 0 6.5H8zM8 12h6.5a3.25 3.25 0 0 1 0 6.5H8z" />
+      <path d="M10.5 3v2.5M13.5 3v2.5M10.5 18.5V21M13.5 18.5V21M6 5.5h2M6 18.5h2" />
+    </>,
+  ),
+  markets: line(
+    <>
+      <path d="M6 4v14M6 7H3.5M6 14h2.5" />
+      <path d="M12 7v13M12 10H9.5M12 17h2.5" />
+      <path d="M18 3v12M18 6h-2.5M18 12h2.5" />
     </>,
   ),
   accounts: line(

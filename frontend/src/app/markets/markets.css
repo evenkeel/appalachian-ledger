@@ -1,0 +1,584 @@
+/* Markets screen. Shared pieces (.inst, .seg, .btn, .tag, .field, .sheet) come from design/app.css.
+   Price charts use the trader's convention of green for a rise and red for a fall. The fall is a rose,
+   kept apart from the alert red so a falling bar is never read as a warning light. */
+.mk {
+  --mk-up: var(--ok);
+  --mk-down: #e2647c;
+  --mk-ma-1: #a9c1cf;
+  --mk-ma-2: #bd90e4;
+  --mk-ma-3: #4fb3a6;
+}
+:root[data-theme="day"] .mk {
+  --mk-down: #b8324f;
+  --mk-ma-1: #5d7f92;
+  --mk-ma-2: #7a49b0;
+  --mk-ma-3: #1f7f73;
+}
+.mk-up {
+  color: var(--mk-up);
+}
+.mk-down {
+  color: var(--mk-down);
+}
+.mk-gap {
+  flex: 1;
+}
+
+/* Top row */
+.mk-top {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex-wrap: wrap;
+}
+.mk-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--t-label);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.mk-live i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+  animation: mk-pulse 2s var(--ease) infinite;
+}
+.mk-live.off {
+  color: var(--ink-3);
+}
+.mk-live.off i {
+  background: var(--ink-3);
+  animation: none;
+}
+@keyframes mk-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+.mk-note {
+  max-width: 110ch;
+  margin: 0;
+}
+/* Dollars or bitcoin for one chart: the same pair as the switch in the top bar, copper for bitcoin. */
+.mk-unit button {
+  min-width: 30px;
+  font-family: var(--font-num);
+  font-size: var(--t-small);
+}
+.mk-bar .mk-unit button {
+  font-size: var(--t-small);
+}
+.mk-unit button.b[aria-pressed="true"] {
+  color: var(--btc);
+}
+.mk-note a {
+  color: var(--ink-2);
+}
+
+/* Board */
+.mk-board {
+  min-width: 0;
+}
+.mk-board .react-grid-item > div,
+.mk-full,
+.mk-stack > div {
+  min-width: 0;
+}
+.mk-board .react-grid-item {
+  display: flex;
+}
+.mk-full {
+  display: flex;
+  height: max(420px, calc(100dvh - 190px));
+}
+.mk-stack {
+  display: grid;
+  gap: 12px;
+}
+.mk-stack > div {
+  display: flex;
+}
+.mk-stack > .mk-cell-chart {
+  height: 480px;
+}
+.mk-stack > .mk-cell-list {
+  max-height: 460px;
+}
+.mk-none {
+  max-width: 520px;
+  gap: var(--s3);
+}
+/* A panel with an open menu sits above its neighbours so the menu is not covered. */
+.mk-board .react-grid-item:has(.mk-menu-open) {
+  z-index: 4;
+}
+.mk-board .react-grid-item.react-grid-placeholder {
+  background: var(--btc-soft);
+  border: 1px dashed var(--btc);
+  border-radius: var(--r-inst);
+  opacity: 1;
+}
+.mk-board .react-grid-item > .react-resizable-handle {
+  opacity: 0;
+  transition: opacity var(--d-micro) var(--ease);
+}
+.mk-board .react-grid-item:hover > .react-resizable-handle,
+.mk-board .react-grid-item.resizing > .react-resizable-handle {
+  opacity: 1;
+}
+.mk-board .react-grid-item > .react-resizable-handle::after {
+  border-color: var(--ink-3);
+  right: 5px;
+  bottom: 5px;
+  width: 7px;
+  height: 7px;
+}
+/* The bottom and right edges resize too, without a mark of their own. */
+.mk-board .react-grid-item > .react-resizable-handle-s {
+  left: 24px;
+  right: 24px;
+  bottom: -5px;
+  width: auto;
+  height: 10px;
+  margin: 0;
+  transform: none;
+}
+.mk-board .react-grid-item > .react-resizable-handle-e {
+  top: 24px;
+  bottom: 24px;
+  right: -5px;
+  width: 10px;
+  height: auto;
+  margin: 0;
+  transform: none;
+}
+.mk-board .react-grid-item > .react-resizable-handle-s::after,
+.mk-board .react-grid-item > .react-resizable-handle-e::after {
+  display: none;
+}
+
+/* Panel */
+.mk-panel {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  gap: 0;
+  container-type: inline-size;
+}
+/* A narrow watchlist keeps names and prices and drops the small chart. */
+@container (max-width: 270px) {
+  .mk-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .mk-row > span:nth-child(2),
+  .mk-head .inst-plain {
+    display: none;
+  }
+}
+@container (max-width: 420px) {
+  .mk-src {
+    display: none;
+  }
+}
+.mk-panel.mk-active {
+  box-shadow: inset 0 2px 0 var(--btc);
+}
+.mk-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: start;
+  padding: 8px 8px 4px 12px;
+  min-width: 0;
+}
+.mk-facts {
+  display: flex;
+  align-items: baseline;
+  gap: 2px 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+  min-height: 26px;
+}
+.mk-tools {
+  display: flex;
+  gap: 2px;
+}
+.mk-grip {
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+.react-draggable-dragging .mk-grip {
+  cursor: grabbing;
+}
+.mk-full .mk-grip,
+.mk-stack .mk-grip {
+  cursor: default;
+  touch-action: auto;
+}
+.mk-symbol {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  padding: 2px 6px;
+  margin-left: -6px;
+  border-radius: 6px;
+  color: var(--ink-3);
+}
+.mk-symbol:hover {
+  background: var(--panel-2);
+}
+.mk-symbol b {
+  color: var(--ink);
+  font-size: var(--t-lead);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mk-symbol small {
+  font-size: var(--t-micro);
+  letter-spacing: 0.04em;
+}
+.mk-price {
+  font-size: var(--t-lead);
+}
+.mk-tick-up {
+  animation: mk-tick-up 700ms var(--ease);
+}
+.mk-tick-down {
+  animation: mk-tick-down 700ms var(--ease);
+}
+@keyframes mk-tick-up {
+  from {
+    color: var(--mk-up);
+  }
+}
+@keyframes mk-tick-down {
+  from {
+    color: var(--mk-down);
+  }
+}
+.mk-move {
+  font-size: var(--t-small);
+}
+.mk-move small {
+  color: var(--ink-3);
+  font-size: var(--t-micro);
+}
+.mk-tool {
+  align-self: center;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  color: var(--ink-3);
+  font-size: 17px;
+  line-height: 1;
+}
+.mk-tool svg {
+  width: 14px;
+  height: 14px;
+}
+.mk-tool:hover:not([disabled]) {
+  color: var(--ink);
+  background: var(--panel-2);
+}
+.mk-tool[disabled] {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Bar size, style and indicators */
+.mk-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px 8px;
+  flex-wrap: wrap;
+  padding: 2px 10px 8px 12px;
+  border-bottom: 1px solid var(--hairline);
+}
+.mk-bar .seg button {
+  min-height: 26px;
+  padding: 2px 9px;
+  font-size: var(--t-label);
+  display: grid;
+  place-items: center;
+}
+.mk-tf button {
+  min-width: 34px;
+  font-family: var(--font-num);
+}
+.mk-style button {
+  padding: 2px 7px;
+}
+.mk-style svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+}
+.mk-bar .btn.sm {
+  min-height: 28px;
+}
+.mk-src {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: right;
+  font-size: var(--t-micro);
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mk-menu {
+  position: relative;
+}
+.mk-pop {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 6;
+  display: grid;
+  gap: 2px;
+  min-width: 210px;
+  padding: 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--bezel);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+.mk-pop label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 5px;
+  font-size: var(--t-small);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.mk-pop label:hover {
+  background: var(--panel);
+}
+.mk-pop input {
+  accent-color: var(--btc);
+  margin: 0;
+}
+
+/* Chart */
+.mk-body {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+}
+.mk-body > .mk-chart {
+  position: absolute;
+  inset: 0;
+}
+.mk-canvas {
+  position: absolute;
+  inset: 2px 2px 2px 6px;
+}
+.mk-legend {
+  position: absolute;
+  top: 6px;
+  left: 12px;
+  right: 70px;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 12px;
+  font-size: var(--t-label);
+  color: var(--ink-2);
+  pointer-events: none;
+}
+.mk-legend > span {
+  background: color-mix(in srgb, var(--panel) 78%, transparent);
+  border-radius: 3px;
+}
+.mk-legend i {
+  font-style: normal;
+  color: var(--ink-3);
+}
+.mk-latest {
+  position: absolute;
+  right: 72px;
+  bottom: 36px;
+  z-index: 3;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--bezel);
+  background: var(--panel-2);
+  color: var(--ink-2);
+  box-shadow: var(--shadow);
+}
+.mk-latest:hover {
+  color: var(--ink);
+}
+.mk-empty {
+  flex: 1;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--s2);
+  padding: var(--s4);
+  text-align: center;
+}
+.mk-empty p {
+  margin: 0;
+  max-width: 44ch;
+}
+
+/* Watchlist */
+.mk-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 4px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  border-top: 1px solid var(--hairline);
+}
+.mk-list li {
+  position: relative;
+  border-bottom: 1px solid var(--hairline);
+}
+.mk-list li.sel {
+  box-shadow: inset 2px 0 0 var(--btc);
+  background: var(--panel-2);
+}
+.mk-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(36px, 72px) auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 7px 12px;
+  text-align: left;
+}
+.mk-row:hover {
+  background: var(--panel-2);
+}
+.mk-who {
+  display: grid;
+  min-width: 0;
+}
+.mk-who b {
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mk-who small,
+.mk-fig small {
+  font-size: var(--t-micro);
+  color: var(--ink-3);
+}
+.mk-fig small.mk-up {
+  color: var(--mk-up);
+}
+.mk-fig small.mk-down {
+  color: var(--mk-down);
+}
+.mk-fig {
+  display: grid;
+  justify-items: end;
+}
+.mk-fig b {
+  font-weight: 400;
+}
+.mk-spark {
+  display: block;
+  width: 100%;
+  height: 26px;
+}
+.mk-drop {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--panel);
+  border: 1px solid var(--bezel);
+  color: var(--ink-2);
+  line-height: 1;
+  opacity: 0;
+}
+.mk-list li:hover .mk-drop,
+.mk-drop:focus-visible {
+  opacity: 1;
+}
+.mk-drop:hover {
+  color: var(--ink);
+}
+
+/* Symbol search */
+.mk-picks {
+  max-height: max(140px, min(420px, 78vh - 210px));
+  overflow-y: auto;
+  display: grid;
+  gap: var(--s2);
+  margin: 0 -6px;
+}
+.mk-picks h3 {
+  margin: 4px 6px 2px;
+  font-size: var(--t-micro);
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.mk-picks ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.mk-picks p {
+  margin: 0 6px;
+}
+.mk-pick {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 6px;
+  border-radius: 6px;
+  text-align: left;
+}
+.mk-pick:hover,
+.mk-pick:focus-visible {
+  background: var(--panel-2);
+}
+.mk-pick small {
+  color: var(--ink-3);
+  font-size: var(--t-micro);
+  text-align: right;
+  white-space: normal;
+}
+
+@media (max-width: 720px) {
+  .mk-top h1 {
+    flex-basis: 100%;
+  }
+  .mk-top .mk-gap {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mk-live i,
+  .mk-tick-up,
+  .mk-tick-down {
+    animation: none;
+  }
+}

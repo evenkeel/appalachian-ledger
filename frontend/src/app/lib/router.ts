@@ -6,6 +6,7 @@ export const ROUTES = [
   "spending",
   "bills",
   "stack",
+  "markets",
   "accounts",
   "retirement",
   "learn",
