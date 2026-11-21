@@ -9,7 +9,7 @@ export const reading: DashboardData = {
   first_entry_date: "2026-06-01",
   days_of_history: 172,
   price: { usd_per_btc: "118750.00", bitcoin_per_usd: "842", source: "Fictional demo rate", day: "2026-11-19", observed_at: null, stale: false },
-  ammo: { total: "4812.40", accounts: [{ id: 3, name: "Everyday checking", balance: "4812.40" }] },
+  checking: { total: "4812.40", accounts: [{ id: 3, name: "Everyday checking", balance: "4812.40" }] },
   cash_ahead: {
     status: "ready",
     horizon_days: 30,
@@ -80,7 +80,7 @@ export const empty: DashboardData = {
   first_entry_date: null,
   days_of_history: 0,
   price: null,
-  ammo: { total: "0.00", accounts: [] },
+  checking: { total: "0.00", accounts: [] },
   cash_ahead: { status: "needs_account", horizon_days: 30, start: "0.00", events: [], next_paycheck: null, due_before_paycheck: "0.00", low: { date: "2026-11-19", balance: "0.00" }, short: null, covered_days: null },
   bills: { items: [], next_7: "0.00", next_30: "0.00", paid_this_month: { count: 0, total: "0.00" }, destroyed: { count: 0, monthly_freed: "0.00" } },
   stack: { status: "needs_bitcoin", held: "0", month_start: "0", gained: "0", buys: { count: 0, usd: "0.00", bitcoin: "0" }, stack_rate: null, rates: [], history: [], milestone: { previous: "0", next: "100000" }, streak_months: 0, best_month: null },

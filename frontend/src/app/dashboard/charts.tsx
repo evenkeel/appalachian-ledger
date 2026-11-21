@@ -301,8 +301,8 @@ export function BillsLane({
                 <g key={index}>
                   <line x1={px} x2={px} y1="16" y2={H - 18} stroke="var(--plan)" strokeDasharray="3 3" />
                   <text x={px} y="11" textAnchor="middle" style={{ fill: "var(--plan)" }}>
-                    <title>{`Planned paycheck ${usd(pay.amount)} on ${shortDate(pay.date)}. It reloads your ammo.`}</title>
-                    Reload +{usdWhole(pay.amount)}
+                    <title>{`Planned paycheck ${usd(pay.amount)} on ${shortDate(pay.date)}. It adds to your dollars in checking.`}</title>
+                    Payday +{usdWhole(pay.amount)}
                   </text>
                 </g>
               );

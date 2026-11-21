@@ -59,7 +59,7 @@ describe("bills", () => {
     expect(list.getByRole("button", { name: "Pay off Mortgage in full and destroy it" })).toBeInTheDocument();
     expect(list.getByRole("button", { name: "Destroy Streaming for good" })).toBeInTheDocument();
     const glance = screen.getByLabelText(/^At a glance/);
-    expect(glance).toHaveTextContent("Ammo · in checking$4,812.40");
+    expect(glance).toHaveTextContent("Dollars in checking$4,812.40");
     expect(glance).toHaveTextContent("All bills, a month$2,707.35");
   });
 

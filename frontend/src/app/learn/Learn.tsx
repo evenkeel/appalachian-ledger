@@ -15,7 +15,7 @@ export const LEARN_TOPICS = [
   { id: "bitcoin-is-saving", title: "Dollars are for spending. Bitcoin is for saving." },
   { id: "units", title: "₿125,000, not 0.00125 BTC" },
   { id: "stack-rate", title: "Stack rate: the score" },
-  { id: "ammo-and-bills", title: "Ammo, and what to do with a bill" },
+  { id: "bills", title: "What to do with a bill" },
   { id: "prices", title: "How things get a bitcoin price" },
   { id: "alert-lights", title: "What the alert lights mean" },
   { id: "private", title: "Yours, on your machine" },
@@ -203,7 +203,7 @@ export function Learn({ go }: { go: (route: Route) => void }) {
                     <dt>Weak at</dt>
                     <dd>Lasting. They buy less the longer you hold them.</dd>
                     <dt>In this app</dt>
-                    <dd>Ammo, in checking.</dd>
+                    <dd>Dollars in checking.</dd>
                   </dl>
                 </li>
                 <li className="inst">
@@ -332,11 +332,11 @@ export function Learn({ go }: { go: (route: Route) => void }) {
           )}
 
           {section(
-            "ammo-and-bills",
+            "bills",
             <>
               <p>
-                The dollars in your checking account are ammo. Bills are the targets. Before each paycheck reloads checking, the Bills screen shows
-                whether you have enough ammo for everything that is due.
+                Bills are paid with the dollars in your checking account. Before each paycheck lands, the Bills screen shows whether checking covers
+                everything that is due.
               </p>
               <p>There are three things you can do with a bill.</p>
               <dl className="lrn-terms">

@@ -23,12 +23,12 @@ type Card = DashboardData["debt"]["cards"][number];
 const ADD_KINDS = ["checking", "bitcoin_wallet", "credit_card", "savings", "cash", "loan", "mortgage", "brokerage", "real_estate", "vehicle", "other_asset", "other_liability"];
 const DEBT_KINDS = ["credit_card", "loan", "mortgage", "other_liability"];
 const GROUPS: { key: Account["holding_type"]; name: string; plain: string; empty: string }[] = [
-  { key: "dollars", name: "Dollars", plain: "checking, savings and cash", empty: "No dollar accounts yet. Add your checking account: its balance is the ammo you pay bills with." },
+  { key: "dollars", name: "Dollars", plain: "checking, savings and cash", empty: "No dollar accounts yet. Add your checking account: bills are paid from it." },
   { key: "bitcoin", name: "Bitcoin", plain: "your stack, by wallet", empty: "No bitcoin wallet yet. Add one and the Stack panel turns on." },
   { key: "debt", name: "Cards and debt", plain: "what you owe", empty: "No cards or loans. Nothing owed." },
   { key: "valued_asset", name: "Investments and property", plain: "valued in dollars", empty: "Nothing here yet. Add a brokerage account, a home or a vehicle if you track them." },
 ];
-const isAmmo = (account: Account) => account.currency === "USD" && (account.kind === "checking" || account.kind === "cash") && !account.exclude_from_liquid_usd;
+const paysBills = (account: Account) => account.currency === "USD" && (account.kind === "checking" || account.kind === "cash") && !account.exclude_from_liquid_usd;
 /** Exact sum of dollar values; null when any value has no price behind it. */
 function sum(values: (string | null)[]) {
   let total = 0n;
@@ -131,7 +131,7 @@ export function Accounts({ go, onChanged }: { go: (route: Route) => void; onChan
       <div className="grid2">
         {open.length === 0 ? (
           <Panel className="c6" name="Start here" plain="add your first account" inop>
-            <div className="sub">Add your checking account first. Its balance is the ammo you pay bills with, and it turns on Cash ahead and Spend pace.</div>
+            <div className="sub">Add your checking account first. Bills are paid from it, and it turns on Cash ahead and Spend pace.</div>
             <div>
               <button className="btn sm primary" onClick={() => setSheet("new")}>
                 Add an account
@@ -153,7 +153,7 @@ export function Accounts({ go, onChanged }: { go: (route: Route) => void; onChan
               <div>
                 <span>Dollars</span>
                 <b>{usd(fromCents(totals.dollars ?? 0n))}</b>
-                <small className="num">{usd(data.ammo.total)} is ammo</small>
+                <small className="num">{usd(data.checking.total)} in checking</small>
               </div>
               <div>
                 <span>Investments and property</span>
@@ -274,7 +274,7 @@ function Row({ account, card, open, onDetail, onPay, onChange }: { account: Acco
         <b>{account.name}</b>
         <small>
           {KIND[account.kind] ?? account.kind}
-          {isAmmo(account) && " · ammo"}
+          {paysBills(account) && " · pays the bills"}
           {account.portfolio && ` · ${account.portfolio.holdings.length === 1 ? "1 holding" : `${account.portfolio.holdings.length} holdings`}${account.portfolio.holdings.some((holding) => holding.stale) ? " · quote stale" : ""}`}
           {account.kind === "credit_card" &&
             (card?.limit ? ` · ${card.utilization ?? "0"}% of ${usd(card.limit)} used` : " · no limit set")}
@@ -479,7 +479,7 @@ function ChangeSheet({ account, card, today, onClose, onDone }: { account: Accou
       await api(`/accounts/${account.id}`, "PATCH", {
         name,
         archived: false,
-        ...(checking ? { exclude_from_liquid_usd: fields.get("ammo") !== "on" } : {}),
+        ...(checking ? { exclude_from_liquid_usd: fields.get("for_bills") !== "on" } : {}),
         ...(consumer ? { exclude_from_consumer_debt: fields.get("not_consumer") === "on" } : {}),
       });
       if (account.kind === "credit_card") {
@@ -528,7 +528,7 @@ function ChangeSheet({ account, card, today, onClose, onDone }: { account: Accou
         </div>
         {checking && (
           <label className="check-line">
-            <input type="checkbox" name="ammo" defaultChecked={!account.exclude_from_liquid_usd} /> Count this account as ammo for bills
+            <input type="checkbox" name="for_bills" defaultChecked={!account.exclude_from_liquid_usd} /> Count this account as dollars in checking
           </label>
         )}
         {consumer && (

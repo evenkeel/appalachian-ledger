@@ -2,9 +2,9 @@
 
 Status: **fourth draft, awaiting owner feedback.** "Cockpit" was shorthand for a dense dashboard, so this draft drops the flight vocabulary and uses plain names. The file keeps its original name.
 
-Changed since the first draft: plain names throughout; the bills radar replaced by a bills panel with targets and ammo; "Watershed" renamed **Money flow**; a small game layer; clearer spend-pace wording.
+Changed since the first draft: plain names throughout; the bills radar replaced by a bills panel with targets on a 30-day line; "Watershed" renamed **Money flow**; a small game layer; clearer spend-pace wording.
 
-Changed in the third draft: the logo redrawn as three gentle, layered hills (approved); a confirm step; spare ammo can be stacked.
+Changed in the third draft: the logo redrawn as three gentle, layered hills (approved); a confirm step; spare dollars can be stacked.
 
 Changed in this draft: bills are **paid** or **destroyed** (cancelled, or paid off in full); each alert light opens its own detail; **stack rate** is a headline number in Stack.
 
@@ -93,25 +93,25 @@ Panels that work on day one are on top. Panels that need history sit lower and s
 
 The owner's idea, and it is better than what I had: paying a bill does not destroy it, because it comes back next month. A bill is only destroyed when it is gone for good.
 
-- Your checking balance is your **ammo**. A bar shows how much of it the bills before payday will use, and says "Enough ammo" or "$757.46 short".
-- Each bill is a **target** on a 30-day line. Further left is sooner; a bigger target is a bigger bill. Overdue bills sit in a red "Past due" box left of Today. Each planned paycheck is a **reload**.
-- **Pay** records this month's payment after a short confirm step (date, actual amount, account, ammo left). The target fades and ammo drops. It will be back next month.
+- The panel leads with **Dollars in checking**. A bar shows how much of it the bills before payday will use, and says "Enough in checking" or "$757.46 short".
+- Each bill is a **target** on a 30-day line. Further left is sooner; a bigger target is a bigger bill. Overdue bills sit in a red "Past due" box left of Today. Each planned paycheck is marked **Payday**.
+- **Pay** records this month's payment after a short confirm step (date, actual amount, account, what is left in checking). The target fades and the checking figure drops. It will be back next month.
 - **Destroy** cancels a bill for good. The confirm step shows what that frees: "$22.99 a month, $275.88 a year you could stack instead". The target bursts. The app reminds you to cancel with the provider too, since it cannot do that for you.
-- **Pay off** is how a debt is destroyed: it pays the whole balance of a card or loan from checking and removes the bill. If checking cannot cover it, the confirm step says how much more ammo is needed and will not proceed.
+- **Pay off** is how a debt is destroyed: it pays the whole balance of a card or loan from checking and removes the bill. If checking cannot cover it, the confirm step says how much more is needed in checking and will not proceed.
 - The score: "6 paid this month" and "2 destroyed · $31.98 a month freed".
-- When there is more ammo than the bills before payday need, the panel offers **Stack it**, which opens a bitcoin buy. The loop the app teaches: pay the bills, destroy the ones you can, stack what is spare.
+- When checking holds more than the bills before payday need, the panel offers **Stack it**, which opens a bitcoin buy. The loop the app teaches: pay the bills, destroy the ones you can, stack what is spare.
 
 In the ledger, Pay is the existing confirm-to-post bill payment, Destroy archives the recurring bill, and Pay off is a transfer for the full balance followed by archiving. No new accounting is needed.
 
 ### Game layer
 
-The owner's framing: money is what you fight an uncertain future with. Dollars are ammo that loses power over time, bitcoin is the stronger weapon, stocks are a different one, and winning is simple: keep stacking.
+The owner's framing: money is what you fight an uncertain future with. Dollars lose power over time, bitcoin is the stronger weapon, stocks are a different one, and winning is simple: keep stacking.
 
 What is in the design:
 
-- **"Ammo" for dollars in checking, everywhere it appears.**
+- **Plain words for the money itself: "Dollars in checking".** An earlier draft called it "ammo"; the owner kept the idea (bills are paid or destroyed) and dropped the word, so nobody has to decode it.
 - **Stack rate is the score.** It is the share of this month's income that went into bitcoin, the bitcoin version of a savings rate, and higher is better. It sits in the Stack panel as a headline number with the last six months as bars, the change from last month, and a "best yet" mark when it is a record.
-- **Supporting numbers**: next milestone of bitcoin held, the streak of months with a buy, and the best month so far. "Stack it" turns spare ammo into bitcoin, and the "No stack yet" light is the nudge.
+- **Supporting numbers**: next milestone of bitcoin held, the streak of months with a buy, and the best month so far. "Stack it" turns spare dollars into bitcoin, and the "No stack yet" light is the nudge.
 - **Bills destroyed** and the dollars a month that freed.
 - **Your own numbers make the purchasing-power point.** Cost of living shows a month of life costing more dollars and less bitcoin. It stays honest when the price moves the other way.
 

@@ -73,7 +73,7 @@ function when(bill: Bill) {
   return `in ${plural(bill.days_until, "day")}`;
 }
 
-/** Every bill, the paychecks that reload checking, and the bills destroyed for good. */
+/** Every bill, the paychecks that land in checking, and the bills destroyed for good. */
 export function Bills({ go, onChanged }: { go: (route: Route) => void; onChanged?: () => void }) {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [error, setError] = useState("");
@@ -157,7 +157,7 @@ export function Bills({ go, onChanged }: { go: (route: Route) => void; onChanged
       <div className="page">
         <h1>Bills</h1>
         <Panel name="Bills" plain="what is due" inop className="narrow">
-          <div className="sub">Add your checking account first. Bills are paid from it, and its balance is the ammo you pay them with.</div>
+          <div className="sub">Add your checking account first. Bills are paid from it.</div>
           <div>
             <button className="btn sm primary" onClick={() => go("accounts")}>
               Add an account
@@ -191,8 +191,8 @@ export function Bills({ go, onChanged }: { go: (route: Route) => void; onChanged
         <Panel className="c5" name="At a glance" plain="this month's bills">
           <div className="kv glance">
             <div>
-              <span>Ammo · in checking</span>
-              <b>{usd(data.ammo.total)}</b>
+              <span>Dollars in checking</span>
+              <b>{usd(data.checking.total)}</b>
             </div>
             <div>
               <span>Due before payday</span>
@@ -225,9 +225,9 @@ export function Bills({ go, onChanged }: { go: (route: Route) => void; onChanged
           ) : !sorted.length ? (
             <div className="sub">No bills yet, so nothing is due.</div>
           ) : cents(data.cash_ahead.due_before_paycheck) > 0n ? (
-            <div className="sub ok">{LevelIcon.ok} Enough ammo for every bill before the next reload.</div>
+            <div className="sub ok">{LevelIcon.ok} Enough in checking for every bill before the next payday.</div>
           ) : (
-            <div className="sub ok">{LevelIcon.ok} Nothing left to pay before the next reload.</div>
+            <div className="sub ok">{LevelIcon.ok} Nothing left to pay before the next payday.</div>
           )}
         </Panel>
 
@@ -285,7 +285,7 @@ export function Bills({ go, onChanged }: { go: (route: Route) => void; onChanged
           </div>
         </Panel>
 
-        <Panel className="c5" name="Paychecks" plain="when checking reloads">
+        <Panel className="c5" name="Paychecks" plain="money coming into checking">
           {paychecks.length ? (
             <ul className="bl two">
               {paychecks.map((item) => (

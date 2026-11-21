@@ -6,7 +6,7 @@ Nothing here creates a posting except the three write actions that say so.
 
 ## Definitions
 
-- **Everyday accounts**: non-archived asset accounts in USD of kind `checking` or `cash` with `exclude_from_liquid_usd` false. Their summed balance is "ammo".
+- **Everyday accounts**: non-archived asset accounts in USD of kind `checking` or `cash` with `exclude_from_liquid_usd` false. Their summed balance is the dollars in checking.
 - **Bill**: a non-archived `recurring_bills` row. Overdue when `next_due` is before today.
 - **Paycheck**: a non-archived `income_schedules` row (new table). It never posts by itself.
 - **Bitcoin held**: the existing rule in `reports.ownership` (`bitcoin_held`).
@@ -26,7 +26,7 @@ Nothing here creates a posting except the three write actions that say so.
     "bitcoin_per_usd": "842",              // whole bitcoin per $1, half-even
     "source": "Coinbase", "day": "2026-11-19", "observed_at": "…", "stale": false
   },
-  "ammo": {
+  "checking": {
     "total": "4812.40",
     "accounts": [{ "id": 3, "name": "Everyday checking", "balance": "4812.40" }]
   },

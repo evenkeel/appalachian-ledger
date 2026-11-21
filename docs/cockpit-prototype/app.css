@@ -1199,14 +1199,14 @@ table.log {
 }
 
 /* Bills to destroy */
-.bar.ammo {
+.bar.cover {
   height: 12px;
 }
-.bar.ammo > i {
+.bar.cover > i {
   background: var(--usd);
   transition: width var(--d-std) var(--ease);
 }
-.bar.ammo.short > i {
+.bar.cover.short > i {
   background: repeating-linear-gradient(45deg, var(--warn) 0 4px, transparent 4px 8px);
 }
 .target {

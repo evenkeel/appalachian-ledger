@@ -57,7 +57,7 @@ def test_empty_ledger_returns_the_documented_shape(owner):
         "first_entry_date",
         "days_of_history",
         "price",
-        "ammo",
+        "checking",
         "cash_ahead",
         "bills",
         "stack",
@@ -70,7 +70,7 @@ def test_empty_ledger_returns_the_documented_shape(owner):
     assert data["today"] == today.isoformat() and data["month"] == today.strftime("%Y-%m")
     assert data["first_entry_date"] is None and data["days_of_history"] == 0
     assert data["price"] is None
-    assert data["ammo"] == {"total": "0.00", "accounts": []}
+    assert data["checking"] == {"total": "0.00", "accounts": []}
     assert data["cash_ahead"] == {
         "status": "needs_account",
         "horizon_days": 30,
@@ -145,10 +145,10 @@ def test_writes_are_refused_without_the_csrf_token(owner):
     assert len(owner.get("/api/recurring-bills").json()) == 1
 
 
-# ---------- Ammo and cash ahead ----------
+# ---------- Dollars in checking and cash ahead ----------
 
 
-def test_ammo_totals_only_everyday_accounts(owner):
+def test_dollars_in_checking_total_only_everyday_accounts(owner):
     checking = new_account(owner, "Checking", amount="1000")
     cash = new_account(owner, "Wallet cash", amount="50.25", kind="cash")
     new_account(owner, "Savings", amount="500", kind="savings")
@@ -162,7 +162,7 @@ def test_ammo_totals_only_everyday_accounts(owner):
     ).is_success
     assert owner.patch(f"/api/accounts/{closed}", json={"name": "Old checking", "archived": True}).is_success
     data = reading()
-    assert data["ammo"] == {
+    assert data["checking"] == {
         "total": "1050.25",
         "accounts": [
             {"id": checking, "name": "Checking", "balance": "1000.00"},
@@ -173,8 +173,8 @@ def test_ammo_totals_only_everyday_accounts(owner):
     assert data["setup"]["has_account"] is True
     # Money that arrives after the day being read is not there yet.
     transaction(owner, checking, kind="income", amount="40.00", date="2026-03-11")
-    assert reading()["ammo"]["total"] == "1050.25"
-    assert reading(date(2026, 3, 11))["ammo"]["total"] == "1090.25"
+    assert reading()["checking"]["total"] == "1050.25"
+    assert reading(date(2026, 3, 11))["checking"]["total"] == "1090.25"
 
 
 def test_cash_ahead_walks_bills_and_paychecks_in_order(owner):
@@ -931,7 +931,7 @@ def test_demo_dashboard_has_a_card_a_paycheck_and_bills(owner):
     assert bills["Ridgeline Visa payment"]["pays_account_id"] == card["account_id"]
     assert bills["Ridgeline Visa payment"]["payoff"] == "1284.36"
     assert bills["Streaming"]["monthly_amount"] == "22.99"
-    assert data["ammo"]["accounts"][0]["name"] == "Everyday checking"
+    assert data["checking"]["accounts"][0]["name"] == "Everyday checking"
     stack = data["stack"]
     assert stack["status"] == "ready" and len(stack["rates"]) == 6 and len(stack["history"]) == 6
     assert stack["streak_months"] >= 5 and stack["best_month"]["bitcoin"] == "754300"

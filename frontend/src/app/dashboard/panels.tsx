@@ -106,7 +106,7 @@ export function CashAheadPanel({ className, data, flag, go, onPaycheck, own }: {
         needs={
           <>
             No bills on file yet, so nothing is known to be due. Add them and this shows whether{" "}
-            <b className="num">{usd(data.ammo.total)}</b> covers everything before your next paycheck.
+            <b className="num">{usd(data.checking.total)}</b> covers everything before your next paycheck.
           </>
         }
         action={
@@ -372,7 +372,7 @@ export function BillsPanel({
         className={className}
         name="Bills"
         plain="what is due"
-        needs="Add a bill and it shows up here as a target, with your checking balance as ammo."
+        needs="Add a bill and it shows up here, set against your dollars in checking."
         action={
           <button className="btn sm" onClick={() => go("bills", "add")}>
             Add a bill
@@ -382,32 +382,32 @@ export function BillsPanel({
     );
   const short = cash.short;
   const need = cash.due_before_paycheck,
-    ammo = data.ammo.total;
-  const used = coordinate(ammo) > 0 ? Math.min(100, (coordinate(need) / coordinate(ammo)) * 100) : 100;
+    inChecking = data.checking.total;
+  const used = coordinate(inChecking) > 0 ? Math.min(100, (coordinate(need) / coordinate(inChecking)) * 100) : 100;
   const next = [...bills.items].sort((a, b) => a.days_until - b.days_until).slice(0, 3);
-  const reload = cash.next_paycheck ? `the ${shortDate(cash.next_paycheck.date)} reload` : "the next 30 days";
+  const until = cash.next_paycheck ? `payday on ${shortDate(cash.next_paycheck.date)}` : "the end of the next 30 days";
   const spare = !short && cents(cash.low.balance) > 0n;
   return (
     <Panel className={className} flag={flag} name="Bills" plain="pay them, or destroy them for good" link={{ label: `All ${bills.items.length}`, onClick: () => go("bills") }}>
       <div className="split" style={{ alignItems: "flex-end", flexWrap: "wrap", gap: "6px 16px" }}>
         <div className="kv">
           <div>
-            <span>Ammo · in checking</span>
-            <b style={{ fontSize: "var(--t-read)" }}>{usd(ammo)}</b>
+            <span>Dollars in checking</span>
+            <b style={{ fontSize: "var(--t-read)" }}>{usd(inChecking)}</b>
           </div>
         </div>
         <div style={{ flex: "1 1 210px", display: "grid", gap: 5, paddingBottom: 3 }}>
-          <div className={`bar ammo${short ? " short" : ""}`} role="img" aria-label={`${usd(need)} of ${usd(ammo)} is needed for bills before ${reload}`}>
+          <div className={`bar cover${short ? " short" : ""}`} role="img" aria-label={`${usd(need)} of ${usd(inChecking)} is needed for bills before ${until}`}>
             <i style={{ width: `${used.toFixed(1)}%` }} />
           </div>
           <div className="sub">
             {cents(need) > 0n ? (
               <>
-                Bills before {reload} need <b className="num">{usd(need)}</b>.{" "}
-                {short ? <b style={{ color: "var(--warn)" }}>{usd(short.amount)} short.</b> : <b className="ok">Enough ammo.</b>}
+                Bills before {until} need <b className="num">{usd(need)}</b>.{" "}
+                {short ? <b style={{ color: "var(--warn)" }}>{usd(short.amount)} short.</b> : <b className="ok">Enough in checking.</b>}
               </>
             ) : (
-              <>Nothing left to pay before {reload}.</>
+              <>Nothing left to pay before {until}.</>
             )}
           </div>
         </div>
@@ -456,7 +456,7 @@ export function BillsPanel({
         </span>
         {spare && (
           <span>
-            Spare ammo <b className="num">{usd(cash.low.balance)}</b>{" "}
+            Spare dollars <b className="num">{usd(cash.low.balance)}</b>{" "}
             <button className="btn sm copper" onClick={onStack}>
               Stack it →
             </button>

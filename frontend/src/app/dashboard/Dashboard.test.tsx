@@ -95,7 +95,7 @@ describe("dashboard", () => {
     await show();
     fireEvent.click(screen.getByRole("button", { name: "Pay off Mortgage in full and destroy it" }));
     const sheet = screen.getByRole("dialog", { name: "Pay off Mortgage" });
-    expect(within(sheet).getByText("Not enough ammo.")).toBeInTheDocument();
+    expect(within(sheet).getByText("Not enough in checking.")).toBeInTheDocument();
     expect(within(sheet).getByText("$205,107.60")).toBeInTheDocument();
     expect(within(sheet).getByRole("button", { name: "Pay off" })).toBeDisabled();
   });

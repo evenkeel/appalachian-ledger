@@ -45,7 +45,7 @@ describe("learn", () => {
     show();
     await loaded();
     expect(screen.getByRole("heading", { level: 1, name: "Learn" })).toBeInTheDocument();
-    expect(LEARN_TOPICS.map((topic) => topic.id)).toEqual(["cost-of-living", "bitcoin-is-saving", "units", "stack-rate", "ammo-and-bills", "prices", "alert-lights", "private"]);
+    expect(LEARN_TOPICS.map((topic) => topic.id)).toEqual(["cost-of-living", "bitcoin-is-saving", "units", "stack-rate", "bills", "prices", "alert-lights", "private"]);
     const contents = within(screen.getByRole("navigation", { name: "Topics" }));
     for (const topic of LEARN_TOPICS) {
       const heading = screen.getByRole("heading", { level: 2, name: topic.title });
@@ -124,7 +124,7 @@ describe("learn", () => {
       ["bitcoin-is-saving", "stack"],
       ["units", "accounts"],
       ["stack-rate", "stack"],
-      ["ammo-and-bills", "bills"],
+      ["bills", "bills"],
       ["prices", "settings"],
       ["alert-lights", "settings"],
       ["private", "settings"],

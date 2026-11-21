@@ -79,7 +79,7 @@ export function BillSheet({
 }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const paying = data.ammo.accounts.find((account) => account.id === bill.account_id);
+  const paying = data.checking.accounts.find((account) => account.id === bill.account_id);
   const debt = bill.pays_account_id !== null && bill.payoff !== null;
   const label = bill.name.replace(/ payment$/i, "");
 
@@ -112,12 +112,12 @@ export function BillSheet({
         {enough ? (
           paying && (
             <div className="sub num">
-              Ammo in {paying.name} after this: <b>{usd(fromCents(cents(paying.balance) - cents(bill.payoff!)))}</b>
+              Left in {paying.name} after this: <b>{usd(fromCents(cents(paying.balance) - cents(bill.payoff!)))}</b>
             </div>
           )
         ) : (
           <p className="sub">
-            <b className="warnc">Not enough ammo.</b> {paying!.name} holds <span className="num">{usd(paying!.balance)}</span>
+            <b className="warnc">Not enough in checking.</b> {paying!.name} holds <span className="num">{usd(paying!.balance)}</span>
             ; you need <b className="num">{usd(fromCents(cents(bill.payoff!) - cents(paying!.balance)))}</b> more.
           </p>
         )}
@@ -200,7 +200,7 @@ export function BillSheet({
           {paying && (
             <>
               {" "}
-              · ammo after this: <b className="num">{usd(fromCents(cents(paying.balance) - cents(bill.amount)))}</b>
+              · left in {paying.name} after this: <b className="num">{usd(fromCents(cents(paying.balance) - cents(bill.amount)))}</b>
             </>
           )}
           {bill.frequency !== "once" && !debt && " · it comes back next time it is due"}
@@ -222,7 +222,7 @@ export function BillSheet({
   );
 }
 
-/** A planned paycheck. It never posts by itself; it only tells Cash ahead when ammo reloads. */
+/** A planned paycheck. It never posts by itself; it only tells Cash ahead when money lands in checking. */
 export interface Paycheck {
   id: number;
   account_id: number;
@@ -286,7 +286,7 @@ export function PaycheckSheet({ data, schedule, onClose, onDone }: { data: Dashb
           <label className="field" style={{ gridColumn: "1/-1" }}>
             <span>Lands in</span>
             <select name="account_id" defaultValue={schedule?.account_id}>
-              {data.ammo.accounts.map((account) => (
+              {data.checking.accounts.map((account) => (
                 <option key={account.id} value={account.id}>
                   {account.name}
                 </option>

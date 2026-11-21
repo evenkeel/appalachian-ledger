@@ -128,7 +128,7 @@ describe("accounts", () => {
     expect(totals).toHaveTextContent("Dollars$6,312.40");
     expect(totals).toHaveTextContent("Debt$1,284.36");
     expect(screen.getByLabelText(/^Dollars: 2 accounts/)).toBeInTheDocument();
-    expect(screen.getByText("Checking · ammo")).toBeInTheDocument();
+    expect(screen.getByText("Checking · pays the bills")).toBeInTheDocument();
     expect(screen.queryByText("Old checking")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Show 1 closed account" }));
     expect(screen.getByText("Old checking")).toBeInTheDocument();

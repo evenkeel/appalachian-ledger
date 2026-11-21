@@ -261,7 +261,7 @@
       return `<div class="scrim" data-cancel></div><div class="sheet" role="dialog" aria-modal="true" aria-label="Pay off ${label}">
         <h2>Pay off ${label} and destroy it?</h2>
         <p class="sub">This pays the whole balance, <b class="num">${F.usd(amt)}</b>, from checking. The bill is destroyed and stops coming back, which frees <b class="num">${F.usd(b.cents)}</b> a month.</p>
-        ${enough ? `<div class="sub num">Ammo after this: <b>${F.usd(m.checking - amt)}</b></div>${b.card ? `<p class="hint">A card bill comes back if you use the card again.</p>` : ""}` : `<p class="sub"><b class="warnc">Not enough ammo.</b> Checking holds <span class="num">${F.usd(m.checking)}</span>; you need <b class="num">${F.usd(amt - m.checking)}</b> more.</p>`}
+        ${enough ? `<div class="sub num">Left in checking after this: <b>${F.usd(m.checking - amt)}</b></div>${b.card ? `<p class="hint">A card bill comes back if you use the card again.</p>` : ""}` : `<p class="sub"><b class="warnc">Not enough in checking.</b> Checking holds <span class="num">${F.usd(m.checking)}</span>; you need <b class="num">${F.usd(amt - m.checking)}</b> more.</p>`}
         <div class="acts"><button class="btn primary" data-fire id="fire"${enough ? "" : " disabled"}>Pay off <kbd>⏎</kbd></button><button class="btn ghost" data-cancel>Cancel <kbd>Esc</kbd></button></div></div>`;
     }
     if (S.confirm.mode === "destroy")
@@ -278,7 +278,7 @@
         <label class="field"><span>Amount</span><input class="num" value="${F.usd(b.cents)}" aria-label="Amount"></label>
         <label class="field" style="grid-column:1/-1"><span>From</span><input value="Everyday checking" aria-label="From account"></label>
       </div>
-      <div class="sub num">Ammo after this: <b>${F.usd(m.checking - b.cents)}</b>${fixed ? "" : " · it comes back next month"}</div>
+      <div class="sub num">Left in checking after this: <b>${F.usd(m.checking - b.cents)}</b>${fixed ? "" : " · it comes back next month"}</div>
       <div class="acts"><button class="btn primary" data-fire id="fire">Pay <kbd>⏎</kbd></button><button class="btn ghost" data-cancel>Cancel <kbd>Esc</kbd></button>${fixed ? `<button class="btn ghost" style="margin-left:auto" data-payoff="${esc(b.name)}">Pay it off instead</button>` : `<button class="btn ghost" style="margin-left:auto" data-destroy="${esc(b.name)}">Destroy it for good instead</button>`}</div></div>`;
   }
 
@@ -357,17 +357,17 @@
     const next = late.concat(up).slice(0, 3), off = m.boom ? " disabled" : "";
     return inst(cls, "Bills", "pay them, or destroy them for good", `
       <div class="split" style="align-items:flex-end;flex-wrap:wrap;gap:6px 16px">
-        <div class="kv"><div><span>Ammo · in checking</span><b style="font-size:var(--t-read)">${F.usd(m.checking)}</b></div></div>
+        <div class="kv"><div><span>Dollars in checking</span><b style="font-size:var(--t-read)">${F.usd(m.checking)}</b></div></div>
         <div style="flex:1 1 210px;display:grid;gap:5px;padding-bottom:3px">
-          <div class="bar ammo${short ? " short" : ""}" role="img" aria-label="${F.usd(need)} of ${F.usd(m.checking)} is needed for bills before payday"><i style="width:${pct.toFixed(1)}%"></i></div>
-          <div class="sub">${need ? `Bills before the ${F.date(r.firstPay)} reload need <b class="num">${F.usd(need)}</b>. ${short ? `<b style="color:var(--warn)">${F.usd(-r.low)} short.</b>` : `<b class="ok">Enough ammo.</b>`}` : `Nothing left to pay before the ${F.date(r.firstPay)} reload.`}</div>
+          <div class="bar cover${short ? " short" : ""}" role="img" aria-label="${F.usd(need)} of ${F.usd(m.checking)} is needed for bills before payday"><i style="width:${pct.toFixed(1)}%"></i></div>
+          <div class="sub">${need ? `Bills before payday on ${F.date(r.firstPay)} need <b class="num">${F.usd(need)}</b>. ${short ? `<b style="color:var(--warn)">${F.usd(-r.low)} short.</b>` : `<b class="ok">Enough in checking.</b>`}` : `Nothing left to pay before payday on ${F.date(r.firstPay)}.`}</div>
         </div>
       </div>
       <div class="chart" data-chart="lane" style="height:104px"></div>
       ${next.length ? `<ul class="rows">${next.map((b) => `<li style="grid-template-columns:minmax(0,1fr) auto auto auto;align-items:center"><span class="nm">${esc(b.name)} <small class="num ${b.day < 0 ? "overdue" : "dim"}">· ${b.day < 0 ? `${-b.day} days overdue` : b.day === 0 ? "due today" : `${F.date(b.day)}, in ${b.day} days`}</small></span><span class="num">${F.usd(b.cents)}</span><button class="btn sm" data-pay="${esc(b.name)}" aria-label="Pay ${esc(b.name)}, ${F.usd(b.cents)}"${off}>Pay</button>${b.debt || b.card ? `<button class="btn sm ghost" data-payoff="${esc(b.name)}" aria-label="Pay off ${esc(b.name)} in full and destroy it"${off}>Pay off</button>` : `<button class="btn sm ghost" data-destroy="${esc(b.name)}" aria-label="Destroy ${esc(b.name)} for good"${off}>Destroy</button>`}</li>`).join("")}</ul>` : `<div class="sub ok">${I.ok} All clear. Every bill in the next 30 days is paid.</div>`}
       <div class="sub" style="display:flex;justify-content:space-between;gap:6px 12px;flex-wrap:wrap;border-top:1px solid var(--hairline);padding-top:8px">
         <span><span class="badge">${m.paidStats.n} paid</span> this month <span class="badge" style="margin-left:6px">${m.goneStats.n} destroyed</span> <span class="num">${F.usd(m.goneStats.cents)}</span> a month freed</span>
-        ${!short && r.low > 0 ? `<span>Spare ammo <b class="num">${F.usd(r.low)}</b> <button class="btn sm copper" data-go="stack">Stack it →</button></span>` : ""}</div>`,
+        ${!short && r.low > 0 ? `<span>Spare dollars <b class="num">${F.usd(r.low)}</b> <button class="btn sm copper" data-go="stack">Stack it →</button></span>` : ""}</div>`,
       { flag: f, link: ["bills", `All ${m.bills.length}`] });
   }
 
@@ -453,7 +453,7 @@
         ${iInop("c4", "Cash ahead", "checking after known bills", `No bills or payday on file yet, so nothing is known to be due. Add them and this shows whether <b class="num">${F.usd(m.checking)}</b> covers everything before your next paycheck.`, "Add bills and payday")}
         <div class="band">Turns on as you add data</div>
         ${iInop("c3", "Stack", "bitcoin held", "Record what you hold. Bitcoin is your saving; this is where it shows.", "Add bitcoin")}
-        ${iInop("c3", "Bills", "what is due", "Add a bill and it shows up here as a target, with your checking balance as ammo.", "Add a bill")}
+        ${iInop("c3", "Bills", "what is due", "Add a bill and it shows up here, set against your dollars in checking.", "Add a bill")}
         ${iWait("c3", "Spending bridge", "what changed since last month", 3, 30, "days", "Needs one full month to compare against. Ready December 1.")}
         ${iWait("c3", "Cost of living", "the same life, priced two ways", 3, 60, "days", "Needs two full months and a price source. Ready about February 1.")}
       </div>`;

@@ -38,7 +38,8 @@ export interface DashboardData {
     observed_at: string | null;
     stale: boolean;
   } | null;
-  ammo: { total: string; accounts: { id: number; name: string; balance: string }[] };
+  /** Dollars in everyday accounts: checking and cash that count for bills. */
+  checking: { total: string; accounts: { id: number; name: string; balance: string }[] };
   cash_ahead: {
     status: "needs_account" | "needs_bills" | "ready";
     horizon_days: number;

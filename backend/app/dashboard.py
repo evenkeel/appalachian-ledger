@@ -211,7 +211,7 @@ def price(db, today):
     }
 
 
-def ammo(db, today):
+def checking_dollars(db, today):
     rows = [(acc, ledger.balance(db, acc.id, today)) for acc in everyday_accounts(db)]
     return {
         "total": original(sum(amount for _, amount in rows), "USD"),
@@ -618,7 +618,7 @@ def build(db, today=None):
         "first_entry_date": first_entry,
         "days_of_history": (today - date.fromisoformat(first_entry)).days + 1 if first_entry else 0,
         "price": quote,
-        "ammo": ammo(db, today),
+        "checking": checking_dollars(db, today),
         "cash_ahead": cash,
         "bills": bills_section(db, today, quote["usd_per_btc"] if quote else None),
         "stack": holdings,
