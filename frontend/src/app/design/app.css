@@ -1799,18 +1799,47 @@ a.btn {
   }
 }
 
-/* Cash ahead: small note under a figure, and the dotted legend swatch for the card-bills line. */
+/* Checking forecast: small note under a figure, round legend swatches, and the row that asks for a card's due day. */
 .kv div > small {
   display: block;
   color: var(--ink-3);
   font-size: var(--t-label);
   white-space: nowrap;
 }
-.key i.dotted {
-  background: none;
-  border-bottom: 2px dotted var(--ink);
-  border-radius: 0;
-  height: 0;
-  width: 14px;
-  vertical-align: middle;
+.key i.dot {
+  border-radius: 50%;
+}
+.key i.ring {
+  background: var(--panel);
+  border: 1.6px solid var(--usd);
+  box-sizing: border-box;
+}
+.duerow {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--bezel);
+  border-left: 3px solid var(--caution);
+  border-radius: 8px;
+  background: var(--well);
+}
+.duerow-set {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  font-size: var(--t-small);
+}
+.duerow-set input {
+  width: 62px;
+  min-height: 30px;
+  margin: 0 4px;
+  padding: 0 8px;
+  border-radius: 7px;
+  border: 1px solid var(--bezel);
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+  font-family: var(--font-num);
+  text-align: right;
 }

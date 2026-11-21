@@ -193,28 +193,43 @@ def evaluate(reading, facts, thresholds=None):
         short = cash["short"]
         away = (date.fromisoformat(short["date"]) - today).days
         payday = cash["next_paycheck"]
-        cutoff = payday["date"] if payday else str(today + timedelta(days=cash["horizon_days"]))
+        # A card paid off after payday can take checking under even with the paycheck in it.
+        later = bool(payday) and short["date"] > payday["date"]
+        cutoff = (
+            short["date"] if later else payday["date"] if payday else str(today + timedelta(days=cash["horizon_days"]))
+        )
+        due = [event for event in cash["events"] if event["kind"] in ("bill", "card") and event["date"] <= cutoff]
         found.append(
             alert(
                 "cash",
                 "warning" if away <= t.cash.warning_within_days else "caution",
                 short["amount"],
                 f"Checking runs short on {short_date(short['date'])}",
-                f"The bills due before your {short_date(payday['date'])} paycheck add up to more than checking holds."
+                f"Even with your {short_date(payday['date'])} paycheck, the bills and card payments due by "
+                f"{short_date(short['date'])} add up to more than checking will hold."
+                if later
+                else f"The bills and card payments due before your {short_date(payday['date'])} paycheck "
+                "add up to more than checking holds."
                 if payday
-                else "The bills due in the next 30 days add up to more than checking holds.",
+                else "The bills and card payments due in the next 30 days add up to more than checking holds.",
                 panel="cash",
                 facts=[
                     fact("In checking", cash["start"]),
-                    fact("Bills before payday" if payday else "Bills in 30 days", cash["due_before_paycheck"]),
+                    fact(
+                        f"Due by {short_date(short['date'])}",
+                        dollars(sum(cents(event["amount"]) for event in due)),
+                    )
+                    if later
+                    else fact("Due before payday" if payday else "Due in 30 days", cash["due_before_paycheck"]),
                     fact("Short by", short["amount"]),
                 ],
                 rows=[
                     row(
-                        event["name"], "overdue" if event.get("overdue") else short_date(event["date"]), event["amount"]
+                        f"{event['name']}, paid in full" if event["kind"] == "card" else event["name"],
+                        "overdue" if event.get("overdue") else short_date(event["date"]),
+                        event["amount"],
                     )
-                    for event in cash["events"]
-                    if event["kind"] == "bill" and not event.get("on_card") and event["date"] <= cutoff
+                    for event in due
                 ],
                 advice={
                     "text": f"Get at least {{value}} more into checking before {short_date(short['date'])}.",

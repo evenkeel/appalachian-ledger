@@ -81,12 +81,7 @@ def test_empty_ledger_returns_the_documented_shape(owner):
         "low": {"date": today.isoformat(), "balance": "0.00"},
         "short": None,
         "covered_days": None,
-        "card_bills": {"count": 0, "due_before_paycheck": "0.00", "total": "0.00"},
-        "all_bills": {
-            "due_before_paycheck": "0.00",
-            "low": {"date": today.isoformat(), "balance": "0.00"},
-            "short": None,
-        },
+        "cards": [],
         "other_bills": 0,
     }
     assert data["bills"] == {
@@ -184,50 +179,140 @@ def test_dollars_in_checking_total_only_everyday_accounts(owner):
     assert reading(date(2026, 3, 11))["checking"]["total"] == "1090.25"
 
 
-def test_bills_on_a_card_are_listed_and_set_aside_without_touching_the_checking_line(owner):
-    checking = new_account(owner, amount="500")
-    card = new_account(owner, "Visa", amount="0", kind="credit_card")
+def card_terms(client, card, due_day):
+    response = client.put(f"/api/accounts/{card}/card-terms", json={"credit_limit": None, "due_day": due_day})
+    assert response.status_code == 200, response.text
+
+
+def test_a_card_is_paid_off_in_full_from_checking_on_its_due_day(owner):
+    checking = new_account(owner, amount="2000")
+    card = new_account(owner, "Visa", amount="300", kind="credit_card")
+    card_terms(owner, card, 25)
     savings = new_account(owner, "Savings", amount="900", kind="savings")
     bill(owner, checking, "Rent", "300.00", "2026-03-12")
     bill(owner, card, "Phone", "150.00", "2026-03-11")
-    bill(owner, card, "Internet", "120.00", "2026-03-20")
+    bill(owner, card, "Internet", "120.00", "2026-03-30")
     bill(owner, savings, "Storage unit", "40.00", "2026-03-13")
     paycheck(owner, checking, "1000", "2026-03-15")
     ahead = reading()["cash_ahead"]
-    rows = [(e["name"], e.get("on_card"), e["balance_after"], e["all_bills_after"]) for e in ahead["events"]]
+    rows = [(e["kind"], e["name"], e["amount"], e["balance_after"]) for e in ahead["events"]]
+    # Bills charged to the card never touch the line themselves; the card's payment does.
     assert rows == [
-        ("Phone", True, "500.00", "350.00"),  # charged to the card: checking is untouched
-        ("Rent", False, "200.00", "50.00"),
-        ("Salary", None, "1200.00", "1050.00"),
-        ("Internet", True, "1200.00", "930.00"),
+        ("bill", "Rent", "300.00", "1700.00"),
+        ("paycheck", "Salary", "1000.00", "2700.00"),
+        ("card", "Visa", "450.00", "2250.00"),
     ]
-    assert ahead["events"][0]["account"] == "Visa"
-    # What really leaves checking is judged as before.
+    payment = ahead["events"][2]
+    assert payment["owed_now"] == "300.00" and payment["charged"] == "150.00" and payment["charged_count"] == 1
+    assert payment["account_id"] == card and payment["date"] == "2026-03-25"
+    assert ahead["cards"] == [
+        {
+            "account_id": card,
+            "name": "Visa",
+            "owed": "300.00",
+            "due_day": 25,
+            "plan": "full",
+            "paid_by": None,
+            "next_payment": {"date": "2026-03-25", "amount": "450.00"},
+            "charges": {"count": 2, "total": "270.00"},
+        }
+    ]
     assert ahead["due_before_paycheck"] == "300.00"
-    assert ahead["low"] == {"date": "2026-03-12", "balance": "200.00"} and ahead["short"] is None
-    # With the card's bills set aside too.
-    assert ahead["card_bills"] == {"count": 2, "due_before_paycheck": "150.00", "total": "270.00"}
-    assert ahead["all_bills"] == {
-        "due_before_paycheck": "450.00",
-        "low": {"date": "2026-03-12", "balance": "50.00"},
-        "short": None,
-    }
     # A bill paid from savings is neither: it is counted, not drawn.
     assert ahead["other_bills"] == 1
 
 
-def test_setting_card_bills_aside_can_show_a_shortfall_checking_alone_would_hide(owner):
+def test_a_card_payment_due_before_payday_can_make_checking_short(owner):
     checking = new_account(owner, amount="360.39")
     card = new_account(owner, "Visa", amount="0", kind="credit_card")
+    card_terms(owner, card, 14)
     bill(owner, card, "Insurance", "250.00", "2026-03-11")
     bill(owner, card, "Phone", "180.00", "2026-03-13")
     paycheck(owner, checking, "2000", "2026-03-20")
     ahead = reading()["cash_ahead"]
-    assert ahead["short"] is None and ahead["due_before_paycheck"] == "0.00"
-    assert ahead["all_bills"]["short"] == {"date": "2026-03-13", "amount": "69.61"}
-    assert ahead["all_bills"]["low"] == {"date": "2026-03-13", "balance": "-69.61"}
-    # The real cash-short light is about checking itself, so it stays off.
-    assert all(alert["id"] != "cash" for alert in owner.get("/api/alerts").json()["active"])
+    assert ahead["due_before_paycheck"] == "430.00"
+    assert ahead["short"] == {"date": "2026-03-14", "amount": "69.61"}
+    assert ahead["low"] == {"date": "2026-03-14", "balance": "-69.61"}
+    assert ahead["covered_days"] == 3
+
+
+def test_the_low_point_counts_a_card_paid_off_after_payday(owner):
+    checking = new_account(owner, amount="400")
+    card = new_account(owner, "Visa", amount="1100", kind="credit_card")
+    card_terms(owner, card, 24)
+    bill(owner, checking, "Water", "50.00", "2026-03-12")
+    paycheck(owner, checking, "1000", "2026-03-15")
+    ahead = reading()["cash_ahead"]
+    # $350 is left before payday, but only $250 once the card is paid: that is what is free.
+    assert [e["balance_after"] for e in ahead["events"]] == ["350.00", "1350.00", "250.00"]
+    assert ahead["low"] == {"date": "2026-03-24", "balance": "250.00"} and ahead["short"] is None
+    assert ahead["due_before_paycheck"] == "50.00"
+    transaction(owner, card, amount="600.00")
+    ahead = reading()["cash_ahead"]
+    # The paycheck does not cover it either.
+    assert ahead["low"] == {"date": "2026-03-24", "balance": "-350.00"}
+    assert ahead["short"] == {"date": "2026-03-24", "amount": "350.00"}
+
+
+def test_a_card_due_twice_in_the_window_is_cleared_each_time(owner):
+    new_account(owner, amount="5000")
+    card = new_account(owner, "Visa", amount="200", kind="credit_card")
+    card_terms(owner, card, 10)
+    bill(owner, card, "Phone", "60.00", "2026-04-10")  # charged on the due day itself: waits for the next payment
+    bill(owner, card, "Gym", "30.00", "2026-04-20")
+    ahead = reading(date(2026, 4, 10))["cash_ahead"]
+    rows = [(e["date"], e["amount"], e["owed_now"], e["charged"], e["charged_count"]) for e in ahead["events"]]
+    assert rows == [("2026-04-10", "200.00", "200.00", "0.00", 0), ("2026-05-10", "90.00", "0.00", "90.00", 2)]
+    assert ahead["cards"][0]["next_payment"] == {"date": "2026-04-10", "amount": "200.00"}
+
+
+def test_a_bill_that_pays_a_card_is_the_plan_for_that_card(owner):
+    checking = new_account(owner, amount="1000")
+    card = new_account(owner, "Visa", amount="8000", kind="credit_card")
+    card_terms(owner, card, 25)
+    payment = bill(owner, checking, "Visa payment", "300.00", "2026-03-20")
+    assert owner.put(f"/api/recurring-bills/{payment['id']}/pays-account", json={"account_id": card}).status_code == 200
+    bill(owner, card, "Phone", "60.00", "2026-03-15")
+    ahead = reading()["cash_ahead"]
+    # A balance being paid down on a plan is not forecast as one payment in full.
+    assert [(e["kind"], e["date"], e["amount"], e.get("account_id")) for e in ahead["events"]] == [
+        ("bill", "2026-03-20", "300.00", card)
+    ]
+    assert ahead["short"] is None and ahead["other_bills"] == 0
+    assert ahead["cards"] == [
+        {
+            "account_id": card,
+            "name": "Visa",
+            "owed": "8000.00",
+            "due_day": 25,
+            "plan": "bill",
+            "paid_by": "Visa payment",
+            "next_payment": {"date": "2026-03-20", "amount": "300.00"},
+            "charges": {"count": 1, "total": "60.00"},
+        }
+    ]
+
+
+def test_a_card_with_no_due_day_is_listed_but_not_drawn(owner):
+    new_account(owner, amount="1000")
+    card = new_account(owner, "Visa", amount="200", kind="credit_card")
+    new_account(owner, "Unused card", amount="0", kind="credit_card")
+    bill(owner, card, "Phone", "60.00", "2026-03-15")
+    ahead = reading()["cash_ahead"]
+    assert ahead["events"] == [] and ahead["covered_days"] is None
+    # A card that owes nothing and has no bills on it has nothing to pay, so it is left out.
+    assert ahead["cards"] == [
+        {
+            "account_id": card,
+            "name": "Visa",
+            "owed": "200.00",
+            "due_day": None,
+            "plan": None,
+            "paid_by": None,
+            "next_payment": None,
+            "charges": {"count": 1, "total": "60.00"},
+        }
+    ]
 
 
 def test_cash_ahead_walks_bills_and_paychecks_in_order(owner):
@@ -257,10 +342,8 @@ def test_cash_ahead_walks_bills_and_paychecks_in_order(owner):
         "name": "Rent",
         "amount": "400.00",
         "balance_after": "600.00",
-        "all_bills_after": "600.00",
         "overdue": True,
         "bill_id": rent["id"],
-        "on_card": False,
     }
     assert paid == {
         "kind": "paycheck",
@@ -268,7 +351,6 @@ def test_cash_ahead_walks_bills_and_paychecks_in_order(owner):
         "name": "Salary",
         "amount": "500.00",
         "balance_after": "990.00",
-        "all_bills_after": "990.00",
         "schedule_id": pay["id"],
     }
     assert [e["overdue"] for e in ahead["events"] if e["kind"] == "bill"] == [True] + [False] * 7
@@ -971,7 +1053,12 @@ def test_demo_dashboard_has_a_card_a_paycheck_and_bills(owner):
     assert pay["name"] == "Salary" and pay["amount"] == "3100.00"
     assert date.fromisoformat(pay["date"]) > today and date.fromisoformat(pay["date"]).day in (1, 16)
     assert sum(event["kind"] == "paycheck" for event in ahead["events"]) >= 2
-    assert sum(event["kind"] == "bill" for event in ahead["events"]) >= 7
+    # Five bills come out of checking. One of them pays the card down, so the card is left to that bill.
+    assert sum(event["kind"] == "bill" for event in ahead["events"]) == 5
+    assert all(event["kind"] != "card" for event in ahead["events"])
+    assert [(row["name"], row["plan"], row["paid_by"]) for row in ahead["cards"]] == [
+        ("Ridgeline Visa", "bill", "Ridgeline Visa payment")
+    ]
     bills = {row["name"]: row for row in data["bills"]["items"]}
     assert set(bills) == {
         "Electric & water",

@@ -222,7 +222,7 @@ export function BillSheet({
   );
 }
 
-/** A planned paycheck. It never posts by itself; it only tells Cash ahead when money lands in checking. */
+/** A planned paycheck. It never posts by itself; it only tells the checking forecast when money lands in checking. */
 export interface Paycheck {
   id: number;
   account_id: number;

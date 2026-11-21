@@ -1,10 +1,11 @@
 /* Hand-built SVG charts. Numbers are used for coordinates only; every label and
    title is formatted from the exact decimal string the API returned. */
+import { useId } from "react";
 import type { ReactNode } from "react";
-import { btc, btcShort, coordinate, daysBetween, longMonth, monthName, shortDate, usd } from "../lib/format";
+import { btc, btcShort, coordinate, daysBetween, longMonth, monthName, plural, shortDate, usd } from "../lib/format";
 import type { Lens } from "../lib/session";
 import { useSize } from "../lib/useSize";
-import type { Bill, DashboardData } from "./types";
+import type { Bill, CashEvent, DashboardData } from "./types";
 
 // Without layout (tests), charts draw at a nominal size so their labels can still be checked.
 const NO_LAYOUT = typeof ResizeObserver === "undefined";
@@ -36,210 +37,191 @@ export function Frame({
   );
 }
 
-/** Cash ahead: projected checking balance against known bills and planned paychecks. */
+/** A payment to a credit card: the card paid off in full on its due day, or a bill that pays a card down. */
+export const isCardPayment = (event: CashEvent) => event.kind === "card" || (event.kind === "bill" && event.account_id != null);
+
+/** Checking forecast: the dollars in checking over the next 30 days, as one line. Bills step it down, each card
+    payment is named with its amount and due date, and planned paychecks step it up. */
 export function CashAheadChart({ data }: { data: DashboardData }) {
+  const uid = useId().replace(/:/g, "");
   const cash = data.cash_ahead,
     days = cash.horizon_days;
-  const short = cash.short !== null;
-  const onCard = cash.events.some((event) => event.on_card);
-  const all = cash.all_bills;
-  const label =
-    (short
-      ? `Projected checking balance. Falls short by ${usd(cash.short!.amount)} from ${shortDate(cash.short!.date)}.`
-      : `Projected checking balance. Lowest point ${usd(cash.low.balance)} on ${shortDate(cash.low.date)}.`) +
-    (onCard
-      ? all.short
-        ? ` With bills on a card set aside too, checking is short by ${usd(all.short.amount)} from ${shortDate(all.short.date)}.`
-        : ` With bills on a card set aside too, the lowest point is ${usd(all.low.balance)}.`
-      : "");
+  const short = cash.short;
+  const cardName = (event: CashEvent) => cash.cards.find((card) => card.account_id === event.account_id)?.name ?? "the card";
+  const label = [
+    short
+      ? `Projected checking balance. Falls short by ${usd(short.amount)} from ${shortDate(short.date)}.`
+      : `Projected checking balance. Lowest point ${usd(cash.low.balance)} on ${shortDate(cash.low.date)}.`,
+    ...cash.events.filter(isCardPayment).map((event) => `${event.name} ${usd(event.amount)} due ${shortDate(event.date)}.`),
+  ].join(" ");
   return (
-    <Frame height={150} label={label}>
+    <Frame height={184} label={label}>
       {(W, H) => {
-        const pad = { l: 6, r: 6, t: 20, b: short ? 26 : 20 };
         const day = (iso: string) => Math.max(0, Math.min(days, daysBetween(data.today, iso)));
-        const x = (d: number) => pad.l + (d / days) * (W - pad.l - pad.r);
+        const x0 = 6,
+          x1 = W - 6;
+        const x = (d: number) => x0 + (d / days) * (x1 - x0);
+        // Paydays and card payments are named along the top. A label that would run into another drops to the next row.
+        const flags = cash.events
+          .filter((event) => event.kind === "paycheck" || isCardPayment(event))
+          .map((event) => {
+            const pay = event.kind === "paycheck";
+            const text = pay ? `Payday ${shortDate(event.date)}` : `${event.name} ${usd(event.amount)} · ${shortDate(event.date)}`;
+            const ex = x(day(event.date)),
+              wide = text.length * 5.9 + (pay ? 0 : 4);
+            const flip = ex + 5 + wide > x1 && ex - 5 - wide >= x0;
+            return { event, pay, ex, wide, flip, left: flip ? ex - 5 - wide : ex + 5, row: 0 };
+          });
+        flags.forEach((flag, index) => {
+          const taken = (row: number) =>
+            flags.slice(0, index).some((other) => other.row === row && flag.left < other.left + other.wide + 8 && other.left < flag.left + flag.wide + 8);
+          while (flag.row < 4 && taken(flag.row)) flag.row += 1;
+        });
+        const rows = Math.max(1, ...flags.map((flag) => flag.row + 1));
+        const top = 6 + rows * 13,
+          bottom = H - 20;
         const start = coordinate(cash.start);
-        const balances = cash.events.flatMap((event) => [coordinate(event.balance_after), coordinate(event.all_bills_after)]);
-        const hi = Math.max(start, ...balances, 1) * 1.08;
-        const lo = Math.min(0, ...balances) * 2.4;
-        const y = (v: number) => pad.t + (1 - (v - lo) / (hi - lo)) * (H - pad.t - pad.b);
-        const firstPay = cash.next_paycheck ? day(cash.next_paycheck.date) : days;
-        const maxBill = Math.max(1, ...cash.events.filter((e) => e.kind === "bill").map((e) => coordinate(e.amount)));
-        // The second line: checking with bills on a card set aside too. Steps down at every bill, wherever it is paid from.
-        const stepsA: [number, number][] = [[x(0), y(start)]],
-          stepsB: [number, number][] = [[x(0), y(start)]];
-        for (const event of cash.events) {
-          const ex = x(day(event.date));
-          stepsA.push([ex, stepsA[stepsA.length - 1][1]], [ex, y(coordinate(event.balance_after))]);
-          stepsB.push([ex, stepsB[stepsB.length - 1][1]], [ex, y(coordinate(event.all_bills_after))]);
-        }
-        stepsA.push([x(days), stepsA[stepsA.length - 1][1]]);
-        stepsB.push([x(days), stepsB[stepsB.length - 1][1]]);
-        const trace = (points: [number, number][]) => points.map(([px, py], index) => `${index ? "L" : "M"}${px.toFixed(1)},${py.toFixed(1)}`).join("");
-        let before = `M${x(0)},${y(start)}`,
-          after = "",
-          balance = start,
-          paid = false;
-        const marks: ReactNode[] = [],
-          pays: ReactNode[] = [];
+        const balances = cash.events.map((event) => coordinate(event.balance_after));
+        const hi = Math.max(start, ...balances, 1) * 1.06;
+        const lo = Math.min(0, ...balances) * 1.3;
+        const y = (v: number) => top + 6 + (1 - (v - lo) / (hi - lo)) * (bottom - top - 6);
+        const y0 = y(0);
+        let line = `M${x(0)},${y(start)}`,
+          balance = start;
+        const steps: ReactNode[] = [],
+          marks: ReactNode[] = [];
+        // Where each event's step begins, from above: its guide comes down from the label and stops there.
+        const reach = new Map<CashEvent, number>();
         cash.events.forEach((event, index) => {
           const ex = x(day(event.date)),
             next = coordinate(event.balance_after);
+          line += `H${ex}V${y(next)}`;
+          reach.set(event, Math.min(y(balance), y(next)));
           if (event.kind === "paycheck") {
-            if (!paid) before += `H${ex}`;
-            else after += `H${ex}V${y(next)}`;
-            if (!paid) after = `M${ex},${y(next)}`;
-            pays.push(
-              <g key={`p${index}`}>
-                <line x1={ex} x2={ex} y1={pad.t - 8} y2={H - pad.b} stroke="var(--plan)" strokeDasharray="3 3" />
-                <line x1={ex} x2={ex} y1={y(balance)} y2={y(next)} stroke="var(--plan)" strokeWidth="2" />
-                <text x={Math.min(ex + 4, W - 78)} y={pad.t - 9} style={{ fill: "var(--plan)" }}>
-                  Payday {shortDate(event.date)}
-                </text>
-                <circle cx={ex} cy={y(next)} r="7" fill="transparent">
-                  <title>{`Planned: ${event.name} ${usd(event.amount)} on ${shortDate(event.date)}. Not recorded yet.`}</title>
+            steps.push(<line key={`s${index}`} x1={ex} x2={ex} y1={y(balance)} y2={y(next)} stroke="var(--plan)" strokeWidth="2.5" strokeLinecap="round" />);
+            marks.push(
+              <circle key={`m${index}`} cx={ex} cy={y(next)} r="8" fill="transparent">
+                <title>{`Planned: ${event.name} ${usd(event.amount)} on ${shortDate(event.date)}. Not recorded yet. Checking after: ${usd(event.balance_after)}.`}</title>
+              </circle>,
+            );
+          } else if (isCardPayment(event)) {
+            const title =
+              event.kind === "card"
+                ? `${event.name} paid in full from checking on ${shortDate(event.date)}: ${usd(event.amount)}. That is ${
+                    coordinate(event.owed_now) > 0
+                      ? `${usd(event.owed_now)} owed today${event.charged_count ? ` plus ${plural(event.charged_count, "bill")} charged before then (${usd(event.charged)})` : ""}`
+                      : `${plural(event.charged_count ?? 0, "bill")} charged since the last payment`
+                  }. Checking after: ${usd(event.balance_after)}.`
+                : `${event.name} ${usd(event.amount)}, ${event.overdue ? "overdue" : `due ${shortDate(event.date)}`}. It pays ${cardName(event)} down. Checking after: ${usd(event.balance_after)}.`;
+            // The drop itself is drawn heavier, so a card payment reads as one clear step.
+            steps.push(<line key={`s${index}`} x1={ex} x2={ex} y1={y(balance)} y2={y(next)} stroke="var(--ink)" strokeWidth="3" strokeLinecap="round" />);
+            marks.push(
+              <g key={`m${index}`}>
+                <circle cx={ex} cy={y(next)} r="4.5" fill="var(--ink)" stroke="var(--panel)" strokeWidth="1.5" />
+                <circle cx={ex} cy={y(next)} r="9" fill="transparent">
+                  <title>{title}</title>
                 </circle>
               </g>,
             );
-            paid = true;
-          } else if (event.on_card) {
-            const amount = coordinate(event.amount),
-              half = 3 + 3.8 * Math.sqrt(amount / maxBill),
-              cy = y(coordinate(event.all_bills_after));
-            marks.push(
-              <rect key={`c${index}`} x={ex - half} y={cy - half} width={half * 2} height={half * 2} rx="1.5" fill="var(--panel)" stroke="var(--ink)" strokeWidth="1.5">
-                <title>{`${event.name} ${usd(event.amount)}, charged to ${event.account ?? "a card"} ${event.overdue ? "(overdue)" : `on ${shortDate(event.date)}`}. It does not leave checking that day. With it set aside, checking would be ${usd(event.all_bills_after)}.`}</title>
-              </rect>,
-            );
           } else {
-            const segment = `H${ex}V${y(next)}`;
-            if (paid) after += segment;
-            else before += segment;
-            const amount = coordinate(event.amount),
-              radius = 2.5 + 4.5 * Math.sqrt(amount / maxBill);
-            // Name the largest bill only where the name has clear room; its tooltip carries it otherwise.
-            const wide = event.name.length * 6.4 + 8;
-            const later = cash.events.slice(index + 1).map((other) => x(day(other.date)));
-            const roomRight = Math.min(W - pad.r, ...later) - (ex + radius + 4);
-            const earlier = cash.events.slice(0, index).map((other) => x(day(other.date)));
-            const roomLeft = ex - 6 - Math.max(pad.l, ...earlier);
-            if (amount >= maxBill * 0.95 && day(event.date) < firstPay && (roomRight >= wide || roomLeft >= wide)) {
-              const left = roomRight < wide;
-              marks.push(
-                <text
-                  key={`l${index}`}
-                  x={left ? ex - 6 : ex + radius + 4}
-                  y={(left ? y(balance) : y(next)) - 6}
-                  textAnchor={left ? "end" : "start"}
-                >
-                  {event.name}
-                </text>,
-              );
-            }
             marks.push(
-              <circle
-                key={`b${index}`}
-                cx={ex}
-                cy={y(next)}
-                r={radius}
-                fill="var(--panel)"
-                stroke={event.overdue ? "var(--warn)" : "var(--usd)"}
-                strokeWidth="1.6"
-              >
-                <title>{`${event.name} ${usd(event.amount)}, ${event.overdue ? "overdue" : `due ${shortDate(event.date)}`}. Balance after ${usd(event.balance_after)}.`}</title>
-              </circle>,
+              <g key={`m${index}`}>
+                <circle cx={ex} cy={y(next)} r="3" fill="var(--panel)" stroke={event.overdue ? "var(--warn)" : "var(--usd)"} strokeWidth="1.5" />
+                <circle cx={ex} cy={y(next)} r="8" fill="transparent">
+                  <title>{`${event.name} ${usd(event.amount)}, ${event.overdue ? "overdue" : `due ${shortDate(event.date)}`}. Checking after: ${usd(event.balance_after)}.`}</title>
+                </circle>
+              </g>,
             );
           }
           balance = next;
         });
-        if (paid) after += `H${x(days)}`;
-        else before += `H${x(days)}`;
-        const y0 = y(0);
-        const whole =
-          `M${x(0)},${y(start)}` +
-          cash.events.map((e) => `H${x(day(e.date))}V${y(coordinate(e.balance_after))}`).join("") +
-          `H${x(days)}`;
+        line += `H${x(days)}`;
+        const area = `${line}V${y0}H${x(0)}Z`;
+        // The lowest point is named beside itself, on whichever side is clear of the next payday or due date.
         const lowX = x(day(cash.low.date)),
           lowY = y(coordinate(cash.low.balance));
+        const lowText = short ? `Short ${usd(short.amount)}` : `Low ${usd(cash.low.balance)}`,
+          lowWide = lowText.length * 6.6;
+        const stops = cash.events.map((event) => x(day(event.date)));
+        const nextStop = Math.min(x1, ...stops.filter((px) => px > lowX + 1));
+        const roomRight = nextStop - (lowX + 8),
+          roomLeft = lowX - 10 - x0;
+        const under = lowY + 15 > bottom - 2 ? lowY - 8 : lowY + 15;
+        const low =
+          roomRight >= lowWide
+            ? { x: lowX + 8, y: under, end: false }
+            : roomLeft >= lowWide
+              ? { x: lowX - 10, y: under, end: true }
+              : short && nextStop + 6 + lowWide <= x1 && lowY - y0 >= 12
+                ? // A shortfall squeezed against payday: named past the paycheck, in the clear band under $0.
+                  { x: nextStop + 6, y: lowY + 3, end: false }
+                : roomRight >= roomLeft
+                  ? { x: Math.min(lowX + 8, x1 - lowWide), y: under, end: false }
+                  : { x: Math.max(lowX - 10, x0 + lowWide), y: under, end: true };
         return (
           <>
-            {short && (
-              <>
-                <defs>
-                  <clipPath id="cash-below">
-                    <rect x="0" y={y0} width={W} height={H} />
-                  </clipPath>
-                  <pattern id="cash-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-                    <rect width="3" height="6" fill="var(--warn)" />
-                  </pattern>
-                </defs>
-                <path d={`${whole}V${y0}H${x(0)}Z`} fill="url(#cash-hatch)" opacity=".55" clipPath="url(#cash-below)" />
-              </>
-            )}
-            <line x1={pad.l} x2={W - pad.r} y1={y0} y2={y0} stroke="var(--bezel)" />
-            <text x={W - pad.r} y={y0 - 4} textAnchor="end">
+            <defs>
+              <clipPath id={`${uid}-above`}>
+                <rect x="0" y="0" width={W} height={y0} />
+              </clipPath>
+              <clipPath id={`${uid}-below`}>
+                <rect x="0" y={y0} width={W} height={Math.max(H - y0, 0)} />
+              </clipPath>
+              <pattern id={`${uid}-hatch`} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                <rect width="3" height="6" fill="var(--warn)" />
+              </pattern>
+            </defs>
+            <path d={area} fill="var(--usd-soft)" clipPath={`url(#${uid}-above)`} />
+            {short && <path d={area} fill={`url(#${uid}-hatch)`} opacity=".55" clipPath={`url(#${uid}-below)`} />}
+            {flags.map((flag, index) => {
+              const ty = 10 + flag.row * 13;
+              const color = flag.pay ? "var(--plan)" : "var(--ink)";
+              // The guide runs from its label down to the line, and steps over any label it would cross on the way.
+              const gaps = flags
+                .filter((other) => other.row > flag.row && flag.ex > other.left - 3 && flag.ex < other.left + other.wide + 3)
+                .map((other) => other.row)
+                .sort((a, b) => a - b);
+              const runs: [number, number][] = [];
+              let from = ty + 3;
+              for (const row of gaps) {
+                const band = 10 + row * 13;
+                if (band - 9 > from) runs.push([from, band - 9]);
+                from = band + 3;
+              }
+              const end = (reach.get(flag.event) ?? bottom) - 1;
+              if (end > from) runs.push([from, end]);
+              return (
+                <g key={`f${index}`}>
+                  {runs.map(([y1, y2]) => (
+                    <line key={y1} x1={flag.ex} x2={flag.ex} y1={y1} y2={y2} stroke={color} strokeDasharray="3 3" opacity={flag.pay ? 0.9 : 0.5} />
+                  ))}
+                  <text x={flag.flip ? flag.ex - 5 : flag.ex + 5} y={ty} textAnchor={flag.flip ? "end" : "start"} style={{ fill: color }}>
+                    {flag.pay ? (
+                      `Payday ${shortDate(flag.event.date)}`
+                    ) : (
+                      <>
+                        {flag.event.name} <tspan style={{ fontWeight: 700 }}>{usd(flag.event.amount)}</tspan>
+                        <tspan style={{ fill: "var(--ink-2)" }}> · {shortDate(flag.event.date)}</tspan>
+                      </>
+                    )}
+                  </text>
+                </g>
+              );
+            })}
+            <line x1={x0} x2={x1} y1={y0} y2={y0} stroke="var(--bezel)" />
+            <text x={x1} y={y0 - 4} textAnchor="end">
               $0
             </text>
-            {pays}
-            {onCard && all.short && !short && (
-              <>
-                <defs>
-                  <clipPath id="cash-all-below">
-                    <rect x="0" y={y0} width={W} height={H} />
-                  </clipPath>
-                  <pattern id="cash-all-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-                    <rect width="2" height="6" fill="var(--ink-2)" />
-                  </pattern>
-                </defs>
-                <path d={`${trace(stepsB)}V${y0}H${x(0)}Z`} fill="url(#cash-all-hatch)" opacity=".6" clipPath="url(#cash-all-below)" />
-              </>
-            )}
-            {onCard && (
-              <>
-                <path d={`${trace(stepsA)}${trace([...stepsB].reverse()).replace(/^M/, "L")}Z`} fill="var(--usd)" opacity=".09" />
-                <path d={trace(stepsB)} fill="none" stroke="var(--ink)" strokeWidth="1.5" strokeDasharray="1 4" strokeLinecap="round" opacity=".8" />
-              </>
-            )}
-            <path d={before} fill="none" stroke="var(--usd)" strokeWidth="2" strokeLinejoin="round" />
-            {after && (
-              <path d={after} fill="none" stroke="var(--usd)" strokeWidth="2" strokeDasharray="5 4" opacity=".75" />
-            )}
+            <path d={line} fill="none" stroke="var(--usd)" strokeWidth="2" strokeLinejoin="round" />
+            {steps}
             {marks}
-            <circle cx={x(0)} cy={y(start)} r="4" fill="var(--usd)" />
-            {short ? (
-              <text
-                className="lbl"
-                x={(x(day(cash.short!.date)) + x(firstPay)) / 2}
-                y={lowY + 16}
-                textAnchor="middle"
-                style={{ fill: "var(--warn)", fontWeight: 700 }}
-              >
-                Short {usd(cash.short!.amount)}
+            <circle cx={x(0)} cy={y(start)} r="4" fill="var(--usd)">
+              <title>{`In checking today: ${usd(cash.start)}.`}</title>
+            </circle>
+            {cash.events.length > 0 && (
+              <text className="lbl" x={low.x} y={low.y} textAnchor={low.end ? "end" : "start"} style={{ fontWeight: 700, fill: short ? "var(--warn)" : undefined }}>
+                {lowText}
               </text>
-            ) : (
-              cash.events.length > 0 &&
-              !(onCard && all.short) && (
-                // Below the line when there is room, above it when the line sits on the axis labels; on whichever side is clear of the next payday.
-                (() => {
-                  const text = `Low ${usd(cash.low.balance)}`,
-                    wide = text.length * 6.6;
-                  const paydays = cash.events.filter((event) => event.kind === "paycheck").map((event) => x(day(event.date)));
-                  const roomRight = Math.min(W - pad.r, ...paydays.filter((px) => px > lowX)) - (lowX + 8);
-                  const roomLeft = lowX - 10 - pad.l;
-                  const right = roomRight >= wide || (roomLeft < wide && roomRight >= roomLeft);
-                  return (
-                    <text
-                      className="lbl"
-                      x={right ? lowX + 8 : lowX - 10}
-                      y={lowY + 15 > H - pad.b - 2 ? lowY - 8 : lowY + 15}
-                      textAnchor={right ? "start" : "end"}
-                      style={{ fontWeight: 700 }}
-                    >
-                      {text}
-                    </text>
-                  );
-                })()
-              )
             )}
             {[0, 7, 14, 21, 28].map((d) => (
               <text key={d} x={x(d)} y={H - 5} textAnchor={d ? "middle" : "start"}>
@@ -259,7 +241,7 @@ function addDay(iso: string, days: number) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
-/** Bills lane: 30 days left to right. Further left is sooner; a bigger target is a bigger bill. Only bills are drawn here; paydays are on the Cash ahead chart. */
+/** Bills lane: 30 days left to right. Further left is sooner; a bigger target is a bigger bill. Only bills are drawn here; paydays are on the Checking forecast chart. */
 export function BillsLane({
   data,
   gone,

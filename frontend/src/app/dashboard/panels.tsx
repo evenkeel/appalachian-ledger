@@ -1,11 +1,13 @@
-import type { ReactNode } from "react";
+import { useState } from "react";
+import type { FormEvent, ReactNode } from "react";
+import { api } from "../../lib/api";
 import { LevelIcon } from "../design/icons";
 import { btc, cents, coordinate, fromCents, longMonth, monthName, plural, shortDate, usd, usdWhole } from "../lib/format";
 import type { Route } from "../lib/router";
 import type { Lens } from "../lib/session";
-import { BillsLane, CashAheadChart, PaceChart, StackRateBars, StackSpark, StackTape, shift } from "./charts";
+import { BillsLane, CashAheadChart, PaceChart, StackRateBars, StackSpark, StackTape, isCardPayment, shift } from "./charts";
 import type { BillMode } from "./Sheets";
-import type { Bill, DashboardData } from "./types";
+import type { Bill, CashCard, DashboardData } from "./types";
 
 type Go = (route: Route, sub?: string) => void;
 /** Set when an alert light concerns this panel: it takes the alert's colour and a chip that opens it. */
@@ -81,15 +83,88 @@ export function Collecting({ className, name, plain, have, need, note }: { class
   );
 }
 
-export function CashAheadPanel({ className, data, flag, go, onPaycheck, own }: { className?: string; flag?: Flag; data: DashboardData; go: Go; onPaycheck: () => void; /** True on the Bills screen itself, where a link to Bills would go nowhere. */ own?: boolean }) {
+/** The panel's name: the dollars in checking, looked at ahead, with every bill and card payment they have to cover. */
+export const FORECAST = "Checking forecast";
+export const FORECAST_PLAIN = "after bills and card payments";
+
+/** A card with no due day cannot be placed on the chart. This asks for the day right where it is missing. */
+function CardDueDay({ card, limit, onSaved }: { card: CashCard; /** The card's saved limit, sent back unchanged. */ limit: string | null; onSaved?: () => void }) {
+  const [day, setDay] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/accounts/${card.account_id}/card-terms`, "PUT", { credit_limit: limit, due_day: Number(day) });
+      onSaved?.();
+    } catch (e) {
+      setError((e as Error).message);
+      setBusy(false);
+    }
+  }
+  const owes = cents(card.owed) > 0n;
+  return (
+    <form className="duerow" onSubmit={save}>
+      <div className="sub">
+        <b style={{ color: "var(--ink)" }}>{card.name}</b>{" "}
+        {owes ? (
+          <>
+            owes <b className="num">{usd(card.owed)}</b>
+            {card.charges.count > 0 && <>, with {plural(card.charges.count, "more bill")} charged to it in the next 30 days</>}
+          </>
+        ) : (
+          <>has {plural(card.charges.count, "bill")} charged to it in the next 30 days</>
+        )}
+        . It has no due day, so paying it off is not in this forecast yet.
+      </div>
+      <div className="duerow-set">
+        <label>
+          Due on day{" "}
+          <input className="num" type="number" inputMode="numeric" min={1} max={31} required value={day} onChange={(e) => setDay(e.target.value)} placeholder="1–31" aria-label={`Day of the month ${card.name} is due`} />{" "}
+          of each month
+        </label>
+        <button className="btn sm" disabled={busy}>
+          Add to forecast
+        </button>
+      </div>
+      {error && (
+        <div className="hint" role="alert" style={{ color: "var(--warn)" }}>
+          {error}
+        </div>
+      )}
+    </form>
+  );
+}
+
+export function CashAheadPanel({
+  className,
+  data,
+  flag,
+  go,
+  onPaycheck,
+  onChanged,
+  own,
+}: {
+  className?: string;
+  flag?: Flag;
+  data: DashboardData;
+  go: Go;
+  onPaycheck: () => void;
+  /** Called after a card's due day is saved here, so the reading can be fetched again. */
+  onChanged?: () => void;
+  /** True on the Bills screen itself, where a link to Bills would go nowhere. */
+  own?: boolean;
+}) {
   const cash = data.cash_ahead;
   if (cash.status === "needs_account")
     return (
       <NotSetUp
         className={className}
-        name="Cash ahead"
-        plain="checking after known bills"
-        needs="Add your checking account first. This panel then shows whether it covers every bill before your next paycheck."
+        name={FORECAST}
+        plain={FORECAST_PLAIN}
+        needs="Add your checking account first. This panel then shows whether it covers every bill and card payment before your next paycheck."
         action={
           <button className="btn sm" onClick={() => go("accounts", "add")}>
             Add an account
@@ -101,8 +176,8 @@ export function CashAheadPanel({ className, data, flag, go, onPaycheck, own }: {
     return (
       <NotSetUp
         className={className}
-        name="Cash ahead"
-        plain="checking after known bills"
+        name={FORECAST}
+        plain={FORECAST_PLAIN}
         needs={
           <>
             No bills on file yet, so nothing is known to be due. Add them and this shows whether{" "}
@@ -127,41 +202,59 @@ export function CashAheadPanel({ className, data, flag, go, onPaycheck, own }: {
     );
   const short = cash.short;
   const payday = cash.next_paycheck;
-  const cards = cash.card_bills,
-    all = cash.all_bills;
-  // Bills on a card still have to be paid from checking one day, so the verdict counts them.
-  const stretched = !short && cards.count > 0 && all.short !== null;
-  const billsOnCard = `${plural(cards.count, "bill")} on a card`;
+  // A card paid off after payday can take checking under even with the paycheck in it.
+  const late = short !== null && payday !== null && short.date > payday.date;
+  const payments = cash.events.filter(isCardPayment);
+  const before = payments.filter((event) => !payday || event.date <= payday.date);
+  const toCards = before.reduce((sum, event) => sum + cents(event.amount), 0n);
+  const paidCards = new Set(before.map((event) => event.account_id));
+  const onlyCard = paidCards.size === 1 ? cash.cards.find((card) => paidCards.has(card.account_id))?.name : undefined;
+  const waiting = cash.cards.filter((card) => card.plan === null);
+  const limit = (card: CashCard) => data.debt.cards.find((row) => row.account_id === card.account_id)?.limit ?? null;
+  const notes = cash.cards.flatMap((card) => {
+    if (card.plan === "full") {
+      const first = cash.events.find((event) => event.kind === "card" && event.account_id === card.account_id);
+      // When the payment is simply today's balance, its label on the chart already says everything.
+      if (!first || !first.charged_count) return [];
+      return [
+        <div key={card.account_id} className="hint">
+          {card.name} is paid in full on {shortDate(first.date)}:{" "}
+          {cents(first.owed_now ?? "0") > 0n && <span className="num">{usd(first.owed_now)} owed today, plus </span>}
+          {plural(first.charged_count, "bill")} charged to it before then.
+        </div>,
+      ];
+    }
+    if (card.plan === "bill" && (card.charges.count > 0 || card.next_payment?.amount !== card.owed))
+      return [
+        <div key={card.account_id} className="hint">
+          {card.name} owes <span className="num">{usd(card.owed)}</span>. Your {card.paid_by} bill pays it down, so that bill is what is drawn, not a payment in full.
+          {card.charges.count > 0 && (
+            <>
+              {" "}
+              {plural(card.charges.count, "bill")} charged to the card {card.charges.count === 1 ? "adds" : "add"} to what it owes.
+            </>
+          )}
+        </div>,
+      ];
+    return [];
+  });
   return (
-    <Panel className={className} flag={flag} name="Cash ahead" plain="checking after known bills" link={own ? undefined : { label: "Bills", onClick: () => go("bills") }}>
+    <Panel className={className} flag={flag} name={FORECAST} plain={FORECAST_PLAIN} link={own ? undefined : { label: "Bills", onClick: () => go("bills") }}>
       <div className="split" style={{ alignItems: "flex-end", flexWrap: "wrap" }}>
         <div style={{ flex: "1 1 240px" }}>
           <div className="lead" style={{ fontWeight: 700, color: short ? "var(--warn)" : undefined }}>
-            {short
-              ? payday
-                ? "Short before payday"
-                : "Short within 30 days"
-              : stretched
-                ? "Covered, until the card is due"
-                : payday
-                  ? "Covered through payday"
-                  : "Covered for the next 30 days"}
+            {short ? (late ? `Short on ${shortDate(short.date)}` : payday ? "Short before payday" : "Short within 30 days") : payday ? "Covered through payday" : "Covered for the next 30 days"}
           </div>
           <div className="sub">
             {short ? (
-              <>Checking runs out on {shortDate(short.date)}{payday ? `, before the ${shortDate(payday.date)} paycheck` : ""}.</>
-            ) : stretched ? (
               <>
-                Checking covers the bills paid from it. Set aside for {billsOnCard} too and it is{" "}
-                <b className="num" style={{ color: "var(--ink)" }}>
-                  {usd(all.short!.amount)} short
-                </b>{" "}
-                by {shortDate(all.short!.date)}.
+                Checking runs out on {shortDate(short.date)}
+                {late ? `, even with the ${shortDate(payday.date)} paycheck` : payday ? `, before the ${shortDate(payday.date)} paycheck` : ""}.
               </>
             ) : cash.covered_days !== null ? (
               <>
-                {cards.count > 0 ? "Bills paid from checking" : "Known bills"} are covered for <b className="num">{cash.covered_days >= 60 ? "60+" : cash.covered_days} days</b>, even if no
-                paycheck arrives.{cards.count > 0 && <> There is enough to set aside for {billsOnCard} as well.</>}
+                {payments.length ? "Bills and card payments" : "Known bills"} are covered for <b className="num">{cash.covered_days >= 60 ? "60+" : cash.covered_days} days</b>, even if no
+                paycheck arrives.
               </>
             ) : null}
             {!payday && (
@@ -181,34 +274,45 @@ export function CashAheadPanel({ className, data, flag, go, onPaycheck, own }: {
           </div>
           <div>
             <span>{payday ? "Due before payday" : "Due in 30 days"}</span>
-            <b>{usd(cards.count > 0 ? all.due_before_paycheck : cash.due_before_paycheck)}</b>
-            {cards.count > 0 && <small className="num">{usd(cards.due_before_paycheck)} of it on a card</small>}
+            <b>{usd(cash.due_before_paycheck)}</b>
+            {toCards > 0n && (
+              <small className="num">
+                {usd(fromCents(toCards))} of it to {onlyCard ?? "cards"}
+              </small>
+            )}
           </div>
           <div>
-            <span>{short ? "Shortfall" : stretched ? "Short, with card bills" : cards.count > 0 ? "Free after all bills" : "Free after bills"}</span>
-            <b style={{ color: short ? "var(--warn)" : undefined }}>{usd(short ? short.amount : stretched ? all.short!.amount : cards.count > 0 ? all.low.balance : cash.low.balance)}</b>
+            <span>{short ? "Shortfall" : "Free after bills"}</span>
+            <b style={{ color: short ? "var(--warn)" : undefined }}>{usd(short ? short.amount : cash.low.balance)}</b>
+            {!short && cash.low.balance !== cash.start && <small className="num">lowest on {shortDate(cash.low.date)}</small>}
           </div>
         </div>
       </div>
+      {waiting.map((card) => (
+        <CardDueDay key={card.account_id} card={card} limit={limit(card)} onSaved={onChanged} />
+      ))}
       <CashAheadChart data={data} />
       <div className="key">
         <span>
           <i style={{ background: "var(--usd)" }} />
-          {cards.count > 0 ? "After bills paid from checking" : "Balance after known bills"}
+          Dollars in checking
         </span>
-        {cards.count > 0 && (
+        <span>
+          <i className="dot ring" />
+          Bill paid from checking
+        </span>
+        {payments.length > 0 && (
           <span>
-            <i className="dotted" />
-            With bills on a card set aside too
+            <i className="dot" style={{ background: "var(--ink)" }} />
+            Card payment
           </span>
         )}
         <span>
           <i style={{ background: "var(--plan)" }} />
           Planned paycheck, not recorded yet
         </span>
-        <span className="dim">{cards.count > 0 ? "Circle = paid from checking · square = on a card · size = amount" : "Circle size = bill amount"}</span>
-        {stretched && <span className="dim">Hatched = below $0 with card bills set aside</span>}
       </div>
+      {notes}
       {cash.other_bills > 0 && (
         <div className="hint">
           {plural(cash.other_bills, "bill")} paid from another account, such as savings, {cash.other_bills === 1 ? "is" : "are"} not drawn here.
@@ -416,15 +520,16 @@ export function BillsPanel({
       />
     );
   const short = cash.short;
-  // Every bill counts, including those charged to a card: they are paid from checking in the end.
-  const everything = cash.all_bills;
-  const stretched = !short && everything.short !== null;
-  const need = everything.due_before_paycheck,
+  // Card payments count too: a card is paid from checking like any bill.
+  const need = cash.due_before_paycheck,
     inChecking = data.checking.total;
+  const payday = cash.next_paycheck;
+  const late = short !== null && payday !== null && short.date > payday.date;
+  const what = cash.events.some((event) => isCardPayment(event) && (!payday || event.date <= payday.date)) ? "Bills and card payments" : "Bills";
   const used = coordinate(inChecking) > 0 ? Math.min(100, (coordinate(need) / coordinate(inChecking)) * 100) : 100;
   const next = [...bills.items].sort((a, b) => a.days_until - b.days_until).slice(0, 3);
-  const until = cash.next_paycheck ? `payday on ${shortDate(cash.next_paycheck.date)}` : "the end of the next 30 days";
-  const spare = !short && !stretched && cents(everything.low.balance) > 0n;
+  const until = payday ? `payday on ${shortDate(payday.date)}` : "the end of the next 30 days";
+  const spare = !short && cents(cash.low.balance) > 0n;
   return (
     <Panel className={className} flag={flag} name="Bills" plain="pay them, or destroy them for good" link={{ label: `All ${bills.items.length}`, onClick: () => go("bills") }}>
       <div className="split" style={{ alignItems: "flex-end", flexWrap: "wrap", gap: "6px 16px" }}>
@@ -435,17 +540,19 @@ export function BillsPanel({
           </div>
         </div>
         <div style={{ flex: "1 1 210px", display: "grid", gap: 5, paddingBottom: 3 }}>
-          <div className={`bar cover${short ? " short" : ""}`} role="img" aria-label={`${usd(need)} of ${usd(inChecking)} is needed for bills before ${until}`}>
+          <div className={`bar cover${short ? " short" : ""}`} role="img" aria-label={`${usd(need)} of ${usd(inChecking)} is needed for ${what.toLowerCase()} before ${until}`}>
             <i style={{ width: `${used.toFixed(1)}%` }} />
           </div>
           <div className="sub">
-            {cents(need) > 0n ? (
+            {late ? (
               <>
-                Bills before {until} need <b className="num">{usd(need)}</b>.{" "}
+                Checking runs <b style={{ color: "var(--warn)" }}>{usd(short.amount)} short</b> on {shortDate(short.date)}, even with the {shortDate(payday.date)} paycheck.
+              </>
+            ) : cents(need) > 0n ? (
+              <>
+                {what} before {until} need <b className="num">{usd(need)}</b>.{" "}
                 {short ? (
                   <b style={{ color: "var(--warn)" }}>{usd(short.amount)} short.</b>
-                ) : stretched ? (
-                  <b style={{ color: "var(--ink)" }}>{usd(everything.short!.amount)} short once bills on a card are set aside.</b>
                 ) : (
                   <b className="ok">Enough in checking.</b>
                 )}
@@ -500,7 +607,7 @@ export function BillsPanel({
         </span>
         {spare && (
           <span>
-            Spare dollars <b className="num">{usd(everything.low.balance)}</b>{" "}
+            Spare dollars <b className="num">{usd(cash.low.balance)}</b>{" "}
             <button className="btn sm copper" onClick={onStack}>
               Stack it →
             </button>
@@ -604,9 +711,9 @@ export function BudgetsPanel({ className, data, flag, go }: { className?: string
 export function SetupPanel({ className, data, demoEnabled, go, onPaycheck, onDemo }: { className?: string; data: DashboardData; demoEnabled: boolean; go: Go; onPaycheck: () => void; onDemo: () => void }) {
   const s = data.setup;
   const steps: { done: boolean; title: string; sub: string; action?: ReactNode }[] = [
-    { done: s.has_account, title: "Add your checking account", sub: "Turns on: Cash ahead, Spend pace", action: <button className="btn sm" onClick={() => go("accounts", "add")}>Add account</button> },
-    { done: s.has_paycheck, title: "Set your next paycheck", sub: "Turns on: payday in Cash ahead", action: s.has_account ? <button className="btn sm" onClick={onPaycheck}>Set payday</button> : undefined },
-    { done: s.has_bills, title: "Add recurring bills", sub: "Turns on: Cash ahead, Bills", action: <button className="btn sm" onClick={() => go("bills", "add")}>Add bills</button> },
+    { done: s.has_account, title: "Add your checking account", sub: "Turns on: Checking forecast, Spend pace", action: <button className="btn sm" onClick={() => go("accounts", "add")}>Add account</button> },
+    { done: s.has_paycheck, title: "Set your next paycheck", sub: "Turns on: payday in Checking forecast", action: s.has_account ? <button className="btn sm" onClick={onPaycheck}>Set payday</button> : undefined },
+    { done: s.has_bills, title: "Add recurring bills", sub: "Turns on: Checking forecast, Bills", action: <button className="btn sm" onClick={() => go("bills", "add")}>Add bills</button> },
     { done: s.has_bitcoin, title: "Record your bitcoin", sub: "Turns on: Stack", action: <button className="btn sm" onClick={() => go("accounts", "add-bitcoin")}>Add bitcoin</button> },
     { done: s.has_price_source, title: "Choose a price source", sub: "Turns on: bitcoin cost on every expense", action: <button className="btn sm" onClick={() => go("settings")}>Choose</button> },
     { done: s.has_backup, title: "Make an encrypted backup", sub: "Turns on: backup reminders", action: <button className="btn sm" onClick={() => go("settings")}>Back up</button> },
