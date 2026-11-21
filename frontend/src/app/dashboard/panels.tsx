@@ -127,19 +127,41 @@ export function CashAheadPanel({ className, data, flag, go, onPaycheck, own }: {
     );
   const short = cash.short;
   const payday = cash.next_paycheck;
+  const cards = cash.card_bills,
+    all = cash.all_bills;
+  // Bills on a card still have to be paid from checking one day, so the verdict counts them.
+  const stretched = !short && cards.count > 0 && all.short !== null;
+  const billsOnCard = `${plural(cards.count, "bill")} on a card`;
   return (
     <Panel className={className} flag={flag} name="Cash ahead" plain="checking after known bills" link={own ? undefined : { label: "Bills", onClick: () => go("bills") }}>
       <div className="split" style={{ alignItems: "flex-end", flexWrap: "wrap" }}>
         <div style={{ flex: "1 1 240px" }}>
           <div className="lead" style={{ fontWeight: 700, color: short ? "var(--warn)" : undefined }}>
-            {short ? (payday ? "Short before payday" : "Short within 30 days") : payday ? "Covered through payday" : "Covered for the next 30 days"}
+            {short
+              ? payday
+                ? "Short before payday"
+                : "Short within 30 days"
+              : stretched
+                ? "Covered, until the card is due"
+                : payday
+                  ? "Covered through payday"
+                  : "Covered for the next 30 days"}
           </div>
           <div className="sub">
             {short ? (
               <>Checking runs out on {shortDate(short.date)}{payday ? `, before the ${shortDate(payday.date)} paycheck` : ""}.</>
+            ) : stretched ? (
+              <>
+                Checking covers the bills paid from it. Set aside for {billsOnCard} too and it is{" "}
+                <b className="num" style={{ color: "var(--ink)" }}>
+                  {usd(all.short!.amount)} short
+                </b>{" "}
+                by {shortDate(all.short!.date)}.
+              </>
             ) : cash.covered_days !== null ? (
               <>
-                Known bills are covered for <b className="num">{cash.covered_days >= 60 ? "60+" : cash.covered_days} days</b>, even if no paycheck arrives.
+                {cards.count > 0 ? "Bills paid from checking" : "Known bills"} are covered for <b className="num">{cash.covered_days >= 60 ? "60+" : cash.covered_days} days</b>, even if no
+                paycheck arrives.{cards.count > 0 && <> There is enough to set aside for {billsOnCard} as well.</>}
               </>
             ) : null}
             {!payday && (
@@ -159,11 +181,12 @@ export function CashAheadPanel({ className, data, flag, go, onPaycheck, own }: {
           </div>
           <div>
             <span>{payday ? "Due before payday" : "Due in 30 days"}</span>
-            <b>{usd(cash.due_before_paycheck)}</b>
+            <b>{usd(cards.count > 0 ? all.due_before_paycheck : cash.due_before_paycheck)}</b>
+            {cards.count > 0 && <small className="num">{usd(cards.due_before_paycheck)} of it on a card</small>}
           </div>
           <div>
-            <span>{short ? "Shortfall" : "Free after bills"}</span>
-            <b style={{ color: short ? "var(--warn)" : undefined }}>{usd(short ? short.amount : cash.low.balance)}</b>
+            <span>{short ? "Shortfall" : stretched ? "Short, with card bills" : cards.count > 0 ? "Free after all bills" : "Free after bills"}</span>
+            <b style={{ color: short ? "var(--warn)" : undefined }}>{usd(short ? short.amount : stretched ? all.short!.amount : cards.count > 0 ? all.low.balance : cash.low.balance)}</b>
           </div>
         </div>
       </div>
@@ -171,14 +194,26 @@ export function CashAheadPanel({ className, data, flag, go, onPaycheck, own }: {
       <div className="key">
         <span>
           <i style={{ background: "var(--usd)" }} />
-          Balance after known bills
+          {cards.count > 0 ? "After bills paid from checking" : "Balance after known bills"}
         </span>
+        {cards.count > 0 && (
+          <span>
+            <i className="dotted" />
+            With bills on a card set aside too
+          </span>
+        )}
         <span>
           <i style={{ background: "var(--plan)" }} />
           Planned paycheck, not recorded yet
         </span>
-        <span className="dim">Circle size = bill amount</span>
+        <span className="dim">{cards.count > 0 ? "Circle = paid from checking · square = on a card · size = amount" : "Circle size = bill amount"}</span>
+        {stretched && <span className="dim">Hatched = below $0 with card bills set aside</span>}
       </div>
+      {cash.other_bills > 0 && (
+        <div className="hint">
+          {plural(cash.other_bills, "bill")} paid from another account, such as savings, {cash.other_bills === 1 ? "is" : "are"} not drawn here.
+        </div>
+      )}
     </Panel>
   );
 }
@@ -381,12 +416,15 @@ export function BillsPanel({
       />
     );
   const short = cash.short;
-  const need = cash.due_before_paycheck,
+  // Every bill counts, including those charged to a card: they are paid from checking in the end.
+  const everything = cash.all_bills;
+  const stretched = !short && everything.short !== null;
+  const need = everything.due_before_paycheck,
     inChecking = data.checking.total;
   const used = coordinate(inChecking) > 0 ? Math.min(100, (coordinate(need) / coordinate(inChecking)) * 100) : 100;
   const next = [...bills.items].sort((a, b) => a.days_until - b.days_until).slice(0, 3);
   const until = cash.next_paycheck ? `payday on ${shortDate(cash.next_paycheck.date)}` : "the end of the next 30 days";
-  const spare = !short && cents(cash.low.balance) > 0n;
+  const spare = !short && !stretched && cents(everything.low.balance) > 0n;
   return (
     <Panel className={className} flag={flag} name="Bills" plain="pay them, or destroy them for good" link={{ label: `All ${bills.items.length}`, onClick: () => go("bills") }}>
       <div className="split" style={{ alignItems: "flex-end", flexWrap: "wrap", gap: "6px 16px" }}>
@@ -404,7 +442,13 @@ export function BillsPanel({
             {cents(need) > 0n ? (
               <>
                 Bills before {until} need <b className="num">{usd(need)}</b>.{" "}
-                {short ? <b style={{ color: "var(--warn)" }}>{usd(short.amount)} short.</b> : <b className="ok">Enough in checking.</b>}
+                {short ? (
+                  <b style={{ color: "var(--warn)" }}>{usd(short.amount)} short.</b>
+                ) : stretched ? (
+                  <b style={{ color: "var(--ink)" }}>{usd(everything.short!.amount)} short once bills on a card are set aside.</b>
+                ) : (
+                  <b className="ok">Enough in checking.</b>
+                )}
               </>
             ) : (
               <>Nothing left to pay before {until}.</>
@@ -456,7 +500,7 @@ export function BillsPanel({
         </span>
         {spare && (
           <span>
-            Spare dollars <b className="num">{usd(cash.low.balance)}</b>{" "}
+            Spare dollars <b className="num">{usd(everything.low.balance)}</b>{" "}
             <button className="btn sm copper" onClick={onStack}>
               Stack it →
             </button>

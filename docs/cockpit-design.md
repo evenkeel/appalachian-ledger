@@ -89,6 +89,8 @@ Panels that work on day one are on top. Panels that need history sit lower and s
 | **Retirement** | The default saved scenario: funded-to age, retirement age, monthly life in both systems | `planning_scenarios`, forecasting engine | "No scenario yet" with one action | Same |
 | **Transactions** | The latest entries with dollars and bitcoin that day | Journal, `expense_costs` | Works with one entry | Same |
 
+**Bills on a card.** A bill charged to a credit card does not leave checking on its due date, but it has to be paid from checking in the end, so Cash ahead shows it. The solid line is checking after bills paid from it. A dotted line below it is checking with bills on a card set aside too; card bills are squares on that line, checking bills are circles on the solid one. The verdict counts every bill: "Covered through payday" only when checking could pay them all, and "Covered, until the card is due" when it covers its own bills but not the card's. The red cash-short treatment and the alert light stay for a real shortfall in checking itself.
+
 ### Bills: pay them, or destroy them for good
 
 The owner's idea, and it is better than what I had: paying a bill does not destroy it, because it comes back next month. A bill is only destroyed when it is gone for good.

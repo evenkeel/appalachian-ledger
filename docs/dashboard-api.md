@@ -45,7 +45,14 @@ Nothing here creates a posting except the three write actions that say so.
     "due_before_paycheck": "3083.86",       // bills on or before the next paycheck date (all 30 days if none)
     "low": { "date": "2026-12-01", "balance": "1728.54" },       // lowest balance on or before the next paycheck
     "short": null,                          // or { "date": first day balance < 0, "amount": deepest gap as positive }
-    "covered_days": 33                      // days of known bills covered with no paycheck; capped at 60
+    "covered_days": 33,                     // days of bills paid from checking covered with no paycheck; capped at 60
+    "card_bills": { "count": 3, "due_before_paycheck": "0.00", "total": "199.99" },   // bills charged to a credit card
+    "all_bills": {                          // checking judged against every bill, card bills included
+      "due_before_paycheck": "2684.36",
+      "low": { "date": "2026-12-01", "balance": "1728.54" },
+      "short": null                         // or { "date", "amount" } when setting card bills aside would take checking below zero
+    },
+    "other_bills": 0                        // bills paid from neither checking nor a card
   },
   "bills": {
     "items": [{
@@ -99,7 +106,9 @@ Nothing here creates a posting except the three write actions that say so.
 
 ## Notes on the reading
 
-- Cash ahead only moves on everyday accounts: bills paid from them and paychecks landing in them. A bill paid by card appears under `bills` only, so the card bill and the card payment are never both counted.
+- The checking line (`balance_after`, `low`, `short`, `due_before_paycheck`) only moves on everyday accounts: bills paid from them and paychecks landing in them.
+- A bill charged to a credit card is listed in `events` too, with `on_card: true` and the card's name in `account`. It leaves `balance_after` unchanged, because nothing leaves checking that day, and steps `all_bills_after` down: that second running balance is checking with every bill set aside, wherever it is paid from. `card_bills` and `all_bills` summarise it. A card payment in the window pays earlier charges, so setting aside for this month's card bills as well is deliberate: it reserves next statement's money early.
+- Bills paid from anywhere else (savings, a bitcoin wallet) are counted in `other_bills` and not drawn.
 - Overdue bills are placed on today. On the same day, bills come before paychecks. A paycheck dated today is assumed to have landed.
 - `next_paycheck` may fall after the 30 days shown.
 - `bills.next_7`, `bills.next_30`, `paid_this_month.total` and `destroyed.monthly_freed` are `null` when a bitcoin-denominated bill cannot be valued because no price is saved. Nothing is guessed.

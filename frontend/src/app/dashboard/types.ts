@@ -5,6 +5,12 @@ export interface CashEvent {
   name: string;
   amount: string;
   balance_after: string;
+  /** The same running balance with bills charged to a card set aside from checking too. */
+  all_bills_after: string;
+  /** True for a bill charged to a credit card: it does not leave checking that day. */
+  on_card?: boolean;
+  /** The card a bill is charged to, when on_card. */
+  account?: string;
   overdue?: boolean;
   bill_id?: number;
   schedule_id?: number;
@@ -50,6 +56,12 @@ export interface DashboardData {
     low: { date: string; balance: string };
     short: { date: string; amount: string } | null;
     covered_days: number | null;
+    /** Bills charged to a credit card: how many, and what they add up to. */
+    card_bills: { count: number; due_before_paycheck: string; total: string };
+    /** Checking judged against every bill, including those on a card. */
+    all_bills: { due_before_paycheck: string; low: { date: string; balance: string }; short: { date: string; amount: string } | null };
+    /** Bills paid from neither checking nor a card (savings, a wallet); counted, not drawn. */
+    other_bills: number;
   };
   bills: {
     items: Bill[];
