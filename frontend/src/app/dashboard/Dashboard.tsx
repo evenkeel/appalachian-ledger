@@ -170,7 +170,17 @@ export function Dashboard({
             onDemo={loadDemo}
           />
         )}
-        <CashAheadPanel className="c5" flag={flag("cash")} data={data} go={go} onPaycheck={() => setPaycheck(true)} />
+        <CashAheadPanel
+          className="c5"
+          flag={flag("cash")}
+          data={data}
+          go={go}
+          onPaycheck={() => setPaycheck(true)}
+          onChanged={() => {
+            void load();
+            onChanged?.();
+          }}
+        />
         <StackPanel className="c3" flag={flag("stack")} data={data} go={go} />
         <PacePanel className="c3" flag={flag("pace")} data={data} lens={lens} go={go} />
         <BillsPanel className="c5" flag={flag("bills")} data={data} go={go} gone={gone} onAct={(bill, mode) => setSheet({ bill, mode })} onStack={() => go("stack")} />

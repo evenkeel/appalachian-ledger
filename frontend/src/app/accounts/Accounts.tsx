@@ -131,7 +131,7 @@ export function Accounts({ go, onChanged }: { go: (route: Route) => void; onChan
       <div className="grid2">
         {open.length === 0 ? (
           <Panel className="c6" name="Start here" plain="add your first account" inop>
-            <div className="sub">Add your checking account first. Bills are paid from it, and it turns on Cash ahead and Spend pace.</div>
+            <div className="sub">Add your checking account first. Bills are paid from it, and it turns on Checking forecast and Spend pace.</div>
             <div>
               <button className="btn sm primary" onClick={() => setSheet("new")}>
                 Add an account

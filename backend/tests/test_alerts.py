@@ -128,6 +128,31 @@ def test_cash_short_warns_inside_a_week_and_cautions_beyond_it():
     assert "cash" not in lit(reading())
 
 
+def test_cash_short_names_a_card_payoff_and_a_shortfall_that_comes_after_payday():
+    data = reading(cash_ahead__short={"date": "2026-12-03", "amount": "187.60"})
+    data["cash_ahead"]["events"].insert(
+        2, {"kind": "card", "date": "2026-12-03", "name": "Visa", "amount": "4300.00", "balance_after": "-187.60"}
+    )
+    cash = lit(data)["cash"]
+    assert cash["why"] == (
+        "Even with your Dec 1 paycheck, the bills and card payments due by Dec 3 "
+        "add up to more than checking will hold."
+    )
+    # Everything due up to the day it runs short, not only what comes before payday.
+    assert [(row["name"], row["note"], row["value"]) for row in cash["rows"]] == [
+        ("Mortgage", "Nov 21", "1400.00"),
+        ("Visa, paid in full", "Dec 3", "4300.00"),
+    ]
+    assert [(item["label"], item["value"]) for item in cash["facts"]] == [
+        ("In checking", "2412.40"),
+        ("Due by Dec 3", "5700.00"),
+        ("Short by", "187.60"),
+    ]
+    before = lit(reading(cash_ahead__short={"date": "2026-11-26", "amount": "757.46"}))["cash"]
+    assert before["why"].startswith("The bills and card payments due before your Dec 1 paycheck")
+    assert before["facts"][1] == {"label": "Due before payday", "value": "1400.00", "unit": "USD"}
+
+
 def test_card_due_reminds_then_cautions_and_ignores_a_paid_card():
     def due(days):
         return reading(debt__cards=[card(next_due=str(date.fromisoformat(TODAY) + timedelta(days=days)))])

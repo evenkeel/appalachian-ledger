@@ -355,8 +355,10 @@ export function Learn({ go }: { go: (route: Route) => void }) {
                 charged.
               </p>
               <p>
-                A bill you charge to a card still counts. Nothing leaves checking that day, but the card has to be paid from checking later. Cash ahead sets
-                that money aside too, and tells you when checking could not cover both.
+                A bill you charge to a card still counts. Nothing leaves checking that day, but the card has to be paid from checking later. The checking
+                forecast pays each card off in full on its due day, as one more step down on the same line, so the dollars it will take never look free. Set
+                a card's due day on Accounts, or right on the forecast when it asks. A card you are paying down with a bill of its own keeps that bill as its
+                plan.
               </p>
               <p>
                 A destroyed bill is the best kind of win, because it repeats. <span className="num">$30</span> a month you no longer owe is{" "}

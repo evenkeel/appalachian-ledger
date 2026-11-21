@@ -1,19 +1,35 @@
 /** Shape of GET /api/dashboard. See docs/dashboard-api.md. Money is always a decimal string. */
 export interface CashEvent {
-  kind: "bill" | "paycheck";
+  /** "card" is a credit card paid off in full from checking on its due day. */
+  kind: "bill" | "card" | "paycheck";
   date: string;
   name: string;
   amount: string;
   balance_after: string;
-  /** The same running balance with bills charged to a card set aside from checking too. */
-  all_bills_after: string;
-  /** True for a bill charged to a credit card: it does not leave checking that day. */
-  on_card?: boolean;
-  /** The card a bill is charged to, when on_card. */
-  account?: string;
   overdue?: boolean;
   bill_id?: number;
   schedule_id?: number;
+  /** The card being paid: on a "card" payment, and on a bill that pays a card down. */
+  account_id?: number;
+  /** "card" payments only: what was owed on the card today, and the bills charged to it since. */
+  owed_now?: string;
+  charged?: string;
+  charged_count?: number;
+}
+/** A credit card with a balance or bills charged to it, and how checking pays it. */
+export interface CashCard {
+  account_id: number;
+  name: string;
+  /** Owed on the card today. */
+  owed: string;
+  due_day: number | null;
+  /** "full": paid off in full on its due day. "bill": a bill pays it down. null: no due day yet, so it is not drawn. */
+  plan: "full" | "bill" | null;
+  /** The bill that pays it, when plan is "bill". */
+  paid_by: string | null;
+  next_payment: { date: string; amount: string } | null;
+  /** Bills charged to the card over the days shown. */
+  charges: { count: number; total: string };
 }
 export interface Bill {
   id: number;
@@ -56,10 +72,8 @@ export interface DashboardData {
     low: { date: string; balance: string };
     short: { date: string; amount: string } | null;
     covered_days: number | null;
-    /** Bills charged to a credit card: how many, and what they add up to. */
-    card_bills: { count: number; due_before_paycheck: string; total: string };
-    /** Checking judged against every bill, including those on a card. */
-    all_bills: { due_before_paycheck: string; low: { date: string; balance: string }; short: { date: string; amount: string } | null };
+    /** Credit cards with a balance or bills on them. */
+    cards: CashCard[];
     /** Bills paid from neither checking nor a card (savings, a wallet); counted, not drawn. */
     other_bills: number;
   };

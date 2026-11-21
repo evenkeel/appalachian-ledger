@@ -38,20 +38,23 @@ Nothing here creates a posting except the three write actions that say so.
     "events": [
       { "kind": "bill", "date": "2026-11-21", "name": "Mortgage", "amount": "1400.00",
         "balance_after": "3412.40", "overdue": false, "bill_id": 7 },
+      { "kind": "card", "date": "2026-11-28", "name": "Ridgeline Visa", "amount": "1284.36",   // card paid in full
+        "balance_after": "2128.04", "account_id": 10, "owed_now": "1084.36", "charged": "200.00", "charged_count": 2 },
       { "kind": "paycheck", "date": "2026-12-01", "name": "Salary", "amount": "3100.00",
-        "balance_after": "4828.54", "schedule_id": 1 }
+        "balance_after": "5228.04", "schedule_id": 1 }
     ],
     "next_paycheck": { "date": "2026-12-01", "name": "Salary", "amount": "3100.00" },  // or null
-    "due_before_paycheck": "3083.86",       // bills on or before the next paycheck date (all 30 days if none)
-    "low": { "date": "2026-12-01", "balance": "1728.54" },       // lowest balance on or before the next paycheck
+    "due_before_paycheck": "2684.36",       // bills and card payments on or before the next paycheck date (all 30 days if none)
+    "low": { "date": "2026-11-28", "balance": "2128.04" },       // lowest balance over all the days shown
     "short": null,                          // or { "date": first day balance < 0, "amount": deepest gap as positive }
-    "covered_days": 33,                     // days of bills paid from checking covered with no paycheck; capped at 60
-    "card_bills": { "count": 3, "due_before_paycheck": "0.00", "total": "199.99" },   // bills charged to a credit card
-    "all_bills": {                          // checking judged against every bill, card bills included
-      "due_before_paycheck": "2684.36",
-      "low": { "date": "2026-12-01", "balance": "1728.54" },
-      "short": null                         // or { "date", "amount" } when setting card bills aside would take checking below zero
-    },
+    "covered_days": 33,                     // days of bills and card payments covered with no paycheck; capped at 60
+    "cards": [{                             // credit cards with a balance or bills charged to them
+      "account_id": 10, "name": "Ridgeline Visa", "owed": "1084.36", "due_day": 28,
+      "plan": "full",                       // "full": paid off on its due day | "bill": a bill pays it down | null: no due day, not drawn
+      "paid_by": null,                      // the bill's name when plan is "bill"
+      "next_payment": { "date": "2026-11-28", "amount": "1284.36" },   // or null
+      "charges": { "count": 3, "total": "222.99" }   // bills charged to the card over the days shown
+    }],
     "other_bills": 0                        // bills paid from neither checking nor a card
   },
   "bills": {
@@ -106,8 +109,11 @@ Nothing here creates a posting except the three write actions that say so.
 
 ## Notes on the reading
 
-- The checking line (`balance_after`, `low`, `short`, `due_before_paycheck`) only moves on everyday accounts: bills paid from them and paychecks landing in them.
-- A bill charged to a credit card is listed in `events` too, with `on_card: true` and the card's name in `account`. It leaves `balance_after` unchanged, because nothing leaves checking that day, and steps `all_bills_after` down: that second running balance is checking with every bill set aside, wherever it is paid from. `card_bills` and `all_bills` summarise it. A card payment in the window pays earlier charges, so setting aside for this month's card bills as well is deliberate: it reserves next statement's money early.
+- The checking line (`balance_after`, `low`, `short`, `due_before_paycheck`, `covered_days`) is every dollar checking has to cover: bills paid from everyday accounts, credit cards paid off in full, and paychecks landing in everyday accounts.
+- A bill charged to a credit card never appears in `events` itself. It is added to the card, and a card with a due day is paid off in full from checking on that day (`kind: "card"`): the balance owed today, plus every bill charged to it before that day. A charge on the due day itself waits for the next payment.
+- A card that a bill already pays down (`pays_account_id`) is left to that bill: the bill is the owner's plan for the card, so it stays an ordinary `kind: "bill"` event, carrying the card's `account_id`, and the card is not also paid in full. Its `plan` is `"bill"`.
+- A card with neither a due day nor a bill paying it has `plan: null` and is not drawn. The panel asks for its due day.
+- `low` is the lowest point of the whole line, so a card paid off after the next paycheck still lowers "Free after bills".
 - Bills paid from anywhere else (savings, a bitcoin wallet) are counted in `other_bills` and not drawn.
 - Overdue bills are placed on today. On the same day, bills come before paychecks. A paycheck dated today is assumed to have landed.
 - `next_paycheck` may fall after the 30 days shown.

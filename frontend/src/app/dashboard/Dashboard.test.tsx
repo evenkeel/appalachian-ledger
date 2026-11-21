@@ -28,7 +28,7 @@ import { Dashboard } from "./Dashboard";
 
 const show = async () => {
   render(<Dashboard go={() => {}} onData={() => {}} />);
-  await screen.findByLabelText(/^Cash ahead/);
+  await screen.findByLabelText(/^Checking forecast/);
 };
 
 beforeEach(() => {
@@ -41,7 +41,7 @@ beforeEach(() => {
 describe("dashboard", () => {
   it("shows the day-one readings exactly as the ledger reports them", async () => {
     await show();
-    const cash = screen.getByLabelText(/^Cash ahead/);
+    const cash = screen.getByLabelText(/^Checking forecast/);
     expect(within(cash).getByText("Covered through payday")).toBeInTheDocument();
     expect(within(cash).getByText("$2,128.04")).toBeInTheDocument();
     const stack = screen.getByLabelText(/^Stack: /);

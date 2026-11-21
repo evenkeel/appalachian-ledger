@@ -187,7 +187,7 @@ export function Bills({ go, onChanged }: { go: (route: Route) => void; onChanged
         {notice}
       </div>
       <div className="grid2">
-        <CashAheadPanel className="c7" data={data} go={go} onPaycheck={() => setPaycheck("new")} own />
+        <CashAheadPanel className="c7" data={data} go={go} onPaycheck={() => setPaycheck("new")} onChanged={changed} own />
         <Panel className="c5" name="At a glance" plain="this month's bills">
           <div className="kv glance">
             <div>
@@ -196,7 +196,7 @@ export function Bills({ go, onChanged }: { go: (route: Route) => void; onChanged
             </div>
             <div>
               <span>Due before payday</span>
-              <b>{usd(data.cash_ahead.all_bills.due_before_paycheck)}</b>
+              <b>{usd(data.cash_ahead.due_before_paycheck)}</b>
             </div>
             <div>
               <span>Next 7 days</span>
@@ -224,16 +224,8 @@ export function Bills({ go, onChanged }: { go: (route: Route) => void; onChanged
             </div>
           ) : !sorted.length ? (
             <div className="sub">No bills yet, so nothing is due.</div>
-          ) : data.cash_ahead.all_bills.short ? (
-            <div className="sub">
-              Checking covers the bills paid from it. With bills on a card set aside too, it is{" "}
-              <b className="num" style={{ color: "var(--ink)" }}>
-                {usd(data.cash_ahead.all_bills.short.amount)} short
-              </b>{" "}
-              by {shortDate(data.cash_ahead.all_bills.short.date)}.
-            </div>
-          ) : cents(data.cash_ahead.all_bills.due_before_paycheck) > 0n ? (
-            <div className="sub ok">{LevelIcon.ok} Enough in checking for every bill before the next payday.</div>
+          ) : cents(data.cash_ahead.due_before_paycheck) > 0n ? (
+            <div className="sub ok">{LevelIcon.ok} Enough in checking for every bill and card payment before the next payday.</div>
           ) : (
             <div className="sub ok">{LevelIcon.ok} Nothing left to pay before the next payday.</div>
           )}
@@ -339,7 +331,7 @@ export function Bills({ go, onChanged }: { go: (route: Route) => void; onChanged
               ))}
             </ul>
           ) : (
-            <div className="sub">No paycheck set. Add one and Cash ahead shows whether checking covers your bills until payday.</div>
+            <div className="sub">No paycheck set. Add one and the checking forecast shows whether checking covers your bills until payday.</div>
           )}
           <div className="hint">A planned paycheck never records income by itself. Record the real one in Transactions when it lands.</div>
           <div>

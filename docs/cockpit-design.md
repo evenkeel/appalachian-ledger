@@ -77,7 +77,7 @@ Panels that work on day one are on top. Panels that need history sit lower and s
 
 | Panel | Measures | Source | Day one | With history |
 | --- | --- | --- | --- | --- |
-| **Cash ahead** | Projected checking balance over 30 days: known bills step it down, planned paychecks step it up. Headline is "Covered through payday" or "Short before payday", with the lowest point and how many days of bills are covered with no paycheck | Account balance, `recurring_bills`, new `income_schedules` | Works once one bill exists. Before that it says what it needs | Same |
+| **Checking forecast** (was Cash ahead) | Projected checking balance over 30 days: bills and card payments step it down, planned paychecks step it up. Headline is "Covered through payday" or "Short before payday", with the lowest point and how many days of bills and card payments are covered with no paycheck | Account balance, `recurring_bills`, new `income_schedules` | Works once one bill exists. Before that it says what it needs | Same |
 | **Bills** | See below | `recurring_bills`, `bill_occurrences`, checking balance | Works with one bill | Same |
 | **Stack** | Bitcoin held, this month's gain, buys and dollars paid, **stack rate**, next milestone, streak, best month, price and source | Balances, transfers into bitcoin accounts, `price_quotes` | Works with one holding | Monthly trend from month two |
 | **Spend pace** | Exact spending so far this month, against the same days last month | Expenses, `expense_costs` | Shows this month's line and says when comparison starts | Full comparison |
@@ -89,14 +89,14 @@ Panels that work on day one are on top. Panels that need history sit lower and s
 | **Retirement** | The default saved scenario: funded-to age, retirement age, monthly life in both systems | `planning_scenarios`, forecasting engine | "No scenario yet" with one action | Same |
 | **Transactions** | The latest entries with dollars and bitcoin that day | Journal, `expense_costs` | Works with one entry | Same |
 
-**Bills on a card.** A bill charged to a credit card does not leave checking on its due date, but it has to be paid from checking in the end, so Cash ahead shows it. The solid line is checking after bills paid from it. A dotted line below it is checking with bills on a card set aside too; card bills are squares on that line, checking bills are circles on the solid one. The verdict counts every bill: "Covered through payday" only when checking could pay them all, and "Covered, until the card is due" when it covers its own bills but not the card's. The red cash-short treatment and the alert light stay for a real shortfall in checking itself.
+**Bills on a card.** A bill charged to a credit card does not leave checking on its due date; it is added to the card. The card itself is then paid off in full from checking on its due day, and that payment is one step down on the same single line, named on the chart with its amount and date ("Visa $958.50 · Dec 3"). There is no second line and there are no squares: a small ring is a bill paid from checking, a solid dot is a card payment. A card that a bill already pays down keeps that bill as its plan and is not also paid in full. A card with no due day cannot be placed, so the panel asks for the day right there. The verdict, the lowest point and the cash-short alert all count card payments, including one that falls after the next paycheck.
 
 ### Bills: pay them, or destroy them for good
 
 The owner's idea, and it is better than what I had: paying a bill does not destroy it, because it comes back next month. A bill is only destroyed when it is gone for good.
 
 - The panel leads with **Dollars in checking**. A bar shows how much of it the bills before payday will use, and says "Enough in checking" or "$757.46 short".
-- Each bill is a **target** on a 30-day line. Further left is sooner; a bigger target is a bigger bill. Overdue bills sit in a red "Past due" box left of Today. Only bills are drawn on this line; paydays are on the Cash ahead chart, so a payday is never mistaken for a bill.
+- Each bill is a **target** on a 30-day line. Further left is sooner; a bigger target is a bigger bill. Overdue bills sit in a red "Past due" box left of Today. Only bills are drawn on this line; paydays are on the Checking forecast chart, so a payday is never mistaken for a bill.
 - **Pay** records this month's payment after a short confirm step (date, actual amount, account, what is left in checking). The target fades and the checking figure drops. It will be back next month.
 - **Destroy** cancels a bill for good. The confirm step shows what that frees: "$22.99 a month, $275.88 a year you could stack instead". The target bursts. The app reminds you to cancel with the provider too, since it cannot do that for you.
 - **Pay off** is how a debt is destroyed: it pays the whole balance of a card or loan from checking and removes the bill. If checking cannot cover it, the confirm step says how much more is needed in checking and will not proceed.
@@ -211,7 +211,7 @@ In the build the wordmark becomes outlined paths, and `mark.svg`, `mountains.svg
 - **No combined net worth: keep, and enforce.** The current Overview shows one; the new dashboard does not. Bitcoin and dollars stay in their own units.
 - **Budgets are USD allowances: keep.**
 - **Compact, content-sized panels: keep.** A 12-column grid of panels that size to content.
-- **"Safe to spend": changed.** It becomes Cash ahead's "Free after bills", measured to the next paycheck, not month end, and never presented as money kept.
+- **"Safe to spend": changed.** It becomes the Checking forecast's "Free after bills", the lowest point of checking over the next 30 days once bills and card payments are paid, and never presented as money kept.
 - **Bitcoin price is quoted as bitcoin per dollar** (`₿842 per $1`), with the legacy `per BTC` figure one hover away. Approved by the owner.
 
 ## Back end and migration
@@ -248,7 +248,7 @@ Each step runs end to end and is checked in a browser at desktop and phone width
 
 1. Design system and logo.
 2. Shell and navigation.
-3. Dashboard with day-one panels (Cash ahead, Bills, Stack, Spend pace, Cards & debt, Budgets) and their migrations.
+3. Dashboard with day-one panels (Checking forecast, Bills, Stack, Spend pace, Cards & debt, Budgets) and their migrations.
 4. Alert lights, thresholds, acknowledgement, trigger tests.
 5. History panels (Cost of living, Spending bridge, Money flow).
 6. Activity and entry.
