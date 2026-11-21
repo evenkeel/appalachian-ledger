@@ -1,0 +1,127 @@
+/* Appalachian Bitcoin — dashboard design tokens (prototype).
+   Colour carries meaning:
+     copper   = bitcoin (saving)
+     mist/ink = dollars and neutral readings
+     amethyst = planned or hypothetical, never a recorded fact
+     green    = in range
+     blue / amber / red = alert lights only (advisory / caution / warning) */
+
+@font-face {
+  font-family: "B612";
+  src: url("fonts/b612-latin-400-normal.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "B612";
+  src: url("fonts/b612-latin-700-normal.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
+:root {
+  /* Brand: the five colours the owner already uses. */
+  --brand-mist: #a9c1cf;
+  --brand-copper: #db8046;
+  --brand-slate: #304e5d;
+  --brand-ivory: #f8f7f3;
+  --brand-amethyst: #b37cdb;
+
+  /* Type */
+  --font-ui: "B612", system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* B612 digits are all one width, so numbers align without a monospaced face. */
+  --font-num: "B612", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --t-micro: 10.5px;
+  --t-label: 11px;
+  --t-small: 12px;
+  --t-body: 13px;
+  --t-lead: 15px;
+  --t-title: 18px;
+  --t-read: 24px;
+  --t-hero: 30px;
+
+  /* Space (4px base), radii, motion */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --r-chip: 4px;
+  --r-inst: 10px;
+  --r-sheet: 14px;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --d-micro: 120ms;
+  --d-std: 240ms;
+  --d-settle: 700ms;
+}
+
+/* Night cockpit (default) */
+:root,
+:root[data-theme="night"] {
+  color-scheme: dark;
+  --bg: #070e13;
+  --panel: #0d181f;
+  --panel-2: #12212a;
+  --well: #09131a;
+  --bezel: #20343e;
+  --hairline: #172831;
+  --ink: #f1efe8;
+  --ink-2: #a6bac5;
+  --ink-3: #7d95a2;
+  --btc: #e58b4e;
+  --btc-soft: rgba(229, 139, 78, 0.16);
+  --usd: #c9d8e0;
+  --usd-soft: rgba(201, 216, 224, 0.14);
+  --plan: #bd90e4;
+  --plan-soft: rgba(189, 144, 228, 0.16);
+  --ok: #4cc38a;
+  --adv: #55aaff;
+  --caution: #f8bc2c;
+  --warn: #ff5d50;
+  --adv-fill: #55aaff;
+  --caution-fill: #f8bc2c;
+  --warn-fill: #ff5d50;
+  --lamp-on-ink: #06101a;
+  --lamp-off: #0b161d;
+  --lamp-off-ink: #5f7682;
+  --shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+  --mark-back: #a9c1cf;
+  --mark-mid: #db8046;
+  --mark-front: #3f6a80;
+  --tile: #f8f7f3;
+}
+
+/* Day cockpit */
+:root[data-theme="day"] {
+  color-scheme: light;
+  --bg: #ebe9e1;
+  --panel: #fbfaf6;
+  --panel-2: #f2f0e9;
+  --well: #e9e7de;
+  --bezel: #cfcec3;
+  --hairline: #dedcd2;
+  --ink: #1b313b;
+  --ink-2: #47606b;
+  --ink-3: #5f7782;
+  --btc: #b1561d;
+  --btc-soft: rgba(177, 86, 29, 0.13);
+  --usd: #304e5d;
+  --usd-soft: rgba(48, 78, 93, 0.12);
+  --plan: #7a49b0;
+  --plan-soft: rgba(122, 73, 176, 0.12);
+  --ok: #1a7c51;
+  --adv: #1461bd;
+  --caution: #8a5300;
+  --warn: #c22f29;
+  --adv-fill: #1461bd;
+  --caution-fill: #f3b11f;
+  --warn-fill: #c22f29;
+  --lamp-on-ink: #ffffff;
+  --lamp-off: #e4e2d9;
+  --lamp-off-ink: #6f858f;
+  --shadow: 0 18px 50px rgba(27, 49, 59, 0.22);
+  --mark-back: #a9c1cf;
+  --mark-mid: #db8046;
+  --mark-front: #304e5d;
+  --tile: #f8f7f3;
+}

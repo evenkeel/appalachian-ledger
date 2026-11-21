@@ -104,7 +104,7 @@ def test_export_neutralizes_spreadsheet_formulas(owner):
 def test_demo_is_functional_offline(owner):
     result = owner.post("/api/demo")
     assert result.status_code == 200, result.text
-    assert len(owner.get("/api/accounts").json()) == 7
+    assert len(owner.get("/api/accounts").json()) == 8
     assert len(owner.get("/api/transactions").json()) >= 50
     report = owner.get("/api/reports").json()
     assert report["net_worth"] is not None

@@ -1,0 +1,104 @@
+/* Stack screen. Shared pieces (.inst, .kv, .log, .meter, .split) come from design/app.css. */
+.stk-held {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+.stk-milestone {
+  display: grid;
+  gap: 4px;
+  border-top: 1px solid var(--hairline);
+  padding-top: 8px;
+}
+
+/* Stack rate: the figure on the left, the comparisons beside it. */
+.stk-rate {
+  display: flex;
+  gap: var(--s4);
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.stk-rate > div:first-child {
+  display: grid;
+  gap: 2px;
+}
+.stk-rate > div:first-child > b {
+  font-weight: 400;
+}
+.stk-rate .stk-kv {
+  flex: 1;
+  min-width: 220px;
+}
+.stk-rate-chart {
+  flex: 1;
+  min-height: 170px;
+}
+
+/* Wallets */
+.stk-wallets {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.stk-wallets li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px var(--s3);
+  align-items: baseline;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--hairline);
+}
+.stk-wallets li:last-child {
+  border-bottom: 0;
+}
+.stk-wallets li > b {
+  font-weight: 400;
+  font-size: var(--t-lead);
+  text-align: right;
+}
+.stk-wallets li > .sub {
+  grid-column: 2;
+  text-align: right;
+}
+.stk-wallets li > .meter {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+}
+.stk-name {
+  grid-row: span 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Buys */
+.stk-scroll {
+  overflow-x: auto;
+  min-width: 0;
+}
+.stk-unit {
+  font-size: var(--t-micro);
+  color: var(--ink-3);
+  letter-spacing: 0.04em;
+}
+.stk-scroll .log td.w {
+  max-width: 190px;
+}
+
+/* Price */
+.stk-price {
+  display: flex;
+  gap: var(--s2);
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+.stk-price > b {
+  font-weight: 400;
+}
+
+.stk-kv {
+  margin: 0;
+}

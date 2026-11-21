@@ -10,6 +10,12 @@ safe remote development and transferring encrypted backups separately.
 
 Every API startup applies pending database migrations before loading ledger data or starting background workers. A failed migration stops startup. Keep a backup before updating. Local development and testing launchers reload the API when backend code or migrations change; restart the testing launcher after frontend edits so it rebuilds the interface. Docker installations require `docker compose up --build -d` after code updates to rebuild and restart both services.
 
+## The new interface (in progress)
+
+The app is being rebuilt as a dense dashboard; see the [design brief](docs/cockpit-design.md). The front page is the new interface: sign-in, navigation, and a dashboard with Cash ahead, Bills (pay, destroy, pay off), Stack with stack rate, Spend pace, Cards & debt, Allowances, alert lights, Cost of living, Spending bridge and Money flow; a Spending screen with drill-down; a Transactions screen with keyboard entry (`N` new, `/` search, `J`/`K` move, `E` correct); Bills, Stack, Accounts and Settings screens; and Learn, which explains how the ledger thinks about money. Every screen now lives in the new interface, including Retirement. The previous interface is still reachable at `/legacy.html`, on the same ledger, until it is removed. The data contract for the dashboard is in [docs/dashboard-api.md](docs/dashboard-api.md).
+
+Existing ledgers upgrade in place: migration `0014_dashboard` only adds tables and two nullable columns, and `backend/tests/test_ledger_migration.py` proves the journal, balances and every earlier table are unchanged by it. Keep a backup before updating all the same. An encrypted backup made by an older version restores too: it is upgraded in a temporary copy first, and the ledger is replaced only if every check passes.
+
 USD and bitcoin are first-class units of account. The new-installation reporting default is USD; existing preferences are retained. Bitcoin terminology follows BIP-177: **1 bitcoin is one native base unit; 100,000,000 bitcoin = 1 legacy BTC.** Native amounts display with a prefix (`₿125,000`); legacy amounts remain explicitly labeled (`0.00125000 BTC`). Original USD cents and native bitcoin amounts are always retained. The application uses the proposal's terminology explicitly; it does not imply universal adoption of BIP-177.
 
 ## Run with Docker Compose

@@ -110,7 +110,7 @@ def test_demo_classifies_spending_plans_bills_and_leaves_accounts_usable(owner):
     types = {c["name"]: c["spending_type"] for c in owner.get("/api/categories").json() if c["kind"] == "expense"}
     assert types["Housing"] == "fixed" and types["Dining"] == "discretionary"
     bills = owner.get("/api/recurring-bills").json()
-    assert len(bills) == 3
+    assert len(bills) == 8
     assert all(bill["next_due"] > today for bill in bills)
 
 

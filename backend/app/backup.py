@@ -5,7 +5,16 @@ import json
 import os
 import sqlite3
 import tempfile
+from pathlib import Path
+
+from alembic import command
+from alembic.config import Config
+from alembic.runtime.migration import MigrationContext
+from alembic.script import ScriptDirectory
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from sqlalchemy import create_engine, event
+from sqlalchemy.exc import SQLAlchemyError
+
 from .db import engine
 from .money import rate_decimal, convert
 from .prices import parse_time
@@ -45,7 +54,7 @@ def validate(conn, current):
         raise ValueError("Backup failed SQLite integrity check")
     if schema(conn) != schema(current):
         raise ValueError(
-            "Backup schema does not match this application version. Migrate using the matching version first."
+            "Backup schema does not match this application version, even after upgrading it. Nothing was changed."
         )
     if list(conn.execute("PRAGMA foreign_key_check")):
         raise ValueError("Backup has broken foreign keys")
@@ -105,6 +114,39 @@ def validate(conn, current):
         raise ValueError("Backup contains invalid conversion attachments")
 
 
+def upgrade_candidate(path):
+    """Bring a backup made by an older version up to this version, in the temporary copy only.
+
+    The same migrations that upgrade a ledger at startup run here, so nothing is
+    converted by a second code path. A backup from a newer version is refused.
+    """
+    config = Config(str(Path(__file__).resolve().parents[2] / "database" / "alembic.ini"))
+    script = ScriptDirectory.from_config(config)
+    heads = set(script.get_heads())
+    known = {revision.revision for revision in script.walk_revisions()}
+    candidate = create_engine(f"sqlite:///{path}")
+
+    @event.listens_for(candidate, "connect")
+    def configure(conn, _):
+        conn.execute("PRAGMA foreign_keys=ON")
+
+    try:
+        with candidate.connect() as connection:
+            current = set(MigrationContext.configure(connection).get_current_heads())
+            if current == heads or not current:
+                # Up to date, or not a migrated ledger at all: validation decides.
+                return
+            if not current <= known:
+                raise ValueError("This backup was made by a newer version of the app. Update the app, then restore it.")
+            config.attributes["connection"] = connection
+            command.upgrade(config, "head")
+            connection.commit()
+    except SQLAlchemyError:
+        raise ValueError("Backup could not be upgraded to this version. Nothing was changed.") from None
+    finally:
+        candidate.dispose()
+
+
 def restore(db, content, passphrase):
     if len(content) > MAX_BYTES or not content.startswith(MAGIC):
         raise ValueError("Invalid or oversized encrypted backup")
@@ -119,6 +161,7 @@ def restore(db, content, passphrase):
         path = os.path.join(folder, "candidate.db")
         with open(path, "wb") as file:
             file.write(plain)
+        upgrade_candidate(path)
         try:
             with sqlite3.connect(path) as candidate, sqlite3.connect(engine.url.database) as current:
                 validate(candidate, current)

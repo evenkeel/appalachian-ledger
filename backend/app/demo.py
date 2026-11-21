@@ -3,7 +3,18 @@
 from datetime import date, timedelta
 from sqlalchemy import select
 from .accounting import create_account, create_transaction, adjustment, balance, audit
-from .models import Account, Asset, AssetPrice, Budget, Category, ExchangeRate, RecurringBill, SavingsGoal
+from .models import (
+    Account,
+    Asset,
+    AssetPrice,
+    Budget,
+    CardTerms,
+    Category,
+    ExchangeRate,
+    IncomeSchedule,
+    RecurringBill,
+    SavingsGoal,
+)
 from .reports import month_sequence, month_days
 from .schemas import AccountInput, TransactionInput
 
@@ -36,6 +47,12 @@ def seed_demo(db, user):
         accounts[kind] = accounts[name] = create_account(
             db, AccountInput(name=name, kind=kind, currency=currency, opening_balance=amount, date=first)
         )
+    # Added after the original accounts so their order and identifiers stay as they were.
+    card = create_account(
+        db,
+        AccountInput(name="Ridgeline Visa", kind="credit_card", currency="USD", opening_balance="1284.36", date=first),
+    )
+    db.add(CardTerms(account_id=card.id, credit_limit_minor=600000, due_day=28))
     cats = {c.name: c.id for c in db.scalars(select(Category))}
     spending_types = {
         "Housing": "fixed",
@@ -143,6 +160,21 @@ def seed_demo(db, user):
                     description="Bitcoin buy",
                 ),
             )
+        # A second, smaller buy later in the month.
+        when = start + timedelta(days=16)
+        if when <= today:
+            create_transaction(
+                db,
+                TransactionInput(
+                    date=when,
+                    kind="transfer",
+                    account_id=accounts["checking"].id,
+                    destination_id=accounts["Cold storage"].id,
+                    amount="400",
+                    destination_amount="334300",
+                    description="Bitcoin buy",
+                ),
+            )
         for name, planned in [
             ("Groceries", "60000"),
             ("Dining", "18000"),
@@ -171,10 +203,15 @@ def seed_demo(db, user):
             )
             db.add(AssetPrice(asset_id=asset.id, date=str(day), value_minor=value, entry_id=entry.id))
     # Upcoming bills mirror the monthly expenses above, so the planner has something to show.
-    for day_of_month, category, amount, description in [
-        (7, "Utilities", "184.50", "Electric & water"),
-        (21, "Housing", "720.00", "Mortgage interest & insurance"),
-        (23, "Health", "145.00", "Health & wellness"),
+    for day_of_month, category, amount, description, pays in [
+        (7, "Utilities", "184.50", "Electric & water", None),
+        (21, "Housing", "720.00", "Mortgage interest & insurance", None),
+        (23, "Health", "145.00", "Health & wellness", None),
+        (25, "Utilities", "70.00", "Internet", None),
+        (3, "Transport", "112.00", "Car insurance", None),
+        (5, "Utilities", "65.00", "Phone", None),
+        (12, "Shopping", "22.99", "Streaming", None),
+        (28, "Other expense", "1284.36", "Ridgeline Visa payment", card.id),
     ]:
         due = today.replace(day=day_of_month)
         if due <= today:
@@ -189,8 +226,21 @@ def seed_demo(db, user):
                 next_due=str(due),
                 anchor_day=day_of_month,
                 anchor_month=due.month,
+                pays_account_id=pays,
             )
         )
+    # Paid on the 1st and the 16th; the schedule only forecasts and never posts income.
+    payday = today.replace(day=16) if today.day < 16 else (today.replace(day=1) + timedelta(days=32)).replace(day=1)
+    db.add(
+        IncomeSchedule(
+            account_id=accounts["checking"].id,
+            name="Salary",
+            amount="3100.00",
+            frequency="semimonthly",
+            next_date=str(payday),
+            anchor_day=payday.day,
+        )
+    )
     # Two goals share the savings account; the earlier one fills first.
     trip = (today.replace(day=1) + timedelta(days=125)).replace(day=1)
     fund = (today.replace(day=1) + timedelta(days=400)).replace(day=1)

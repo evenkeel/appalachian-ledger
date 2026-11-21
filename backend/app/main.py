@@ -52,6 +52,8 @@ from .account_activity import account_activity
 from .startup import ensure_schema
 from .planning import router as planning_router
 from .spending_history import router as spending_history_router
+from .dashboard import router as dashboard_router
+from .alerts import router as alerts_router
 
 
 @asynccontextmanager
@@ -72,6 +74,8 @@ app = FastAPI(
 app.include_router(planning_router)
 app.include_router(insights.router)
 app.include_router(spending_history_router)
+app.include_router(dashboard_router)
+app.include_router(alerts_router)
 
 allowed_hosts = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,testserver").split(",")
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)

@@ -1,0 +1,160 @@
+/* Retirement screen. Every class here starts with ret-; colours and sizes come from the design tokens. */
+
+.ret-page .grid2 {
+  align-items: start;
+}
+.ret-narrow {
+  max-width: 600px;
+}
+.ret-col {
+  display: grid;
+  gap: var(--s3);
+  min-width: 0;
+}
+.ret-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s3);
+}
+.ret-status {
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--ink-2);
+}
+
+/* Plan bar: pick, name, save. */
+.ret-plan {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: var(--s2) var(--s3);
+  align-items: end;
+}
+.ret-page .field input:not(.num) {
+  font-family: var(--font-ui);
+}
+
+/* Assumptions */
+.ret-sub {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s2);
+  margin-top: var(--s2);
+  padding-top: var(--s2);
+  border-top: 1px solid var(--hairline);
+  font-size: var(--t-micro);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.ret-sub.ret-first {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+.ret-sub .inst-link {
+  letter-spacing: 0;
+  text-transform: none;
+}
+.ret-sub .inst-link[disabled] {
+  opacity: 0.5;
+}
+.ret-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s2) var(--s3);
+  align-items: start;
+}
+.ret-fields .ret-wide {
+  grid-column: 1 / -1;
+}
+.ret-page .field small {
+  font-size: var(--t-label);
+  line-height: 1.35;
+}
+.ret-error {
+  color: var(--warn);
+}
+.ret-page .field input[aria-invalid="true"] {
+  border-color: var(--warn);
+}
+.ret-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+}
+.ret-presets .btn[aria-pressed="true"] {
+  background: var(--panel-2);
+  color: var(--ink);
+  box-shadow: inset 0 -2px 0 var(--plan);
+}
+
+/* Outlook */
+.ret-verdict {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+.ret-verdict svg {
+  width: 18px;
+  height: 18px;
+  vertical-align: -3px;
+}
+.ret-kv {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  margin-top: var(--s3);
+}
+.ret-plan-ink {
+  color: var(--plan);
+}
+.ret-stale {
+  opacity: 0.55;
+}
+
+/* Charts */
+.ret-sample {
+  width: 22px;
+  height: 8px;
+  margin-right: 5px;
+  vertical-align: 1px;
+}
+.ret-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s4);
+}
+.ret-pair > div {
+  display: grid;
+  gap: var(--s2);
+  min-width: 0;
+  align-content: start;
+}
+
+/* Wide tables scroll inside their own box, never the page. */
+.ret-scroll {
+  overflow-x: auto;
+  min-width: 0;
+}
+.ret-pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1) var(--s4);
+}
+
+@media (max-width: 720px) {
+  .ret-plan,
+  .ret-pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* 16px keeps iOS from zooming the page when a field takes focus. */
+  .ret-page .field input,
+  .ret-page .field select {
+    font-size: 16px;
+    min-height: 40px;
+  }
+  .ret-presets .btn {
+    min-height: 36px;
+  }
+}

@@ -233,7 +233,11 @@ export default function App() {
     } | null>(null),
     [owner, setOwner] = useState<Owner | null>(null),
     [booting, setBooting] = useState(true);
-  const [page, setPage] = useState<Page>("Overview"),
+  const [page, setPage] = useState<Page>(() => {
+      // The new interface links here with ?page=Accounts and so on.
+      const wanted = new URLSearchParams(window.location.search).get("page");
+      return navigation.find((item) => item.name === wanted)?.name ?? "Overview";
+    }),
     [prefs, setPrefs] = useState<Preferences>(defaults),
     [mobile, setMobile] = useState(false);
   const [month, setMonth] = useState(today().slice(0, 7)),
