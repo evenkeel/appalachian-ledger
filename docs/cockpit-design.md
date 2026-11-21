@@ -94,7 +94,7 @@ Panels that work on day one are on top. Panels that need history sit lower and s
 The owner's idea, and it is better than what I had: paying a bill does not destroy it, because it comes back next month. A bill is only destroyed when it is gone for good.
 
 - The panel leads with **Dollars in checking**. A bar shows how much of it the bills before payday will use, and says "Enough in checking" or "$757.46 short".
-- Each bill is a **target** on a 30-day line. Further left is sooner; a bigger target is a bigger bill. Overdue bills sit in a red "Past due" box left of Today. Each planned paycheck is marked **Payday**.
+- Each bill is a **target** on a 30-day line. Further left is sooner; a bigger target is a bigger bill. Overdue bills sit in a red "Past due" box left of Today. Only bills are drawn on this line; paydays are on the Cash ahead chart, so a payday is never mistaken for a bill.
 - **Pay** records this month's payment after a short confirm step (date, actual amount, account, what is left in checking). The target fades and the checking figure drops. It will be back next month.
 - **Destroy** cancels a bill for good. The confirm step shows what that frees: "$22.99 a month, $275.88 a year you could stack instead". The target bursts. The app reminds you to cancel with the provider too, since it cannot do that for you.
 - **Pay off** is how a debt is destroyed: it pays the whole balance of a card or loan from checking and removes the bill. If checking cannot cover it, the confirm step says how much more is needed in checking and will not proceed.

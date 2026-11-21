@@ -1,7 +1,7 @@
 /* Hand-built SVG charts. Numbers are used for coordinates only; every label and
    title is formatted from the exact decimal string the API returned. */
 import type { ReactNode } from "react";
-import { btc, btcShort, coordinate, daysBetween, longMonth, monthName, shortDate, usd, usdWhole } from "../lib/format";
+import { btc, btcShort, coordinate, daysBetween, longMonth, monthName, shortDate, usd } from "../lib/format";
 import type { Lens } from "../lib/session";
 import { useSize } from "../lib/useSize";
 import type { Bill, DashboardData } from "./types";
@@ -194,7 +194,7 @@ function addDay(iso: string, days: number) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
-/** Bills lane: 30 days left to right. Further left is sooner; a bigger target is a bigger bill. */
+/** Bills lane: 30 days left to right. Further left is sooner; a bigger target is a bigger bill. Only bills are drawn here; paydays are on the Cash ahead chart. */
 export function BillsLane({
   data,
   gone,
@@ -207,7 +207,6 @@ export function BillsLane({
   const bills = data.bills.items.filter((bill) => bill.days_until <= 30);
   const late = bills.filter((bill) => bill.overdue),
     upcoming = bills.filter((bill) => !bill.overdue);
-  const paydays = data.cash_ahead.events.filter((event) => event.kind === "paycheck");
   return (
     <Frame
       height={104}
@@ -295,18 +294,6 @@ export function BillsLane({
                 {d ? shortDate(addDay(data.today, d)) : "Today"}
               </text>
             ))}
-            {paydays.map((pay, index) => {
-              const px = x(daysBetween(data.today, pay.date));
-              return (
-                <g key={index}>
-                  <line x1={px} x2={px} y1="16" y2={H - 18} stroke="var(--plan)" strokeDasharray="3 3" />
-                  <text x={px} y="11" textAnchor="middle" style={{ fill: "var(--plan)" }}>
-                    <title>{`Planned paycheck ${usd(pay.amount)} on ${shortDate(pay.date)}. It adds to your dollars in checking.`}</title>
-                    Payday +{usdWhole(pay.amount)}
-                  </text>
-                </g>
-              );
-            })}
             {late.map((bill, index) => target(bill, (zone - 8) / 2 + index * 8, cy))}
             {upcoming.map((bill) => {
               const tx = x(bill.days_until),

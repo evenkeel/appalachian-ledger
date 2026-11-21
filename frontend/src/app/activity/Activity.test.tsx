@@ -69,6 +69,39 @@ describe("transactions", () => {
     expect(writes()[0].body).not.toHaveProperty("category_id");
   });
 
+  it("lists the kinds with Bitcoin buy second", async () => {
+    await show();
+    const kinds = within(screen.getByRole("group", { name: "Kind of entry" })).getAllByRole("button");
+    expect(kinds.map((button) => button.textContent)).toEqual(["Expense", "Bitcoin buy", "Income", "Transfer"]);
+  });
+
+  it("on a transfer into a bitcoin wallet, offers only bitcoin accounts to send from", async () => {
+    await show();
+    fireEvent.click(screen.getByRole("button", { name: "Transfer" }));
+    const options = (label: string) => within(within(form()).getByLabelText(label)).getAllByRole("option").map((option) => option.textContent);
+    // Nothing picked yet: every destination is there, and checking is paired with one it can pay.
+    expect(options("From")).toEqual(["Everyday checking", "Spending wallet", "Cold storage"]);
+    expect(options("To")).toEqual(["Everyday checking", "Ridgeline Visa", "Spending wallet", "Cold storage"]);
+    expect(within(form()).getByLabelText("To")).toHaveValue("8");
+
+    set("To", "5");
+    expect(options("From")).toEqual(["Spending wallet"]);
+    expect(within(form()).getByLabelText("From")).toHaveValue("1");
+    set("Note", "Move to cold storage");
+    set("Amount (₿)", "250,000");
+    fireEvent.click(within(form()).getByRole("button", { name: /^Save/ }));
+    await waitFor(() => expect(writes()).toHaveLength(1));
+    expect(writes()[0].body).toEqual({ date: expect.any(String), kind: "transfer", account_id: 1, destination_id: 5, amount: "250000", description: "Move to cold storage" });
+  });
+
+  it("on a transfer from checking, never offers a bitcoin wallet as the destination", async () => {
+    await show();
+    fireEvent.click(screen.getByRole("button", { name: "Transfer" }));
+    set("From", "3");
+    const to = within(within(form()).getByLabelText("To")).getAllByRole("option").map((option) => option.textContent);
+    expect(to).toEqual(["Ridgeline Visa"]);
+  });
+
   it("never offers an archived account", async () => {
     await show();
     const paidFrom = within(form()).getByLabelText("Paid from");

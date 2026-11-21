@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { api } from "../../lib/api";
 import { matchRule, payeeMemory, upsertRule } from "../../lib/payees";
+import { accountChoices } from "./accountChoices";
+import type { Anchor } from "./accountChoices";
 import type { PayeeRule, Preferences } from "../../lib/types";
 import type { Account, Category, Transaction } from "../../lib/types";
 import { btc, usd } from "../lib/format";
@@ -10,8 +12,8 @@ import { EntryTable } from "./EntryTable";
 type Kind = "expense" | "income" | "transfer" | "stack";
 const KINDS: { kind: Kind; label: string }[] = [
   { kind: "expense", label: "Expense" },
-  { kind: "income", label: "Income" },
   { kind: "stack", label: "Bitcoin buy" },
+  { kind: "income", label: "Income" },
   { kind: "transfer", label: "Transfer" },
 ];
 const clean = (value: FormDataEntryValue | null) =>
@@ -37,6 +39,8 @@ export function Activity({ onChanged }: { onChanged?: () => void }) {
   const [formKey, setFormKey] = useState(0);
   const [source, setSource] = useState("");
   const [target, setTarget] = useState("");
+  // For a transfer, the list picked by hand last stays whole and the other narrows to fit it.
+  const [anchor, setAnchor] = useState<Anchor>(null);
   // Saved payee rules and each category's usual account fill a new entry; anything picked by hand wins.
   const [rules, setRules] = useState<PayeeRule[]>([]);
   const [usual, setUsual] = useState<Record<string, number>>({});
@@ -70,43 +74,13 @@ export function Activity({ onChanged }: { onChanged?: () => void }) {
     void load();
   }, [load]);
 
-  // Everyday dollar accounts first, so a new entry defaults to where money is actually spent from.
-  const ORDER = [
-    "checking",
-    "credit_card",
-    "cash",
-    "savings",
-    "bitcoin_wallet",
-  ];
-  const money = accounts
-    .filter((account) => ORDER.includes(account.kind))
-    .sort(
-      (a, b) => ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind) || a.id - b.id,
-    );
-  const dollars = accounts.filter(
-    (account) =>
-      account.currency === "USD" &&
-      account.role === "asset" &&
-      ["checking", "savings", "cash"].includes(account.kind),
-  );
-  const wallets = accounts.filter(
-    (account) =>
-      account.currency === "BITCOIN" && account.kind === "bitcoin_wallet",
-  );
-  const from =
-    kind === "stack"
-      ? dollars
-      : kind === "transfer"
-        ? [...money, ...accounts.filter((account) => !money.includes(account))]
-        : money;
-  const sourceAccount =
-    from.find((account) => String(account.id) === source) ?? from[0];
-  const to =
-    kind === "stack"
-      ? wallets
-      : accounts.filter((account) => account.id !== sourceAccount?.id);
-  const targetAccount =
-    to.find((account) => String(account.id) === target) ?? to[0];
+  // Each list offers only accounts that fit this kind of entry; see accountChoices.ts for the rules.
+  const {
+    from,
+    to,
+    source: sourceAccount,
+    target: targetAccount,
+  } = accountChoices(kind, accounts, { from: source, to: target }, anchor, editing ? [editing.account_id, ...(editing.destination_id ? [editing.destination_id] : [])] : []);
   const crossCurrency =
     (kind === "stack" || kind === "transfer") &&
     sourceAccount &&
@@ -170,15 +144,25 @@ export function Activity({ onChanged }: { onChanged?: () => void }) {
     byHand.current = { category: false, account: false };
     setCategoryId("");
     setRemember(false);
+    setAnchor(null);
     setEditing(null);
     if (!keepKind) setKind("expense");
     setFormKey((n) => n + 1);
     setTimeout(() => description.current?.focus(), 0);
   }
 
+  const fromLabel = kind === "income" ? "Into" : kind === "expense" ? "Paid from" : "From";
+
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!sourceAccount) return setError("Add an account first.");
+    if (!sourceAccount)
+      return setError(
+        kind === "transfer" && targetAccount
+          ? `Nothing can be moved into ${targetAccount.name} from the accounts you have.`
+          : kind === "stack"
+            ? "Add a dollar account to buy from first."
+            : "Add an account first.",
+      );
     const form = new FormData(event.currentTarget);
     const moving = kind === "stack" || kind === "transfer";
     const body: Record<string, unknown> = {
@@ -195,7 +179,7 @@ export function Activity({ onChanged }: { onChanged?: () => void }) {
         return setError(
           kind === "stack"
             ? "Add a bitcoin wallet first."
-            : "Choose where the money went.",
+            : `Nothing fits as a destination for ${sourceAccount.name}.`,
         );
       body.destination_id = targetAccount.id;
       if (crossCurrency) body.destination_amount = clean(form.get("received"));
@@ -323,6 +307,7 @@ export function Activity({ onChanged }: { onChanged?: () => void }) {
               aria-pressed={kind === item.kind}
               onClick={() => {
                 setKind(item.kind);
+                setAnchor(null);
                 setCategoryId("");
                 byHand.current.category = false;
               }}
@@ -370,62 +355,84 @@ export function Activity({ onChanged }: { onChanged?: () => void }) {
             )}
           </label>
           {kind === "expense" || kind === "income" ? (
-            <label className="field">
-              <span>Category</span>
-              <select
-                name="category_id"
-                value={chosenCategory ? String(chosenCategory.id) : ""}
-                onChange={(event) => {
-                  byHand.current.category = true;
-                  setCategoryId(event.target.value);
-                  if (kind === "expense" && !editing) useAccount(usual[event.target.value]);
-                }}
-                required
-              >
-                {choices.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <>
+              <label className="field">
+                <span>Category</span>
+                <select
+                  name="category_id"
+                  value={chosenCategory ? String(chosenCategory.id) : ""}
+                  onChange={(event) => {
+                    byHand.current.category = true;
+                    setCategoryId(event.target.value);
+                    if (kind === "expense" && !editing) useAccount(usual[event.target.value]);
+                  }}
+                  required
+                >
+                  {choices.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>{fromLabel}</span>
+                <select
+                  value={sourceAccount ? String(sourceAccount.id) : ""}
+                  onChange={(event) => {
+                    byHand.current.account = true;
+                    setAnchor("from");
+                    setSource(event.target.value);
+                  }}
+                >
+                  {from.length === 0 && <option value="">No account fits</option>}
+                  {from.map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
           ) : (
-            <label className="field">
-              <span>{kind === "stack" ? "Into wallet" : "To"}</span>
-              <select
-                value={targetAccount ? String(targetAccount.id) : ""}
-                onChange={(event) => setTarget(event.target.value)}
-              >
-                {to.map((account) => (
-                  <option key={account.id} value={account.id}>
-                    {account.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <>
+              <label className="field">
+                <span>{fromLabel}</span>
+                <select
+                  value={sourceAccount ? String(sourceAccount.id) : ""}
+                  onChange={(event) => {
+                    byHand.current.account = true;
+                    setAnchor("from");
+                    setSource(event.target.value);
+                  }}
+                >
+                  {from.length === 0 && <option value="">No account fits</option>}
+                  {from.map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>{kind === "stack" ? "Into wallet" : "To"}</span>
+                <select
+                  value={targetAccount ? String(targetAccount.id) : ""}
+                  onChange={(event) => {
+                    setAnchor("to");
+                    setTarget(event.target.value);
+                  }}
+                >
+                  {to.length === 0 && <option value="">No account fits</option>}
+                  {to.map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
           )}
-          <label className="field">
-            <span>
-              {kind === "income"
-                ? "Into"
-                : kind === "expense"
-                  ? "Paid from"
-                  : "From"}
-            </span>
-            <select
-              value={sourceAccount ? String(sourceAccount.id) : ""}
-              onChange={(event) => {
-                byHand.current.account = true;
-                setSource(event.target.value);
-              }}
-            >
-              {from.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.name}
-                </option>
-              ))}
-            </select>
-          </label>
           <label className="field">
             <span>{amountLabel}</span>
             <input
@@ -478,6 +485,13 @@ export function Activity({ onChanged }: { onChanged?: () => void }) {
             )}
           </span>
         </form>
+        {kind === "transfer" && (
+          <div className="hint">
+            {sourceAccount?.currency === "BITCOIN" && targetAccount?.currency === "USD"
+              ? "This sells bitcoin for dollars. Enter the bitcoin sent and the dollars you actually received."
+              : "Each list shows only accounts that fit the other. Bitcoin moves between bitcoin accounts; buying bitcoin with dollars is under Bitcoin buy."}
+          </div>
+        )}
         {kind === "stack" && (
           <div className="hint">
             Enter the dollars you paid and the bitcoin you actually received. A

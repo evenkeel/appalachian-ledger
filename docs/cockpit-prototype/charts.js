@@ -164,7 +164,6 @@
     if (late.length) out += `<rect x="0" y="6" width="${zone - 8}" height="${H - 26}" rx="6" fill="var(--warn)" opacity=".14"/><text x="${(zone - 8) / 2}" y="${H - 4}" text-anchor="middle" style="fill:var(--warn);font-weight:700">Past due</text>`;
     out += `<line x1="${x(0)}" x2="${x(0)}" y1="6" y2="${H - 18}" stroke="var(--ink-2)" stroke-width="1.5"/>`;
     out += [0, 7, 14, 21, 28].map((d) => `<text x="${x(d)}" y="${H - 4}" text-anchor="${d ? "middle" : "start"}"${d ? "" : ' class="lbl"'}>${d ? F.date(d) : "Today"}</text>`).join("");
-    out += PROTO.six.paydays.map((p) => `<line x1="${x(p.day)}" x2="${x(p.day)}" y1="16" y2="${H - 18}" stroke="var(--plan)" stroke-dasharray="3 3"/><text x="${x(p.day)}" y="11" text-anchor="middle" style="fill:var(--plan)" ${tip(`Planned paycheck ${F.usd(p.cents)}\n${F.date(p.day)} · adds to your dollars in checking`)}>Payday +${F.usd0(p.cents)}</text>`).join("");
     out += late.map((b, i) => target(b, (zone - 8) / 2 + i * 8, cy)).join("");
     let prevX = -99, prevS = 0, flip = 1;
     for (const b of up) {
