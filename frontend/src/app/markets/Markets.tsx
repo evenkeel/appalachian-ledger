@@ -5,8 +5,11 @@ import "react-grid-layout/css/styles.css";
 import { Sheet } from "../dashboard/Sheets";
 import { useSession } from "../lib/session";
 import { BITCOIN, COLUMNS, MAX_PANELS, PRESETS, ROW, SMALLEST, addPanel, changePanel, chart, defaultBoard, followLens, loadBoard, removePanel, saveBoard, symbolsOn } from "./board";
-import type { Board, ChartSpec, Instrument, Spec } from "./board";
+import type { Board, BookSpec, ChartSpec, DepthSpec, Instrument, Spec } from "./board";
 import { ChartPanel } from "./ChartPanel";
+import { DepthChart } from "./DepthChart";
+import { Menu } from "./Menu";
+import { OrderBook } from "./OrderBook";
 import { useQuotes } from "./feed";
 import { SymbolPicker } from "./SymbolPicker";
 import { Watchlist } from "./Watchlist";
@@ -75,6 +78,10 @@ export function Markets() {
         onExpand={() => setExpanded(expanded === spec.id ? null : spec.id)}
         onActivate={() => setBoard((before) => (before.active === spec.id ? before : { ...before, active: spec.id }))}
       />
+    ) : spec.kind === "book" ? (
+      <OrderBook spec={spec} onChange={(patch) => setBoard((before) => changePanel<BookSpec>(before, spec.id, patch))} onRemove={() => remove(spec.id)} />
+    ) : spec.kind === "depth" ? (
+      <DepthChart spec={spec} onChange={(patch) => setBoard((before) => changePanel<DepthSpec>(before, spec.id, patch))} onRemove={() => remove(spec.id)} />
     ) : (
       <Watchlist
         spec={spec}
@@ -102,17 +109,41 @@ export function Markets() {
           {error ? "Reconnecting…" : "Live"}
         </span>
         <span className="mk-gap" />
-        <button className="btn" onClick={() => setAdding(true)} disabled={full} title={full ? `The board holds ${MAX_PANELS} panels` : undefined}>
-          + Chart
-        </button>
-        <button
-          className="btn"
-          disabled={full}
-          title={full ? `The board holds ${MAX_PANELS} panels` : undefined}
-          onClick={() => setBoard((before) => addPanel(before, (id) => ({ id, kind: "list", items: PRESETS[0].items.slice(0, 3) })))}
-        >
-          + Watchlist
-        </button>
+        {full ? (
+          <button className="btn" disabled title={`The board holds ${MAX_PANELS} panels`}>
+            + Add
+          </button>
+        ) : (
+          <Menu label="+ Add" className="btn" align="right">
+            {(close) => {
+              const add = (make: (id: string) => Spec) => () => {
+                close();
+                setBoard((before) => addPanel(before, make));
+              };
+              return (
+                <>
+                  <button
+                    onClick={() => {
+                      close();
+                      setAdding(true);
+                    }}
+                  >
+                    Chart <small>any symbol</small>
+                  </button>
+                  <button onClick={add((id) => ({ id, kind: "list", items: PRESETS[0].items.slice(0, 3) }))}>
+                    Watchlist <small>several prices</small>
+                  </button>
+                  <button onClick={add((id) => ({ id, kind: "book", group: 1 }))}>
+                    Order book <small>bitcoin, live</small>
+                  </button>
+                  <button onClick={add((id) => ({ id, kind: "depth", reach: 0.01 }))}>
+                    Depth chart <small>bitcoin, live</small>
+                  </button>
+                </>
+              );
+            }}
+          </Menu>
+        )}
         <button className="btn ghost" onClick={() => setResetting(true)}>
           Reset board
         </button>
@@ -168,7 +199,8 @@ export function Markets() {
       )}
       <p className="hint mk-note">
         {stacked ? "" : "Drag a panel by its top edge to move it and by its bottom-right corner to resize it. The board is saved in this browser. "}
-        The $ and ₿ buttons on a chart price that chart alone; the switch in the top bar prices them all. 
+        The $ and ₿ buttons on a chart price that chart alone; the switch in the top bar prices them all. Scrolling over a chart moves the page; to zoom a chart hold Ctrl or ⌘ and
+        scroll, pinch, use its − and + buttons, or drag along its dates. 
         Bitcoin prices come from Coinbase trade by trade. Everything else comes from Yahoo Finance, where some exchanges run up to 15 minutes behind. Only ticker symbols leave your
         ledger. Charts drawn with{" "}
         <a href="https://www.tradingview.com/" target="_blank" rel="noreferrer">

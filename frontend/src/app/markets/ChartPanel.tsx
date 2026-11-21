@@ -7,6 +7,7 @@ import type { ChartSpec, Style } from "./board";
 import { bitcoinPrice, change, digitsFor, inBitcoin, isYield, price, useCandles } from "./feed";
 import type { Quote } from "./feed";
 import { useLive } from "./live";
+import { Menu } from "./Menu";
 import { PriceChart } from "./PriceChart";
 import { SymbolPicker } from "./SymbolPicker";
 
@@ -34,39 +35,6 @@ const STYLE_ICON: Record<Style, ReactNode> = {
 };
 const EXPAND = glyph(<path d="M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5l-4.5 4.5M2.5 13.5l4.5-4.5" />);
 const SHRINK = glyph(<path d="M13.5 6.5h-4v-4M2.5 9.5h4v4M9.5 6.5l4-4M6.5 9.5l-4 4" />);
-
-/** A small pop-up of switches. Closes on a click elsewhere or Escape. */
-function Menu({ label, children }: { label: string; children: ReactNode }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (event: PointerEvent) => {
-      if (!ref.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("pointerdown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("pointerdown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-  return (
-    <div ref={ref} className={`mk-menu${open ? " mk-menu-open" : ""}`}>
-      <button className="btn sm" aria-expanded={open} onClick={() => setOpen(!open)}>
-        {label} <span aria-hidden="true">▾</span>
-      </button>
-      {open && (
-        <div className="mk-pop" role="group" aria-label={label}>
-          {children}
-        </div>
-      )}
-    </div>
-  );
-}
 
 /** Whether the newest price ticked up or down, for a brief flash. The count restarts the flash each tick. */
 function useTick(value: number | undefined) {
@@ -228,7 +196,7 @@ export function ChartPanel({
       </div>
       <div className="mk-body">
         {feed.bars.length > 0 ? (
-          <PriceChart bars={feed.bars} dataKey={feed.key} interval={spec.interval} style={spec.style} volume={spec.volume} log={spec.log} averages={spec.averages} digits={digits} bitcoin={spec.symbol === BITCOIN} inBitcoin={priced} />
+          <PriceChart bars={feed.bars} dataKey={feed.key} interval={spec.interval} style={spec.style} volume={spec.volume} log={spec.log} averages={spec.averages} digits={digits} bitcoin={spec.symbol === BITCOIN} inBitcoin={priced} fillsScreen={expanded} />
         ) : feed.error ? (
           <div className="mk-empty" role="alert">
             <p className="sub">{feed.error}</p>

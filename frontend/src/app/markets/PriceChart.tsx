@@ -15,7 +15,7 @@ import type { IChartApi, ISeriesApi, SeriesType } from "lightweight-charts";
 import type { Interval, Style } from "./board";
 import { bitcoinPrice, compact, price } from "./feed";
 import type { Bar } from "./feed";
-import { movingAverage, rowsFrom } from "./series";
+import { movingAverage, rowsFrom, wheelAction } from "./series";
 import type { Row } from "./series";
 
 /** A colour token made see-through, for volume bars and the area fill. */
@@ -65,6 +65,9 @@ interface Drawn {
 }
 
 const SPACING = 7;
+/** The narrowest and widest a bar is drawn, in pixels. */
+const NARROWEST = 0.5;
+const WIDEST = 80;
 
 /** A live price chart: bars, candles, a line or an area, with optional volume and moving averages. */
 export function PriceChart({
@@ -78,6 +81,7 @@ export function PriceChart({
   digits,
   bitcoin,
   inBitcoin = false,
+  fillsScreen = false,
 }: {
   bars: Bar[];
   /** Changes when the bars belong to a different symbol or bar size, which resets the view. */
@@ -92,12 +96,16 @@ export function PriceChart({
   bitcoin: boolean;
   /** The bars are priced in whole bitcoin, so every figure is written with ₿. */
   inBitcoin?: boolean;
+  /** The chart is the whole screen, so a plain scroll zooms it instead of moving the page. */
+  fillsScreen?: boolean;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const chart = useRef<IChartApi | null>(null);
   const drawn = useRef<Drawn | null>(null);
   const indexOf = useRef(new Map<number, number>());
   const total = useRef(0);
+  const zoomsFreely = useRef(fillsScreen);
+  zoomsFreely.current = fillsScreen;
   const [hover, setHover] = useState<number | null>(null);
   const [away, setAway] = useState(false);
   const theme = useTheme();
@@ -116,16 +124,31 @@ export function PriceChart({
       crosshair: { mode: CrosshairMode.Normal },
       // A finger moving up or down scrolls the page; sideways it moves through the chart.
       handleScroll: { vertTouchDrag: false },
-      timeScale: { rightOffset: 6, barSpacing: SPACING, minBarSpacing: 0.5, secondsVisible: false },
+      timeScale: { rightOffset: 6, barSpacing: SPACING, minBarSpacing: NARROWEST, secondsVisible: false },
       localization: { locale: "en-US" },
     });
     chart.current = made;
+    // Heard before the chart hears it, so a plain scroll can be kept for the page.
+    const element = host.current;
+    const onWheel = (event: WheelEvent) => {
+      const action = wheelAction(event, zoomsFreely.current);
+      if (action === "zoom") return; // The chart zooms around the pointer itself.
+      event.stopPropagation();
+      if (action === "page") return; // Nothing is cancelled, so the page scrolls as usual.
+      // Sideways: move through time, and keep the browser from taking the swipe as "go back".
+      event.preventDefault();
+      const scale = made.timeScale();
+      const pixels = event.deltaMode === 1 ? event.deltaX * 16 : event.deltaX;
+      scale.scrollToPosition(scale.scrollPosition() + pixels / scale.options().barSpacing, false);
+    };
+    element.addEventListener("wheel", onWheel, { capture: true, passive: false });
     made.subscribeCrosshairMove((event) => {
       const at = event.time === undefined ? undefined : indexOf.current.get(event.time as number);
       setHover(at ?? null);
     });
     made.timeScale().subscribeVisibleLogicalRangeChange((range) => setAway(range !== null && range.to < total.current - 1.5));
     return () => {
+      element.removeEventListener("wheel", onWheel, { capture: true });
       made.remove();
       chart.current = null;
       drawn.current = null;
@@ -226,6 +249,10 @@ export function PriceChart({
   const rising = shown ? (move !== null ? move >= 0 : shown[4] >= shown[1]) : true;
   const ohlc = style === "bars" || style === "candles";
   const figure = (value: number) => (inBitcoin ? bitcoinPrice(value, digits) : price(value, digits));
+  const resize = (factor: number) => {
+    const scale = chart.current?.timeScale();
+    if (scale) scale.applyOptions({ barSpacing: Math.min(WIDEST, Math.max(NARROWEST, scale.options().barSpacing * factor)) });
+  };
   return (
     <div className="mk-chart">
       <div ref={host} className="mk-canvas" role="img" aria-label="Price chart" />
@@ -255,11 +282,19 @@ export function PriceChart({
           )}
         </div>
       )}
-      {away && (
-        <button className="mk-latest" onClick={() => chart.current?.timeScale().scrollToRealTime()} title="Jump to the latest bar" aria-label="Jump to the latest bar">
-          ⇥
+      <div className="mk-zoom">
+        <button onClick={() => resize(1 / 1.3)} title="Narrower bars, more history" aria-label="Zoom out">
+          −
         </button>
-      )}
+        <button onClick={() => resize(1.3)} title="Wider bars, less history" aria-label="Zoom in">
+          +
+        </button>
+        {away && (
+          <button onClick={() => chart.current?.timeScale().scrollToRealTime()} title="Jump to the latest bar" aria-label="Jump to the latest bar">
+            ⇥
+          </button>
+        )}
+      </div>
     </div>
   );
 }

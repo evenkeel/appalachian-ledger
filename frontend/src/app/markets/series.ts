@@ -47,3 +47,16 @@ export function movingAverage(closes: number[], period: number): (number | null)
     return index >= period - 1 ? sum / period : null;
   });
 }
+
+/**
+ * What a turn of the wheel over a chart does. The board is a page of charts, so a plain scroll must move
+ * the page, not get swallowed by whichever chart is under the pointer. Zooming takes Ctrl or Cmd, which is
+ * also how a trackpad pinch arrives, and a sideways swipe moves through time. A chart that fills the
+ * screen has no page to scroll, so there a plain scroll zooms.
+ */
+export type WheelAction = "zoom" | "pan" | "page";
+export function wheelAction(event: { deltaX: number; deltaY: number; ctrlKey: boolean; metaKey: boolean }, fillsScreen: boolean): WheelAction {
+  if (event.ctrlKey || event.metaKey) return "zoom";
+  if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) return "pan";
+  return fillsScreen ? "zoom" : "page";
+}

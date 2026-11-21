@@ -407,11 +407,22 @@
   font-style: normal;
   color: var(--ink-3);
 }
-.mk-latest {
+/* Bar width and "jump to latest": shown while the pointer is over the chart. */
+.mk-zoom {
   position: absolute;
   right: 72px;
   bottom: 36px;
   z-index: 3;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity var(--d-micro) var(--ease);
+}
+.mk-chart:hover .mk-zoom,
+.mk-zoom:focus-within {
+  opacity: 1;
+}
+.mk-zoom button {
   width: 28px;
   height: 28px;
   border-radius: 50%;
@@ -419,9 +430,16 @@
   background: var(--panel-2);
   color: var(--ink-2);
   box-shadow: var(--shadow);
+  font-size: 16px;
+  line-height: 1;
 }
-.mk-latest:hover {
+.mk-zoom button:hover {
   color: var(--ink);
+}
+@media (hover: none) {
+  .mk-zoom {
+    opacity: 1;
+  }
 }
 .mk-empty {
   flex: 1;
@@ -520,6 +538,217 @@
 }
 .mk-drop:hover {
   color: var(--ink);
+}
+
+/* Order book: sellers above, the price in the middle, buyers below. */
+.mk {
+  --mk-up-soft: color-mix(in srgb, var(--mk-up) 16%, transparent);
+  --mk-down-soft: color-mix(in srgb, var(--mk-down) 16%, transparent);
+}
+.mk-label {
+  font-size: var(--t-micro);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.mk-ob {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  font-size: var(--t-small);
+  overflow: hidden;
+}
+.mk-ob-head,
+.mk-ob-side li {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr 1fr;
+  gap: 8px;
+  padding: 0 12px;
+  text-align: right;
+}
+.mk-ob-head {
+  height: 22px;
+  align-items: center;
+  font-size: var(--t-micro);
+  color: var(--ink-3);
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--hairline);
+}
+.mk-ob-head > :first-child,
+.mk-ob-side li > :first-child {
+  text-align: left;
+}
+.mk-ob-side {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+/* Sellers are listed upward from the middle, so the lowest price sits next to the buyers' highest. */
+.mk-ob-side.asks {
+  flex-direction: column-reverse;
+}
+.mk-ob-side li {
+  flex: 0 0 19px;
+  align-items: center;
+  background: linear-gradient(to left, var(--tone) var(--fill), transparent var(--fill));
+}
+.mk-ob-side.asks li {
+  --tone: var(--mk-down-soft);
+}
+.mk-ob-side.bids li {
+  --tone: var(--mk-up-soft);
+}
+.mk-ob-mid {
+  flex: 0 0 38px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 12px 0;
+  border-top: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+  background: var(--panel-2);
+}
+.mk-ob-mid b {
+  font-weight: 400;
+  font-size: var(--t-lead);
+}
+.mk-ob-mid span {
+  font-size: var(--t-micro);
+}
+@container (max-width: 250px) {
+  .mk-ob-head,
+  .mk-ob-side li {
+    grid-template-columns: 1.2fr 1fr;
+  }
+  .mk-ob-head > :last-child,
+  .mk-ob-side li > :last-child {
+    display: none;
+  }
+}
+
+/* Depth chart */
+.mk-depth {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+}
+.mk-depth svg {
+  position: absolute;
+  inset: 0;
+  display: block;
+  touch-action: pan-y;
+}
+.mk-depth-area {
+  stroke: none;
+}
+.mk-depth-area.bids {
+  fill: var(--mk-up-soft);
+}
+.mk-depth-area.asks {
+  fill: var(--mk-down-soft);
+}
+.mk-depth-line {
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+.mk-depth-line.bids {
+  stroke: var(--mk-up);
+}
+.mk-depth-line.asks {
+  stroke: var(--mk-down);
+}
+.mk-depth-grid {
+  stroke: var(--hairline);
+}
+.mk-depth-axis {
+  stroke: var(--bezel);
+}
+.mk-depth-mid,
+.mk-depth-cross {
+  stroke: var(--ink-3);
+  stroke-dasharray: 3 3;
+}
+.mk-depth-tick {
+  fill: var(--ink-3);
+  font-size: 10.5px;
+  font-family: var(--font-num);
+}
+.mk-depth-dot {
+  stroke: var(--panel);
+  stroke-width: 1.5;
+}
+.mk-depth-dot.bids {
+  fill: var(--mk-up);
+}
+.mk-depth-dot.asks {
+  fill: var(--mk-down);
+}
+.mk-depth-read {
+  position: absolute;
+  top: 8px;
+  display: grid;
+  gap: 1px;
+  padding: 5px 9px;
+  border: 1px solid var(--bezel);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--panel-2) 92%, transparent);
+  font-size: var(--t-label);
+  color: var(--ink-2);
+  pointer-events: none;
+}
+.mk-depth-read.left {
+  left: 12px;
+}
+.mk-depth-read.right {
+  right: 60px;
+  text-align: right;
+}
+.mk-depth-read b {
+  font-weight: 400;
+  font-size: var(--t-small);
+}
+.mk-stack > .mk-cell-book {
+  height: 520px;
+}
+.mk-stack > .mk-cell-depth {
+  height: 320px;
+}
+
+/* The pop-up under "+ Add": one line per kind of panel. */
+.mk-pop.right {
+  left: auto;
+  right: 0;
+}
+.mk-pop > button {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 7px 9px;
+  border-radius: 5px;
+  font-size: var(--t-small);
+  text-align: left;
+  white-space: nowrap;
+}
+.mk-pop > button:hover,
+.mk-pop > button:focus-visible {
+  background: var(--panel);
+}
+.mk-pop > button small {
+  color: var(--ink-3);
+  font-size: var(--t-micro);
+}
+.mk-top .mk-menu-open {
+  z-index: 8;
 }
 
 /* Symbol search */

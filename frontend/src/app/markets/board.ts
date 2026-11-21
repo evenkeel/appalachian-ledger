@@ -45,7 +45,23 @@ export interface ListSpec {
   kind: "list";
   items: Instrument[];
 }
-export type Spec = ChartSpec | ListSpec;
+/** Bitcoin's order book: who is waiting to buy and sell, and at what prices. */
+export interface BookSpec {
+  id: string;
+  kind: "book";
+  /** The dollar width of each price group; the exchange's own cent levels when 0.01. */
+  group: number;
+}
+/** Bitcoin's depth chart: the order book added up outward from the price. */
+export interface DepthSpec {
+  id: string;
+  kind: "depth";
+  /** How far either side of the price the chart reaches, as a share of the price. */
+  reach: number;
+}
+export type Spec = ChartSpec | ListSpec | BookSpec | DepthSpec;
+/** The distances a depth chart can reach either side of the price. */
+export const REACHES = [0.0025, 0.005, 0.01, 0.025];
 export interface Slot {
   i: string;
   x: number;
@@ -65,8 +81,8 @@ export const COLUMNS = 12;
 export const ROW = 30;
 export const MAX_PANELS = 12;
 export const MAX_LIST = 30;
-export const SMALLEST = { chart: { w: 3, h: 7 }, list: { w: 2, h: 5 } };
-const START = { chart: { w: 6, h: 11 }, list: { w: 3, h: 11 } };
+export const SMALLEST = { chart: { w: 3, h: 7 }, list: { w: 2, h: 5 }, book: { w: 2, h: 8 }, depth: { w: 3, h: 6 } };
+const START = { chart: { w: 6, h: 11 }, list: { w: 3, h: 11 }, book: { w: 3, h: 14 }, depth: { w: 6, h: 9 } };
 const SYMBOL = /^[A-Z0-9^][A-Z0-9.\-^=]{0,14}$/;
 export const isSymbol = (value: string) => SYMBOL.test(value);
 
@@ -172,7 +188,7 @@ export function followLens(board: Board): Board {
 
 /** Every symbol the board shows, once each, bitcoin always among them. */
 export function symbolsOn(board: Board): string[] {
-  const all = board.panels.flatMap((panel) => (panel.kind === "chart" ? [panel.symbol] : panel.items.map((item) => item.symbol)));
+  const all = board.panels.flatMap((panel) => (panel.kind === "chart" ? [panel.symbol] : panel.kind === "list" ? panel.items.map((item) => item.symbol) : []));
   return [...new Set([BITCOIN, ...all])].sort();
 }
 
@@ -196,6 +212,8 @@ function panelFrom(raw: unknown): Spec | null {
     const items = item.items.map(instrument).filter((entry): entry is Instrument => entry !== null);
     return { id: item.id, kind: "list", items: items.slice(0, MAX_LIST) };
   }
+  if (item.kind === "book") return { id: item.id, kind: "book", group: typeof item.group === "number" && item.group > 0 && item.group <= 100000 ? item.group : 1 };
+  if (item.kind === "depth") return { id: item.id, kind: "depth", reach: REACHES.includes(item.reach as number) ? (item.reach as number) : 0.01 };
   if (item.kind !== "chart") return null;
   const base = instrument(item);
   if (!base) return null;

@@ -2,10 +2,12 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BITCOIN, MAX_PANELS, addPanel, boardFrom, chart, defaultBoard, followLens, loadBoard, removePanel, saveBoard, symbolsOn } from "./board";
 import type { Board } from "./board";
+import { depth, grouped, groupsOf, reaches, resetBook, spread } from "./book";
+import type { Picture } from "./book";
 import { change, compact, inBitcoin, mergeBars } from "./feed";
 import type { Bar, Quote } from "./feed";
 import { applyTrades, barStart, resetLive } from "./live";
-import { movingAverage, rowsFrom } from "./series";
+import { movingAverage, rowsFrom, wheelAction } from "./series";
 
 const calls: string[] = [];
 let failing = "";
@@ -97,6 +99,7 @@ beforeEach(() => {
   setLens.mockClear();
   localStorage.clear();
   resetLive();
+  resetBook();
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -118,12 +121,25 @@ class FakeStream {
   trade(p: number, s: number, seconds: number) {
     this.onmessage?.({ data: JSON.stringify({ p, s, t: seconds * 1000 }) });
   }
+  send(message: unknown) {
+    this.onmessage?.({ data: JSON.stringify(message) });
+  }
 }
+
+/** A small order book around $60,000: buyers up to 60,000.50, sellers from 60,000.60. */
+const picture: Picture = {
+  t: 1794807002250,
+  bid: 60000.5,
+  ask: 60000.6,
+  top: { step: 0.01, bids: [[60000.5, 1.5], [60000.1, 0.5], [59999.9, 2]], asks: [[60000.6, 0.25], [60001, 0.75], [60001.2, 1]] },
+  near: { step: 1, bids: [[60000, 2], [59999, 2], [59990, 4]], asks: [[60001, 1], [60002, 1], [60012, 3]] },
+  wide: { step: 5, bids: [[60000, 2], [59995, 2], [59990, 4], [59000, 10]], asks: [[60005, 2], [60015, 3], [61000, 8]] },
+};
 
 describe("the board", () => {
   it("starts with bitcoin, a watchlist, gold and the S&P 500, all as bar charts", () => {
     const board = defaultBoard();
-    expect(board.panels.map((panel) => (panel.kind === "chart" ? `${panel.symbol} ${panel.style} ${panel.interval}` : `list of ${panel.items.length}`))).toEqual([
+    expect(board.panels.map((panel) => (panel.kind === "chart" ? `${panel.symbol} ${panel.style} ${panel.interval}` : panel.kind === "list" ? `list of ${panel.items.length}` : panel.kind))).toEqual([
       "BTC-USD bars 15m",
       "list of 9",
       "GC=F bars 1d",
@@ -172,6 +188,14 @@ describe("the board", () => {
     localStorage.setItem("appalachian-bitcoin.markets.v1", "{not json");
     expect(loadBoard()).toEqual(defaultBoard());
     expect(boardFrom({ panels: "x" })).toBeNull();
+    // Order book and depth panels are kept, and a setting that makes no sense goes back to the usual one.
+    const extra = boardFrom({
+      panels: [{ id: "p1", kind: "book", group: 10 }, { id: "p2", kind: "depth", reach: 0.005 }, { id: "p3", kind: "book", group: -4 }, { id: "p4", kind: "depth", reach: 7 }],
+      layout: [],
+    })!;
+    expect(extra.panels).toEqual([{ id: "p1", kind: "book", group: 10 }, { id: "p2", kind: "depth", reach: 0.005 }, { id: "p3", kind: "book", group: 1 }, { id: "p4", kind: "depth", reach: 0.01 }]);
+    expect(extra.active).toBeNull();
+    expect(symbolsOn(extra)).toEqual([BITCOIN]);
     // A chart set on its own keeps that choice across a reload.
     const pinned = { ...board, panels: board.panels.map((panel) => (panel.id === "p3" ? { ...panel, unit: "BITCOIN" as const } : panel)) };
     expect(boardFrom(JSON.parse(JSON.stringify(pinned)))).toEqual(pinned);
@@ -238,6 +262,49 @@ describe("price figures", () => {
     expect(barStart(1794787200 + 5 * 86400 + 7, "1w")).toBe(1794787200);
     expect(barStart(1794787200 - 1, "1w")).toBe(1794787200 - 7 * 86400);
     expect(barStart(1794787200 + 3 * 3600, "4h")).toBe(1794787200);
+  });
+
+  it("lets a plain scroll move the page and keeps zoom for a deliberate gesture", () => {
+    const wheel = (deltaX: number, deltaY: number, held: "ctrl" | "meta" | "" = "") => ({ deltaX, deltaY, ctrlKey: held === "ctrl", metaKey: held === "meta" });
+    // On the board a chart under the pointer must not swallow the scroll.
+    expect(wheelAction(wheel(0, 120), false)).toBe("page");
+    expect(wheelAction(wheel(3, -120), false)).toBe("page");
+    // Ctrl or Cmd zooms, which is also how a trackpad pinch arrives.
+    expect(wheelAction(wheel(0, 120, "ctrl"), false)).toBe("zoom");
+    expect(wheelAction(wheel(0, -4, "meta"), false)).toBe("zoom");
+    // A sideways swipe moves through time.
+    expect(wheelAction(wheel(40, 3), false)).toBe("pan");
+    expect(wheelAction(wheel(-40, 0), true)).toBe("pan");
+    // A chart that fills the screen has no page to scroll, so a plain scroll zooms.
+    expect(wheelAction(wheel(0, 120), true)).toBe("zoom");
+  });
+
+  it("reads the order book at each price group and adds it up outward from the spread", () => {
+    expect(groupsOf(picture)).toEqual([0.01, 1, 5, 10, 50, 100]);
+    expect(grouped(picture, 0.01)).toBe(picture.top);
+    expect(grouped(picture, 1)).toBe(picture.near);
+    expect(grouped(picture, 5)).toBe(picture.wide);
+    // Wider groups are joined from the five-dollar ones: bids named by their lowest price, asks by their highest.
+    expect(grouped(picture, 10)).toEqual({ step: 10, bids: [[60000, 2], [59990, 6], [59000, 10]], asks: [[60010, 2], [60020, 3], [61000, 8]] });
+    expect(grouped(picture, 100)).toEqual({ step: 100, bids: [[60000, 2], [59900, 6], [59000, 10]], asks: [[60100, 5], [61000, 8]] });
+    // A group the picture cannot give falls back to the fine one.
+    expect(grouped(picture, 3)).toBe(picture.near);
+
+    expect(reaches(picture.near.asks)).toEqual([
+      { price: 60001, size: 1, total: 1, dollars: 60001 },
+      { price: 60002, size: 1, total: 2, dollars: 120003 },
+      { price: 60012, size: 3, total: 5, dollars: 300039 },
+    ]);
+    expect(spread(picture).dollars).toBeCloseTo(0.1, 6);
+
+    // Within a tenth of a percent the fine groups do not reach far enough, so the wide ones are used.
+    const close = depth(picture, 0.001);
+    expect(close.bids.map((level) => [level.price, level.total])).toEqual([[60000, 2], [59995, 4], [59990, 8]]);
+    expect(close.asks.map((level) => [level.price, level.total])).toEqual([[60005, 2], [60015, 5]]);
+    const far = depth(picture, 0.025);
+    expect(far.bids[far.bids.length - 1]).toMatchObject({ price: 59000, total: 18 });
+    expect(far.asks[far.asks.length - 1]).toMatchObject({ price: 61000, total: 13 });
+    expect(far.middle).toBeCloseTo(60000.55, 6);
   });
 
   it("averages the last closes and waits until there are enough", () => {
@@ -308,7 +375,8 @@ describe("markets screen", () => {
 
   it("finds a symbol by name and adds it as a new chart, and removes panels", async () => {
     render(<Markets />);
-    fireEvent.click(await screen.findByRole("button", { name: "+ Chart" }));
+    fireEvent.click(await screen.findByRole("button", { name: /\+ Add/ }));
+    fireEvent.click(within(screen.getByRole("group", { name: "+ Add" })).getByRole("button", { name: /^Chart/ }));
     const dialog = screen.getByRole("dialog", { name: "Add a chart" });
     expect(within(dialog).getByRole("button", { name: /^Gold/ })).toBeInTheDocument();
     fireEvent.change(within(dialog).getByLabelText("Name or ticker"), { target: { value: "apple" } });
@@ -428,6 +496,53 @@ describe("markets screen", () => {
 
     view.unmount();
     expect(stream.closed).toBe(true);
+  });
+
+  it("adds bitcoin's live order book and depth chart from the add menu", async () => {
+    FakeStream.opened = [];
+    vi.stubGlobal("EventSource", FakeStream);
+    const view = render(<Markets />);
+    fireEvent.click(await screen.findByRole("button", { name: /\+ Add/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Order book/ }));
+    const panel = await screen.findByLabelText("Bitcoin order book");
+    expect(within(panel).getByText("Connecting to Coinbase…")).toBeInTheDocument();
+    const feed = FakeStream.opened.find((stream) => stream.url === "/api/market/book")!;
+    feed.send(picture);
+
+    // Sellers above, lowest nearest the middle; buyers below, highest first. Grouped by the dollar to start.
+    const asks = await within(panel).findByRole("list", { name: /^Sell orders/ });
+    const bids = within(panel).getByRole("list", { name: /^Buy orders/ });
+    expect(within(asks).getAllByRole("listitem")[0]).toHaveTextContent("60,001" + "1.0000" + "1.000");
+    expect(within(bids).getAllByRole("listitem")[0]).toHaveTextContent("60,000" + "2.0000" + "2.000");
+    expect(within(bids).getAllByRole("listitem")[1]).toHaveTextContent("59,999" + "2.0000" + "4.000");
+    expect(within(panel).getByText("spread $0.10")).toBeInTheDocument();
+    expect(within(panel).getByText(/Coinbase, live/)).toBeInTheDocument();
+    // One stream of the book serves every panel that shows it, beside the one stream of trades.
+    expect(FakeStream.opened.map((stream) => stream.url).sort()).toEqual(["/api/market/book", "/api/market/stream"]);
+
+    fireEvent.click(within(panel).getByRole("button", { name: "0.01" }));
+    expect(within(bids).getAllByRole("listitem")[0]).toHaveTextContent("60,000.50" + "1.5000");
+    fireEvent.click(within(panel).getByRole("button", { name: "10" }));
+    expect(within(asks).getAllByRole("listitem")[0]).toHaveTextContent("60,010" + "2.0000");
+    await waitFor(() => expect(saved().panels[4]).toEqual({ id: "p5", kind: "book", group: 10 }));
+
+    fireEvent.click(screen.getByRole("button", { name: /\+ Add/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Depth chart/ }));
+    const chart = await screen.findByLabelText("Bitcoin depth chart");
+    // Everything waiting within 1% of the price: 8 BTC of bids, 5 BTC of offers.
+    expect(within(chart).getByText("8.00 BTC bid")).toBeInTheDocument();
+    expect(within(chart).getByText("5.00 BTC offered")).toBeInTheDocument();
+    fireEvent.click(within(chart).getByRole("button", { name: "±2.5%" }));
+    expect(within(chart).getByText("18.00 BTC bid")).toBeInTheDocument();
+    expect(within(chart).getByText("13.00 BTC offered")).toBeInTheDocument();
+    await waitFor(() => expect(saved().panels[5]).toEqual({ id: "p6", kind: "depth", reach: 0.025 }));
+    expect(FakeStream.opened.filter((stream) => stream.url === "/api/market/book")).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove the order book" }));
+    expect(screen.queryByLabelText("Bitcoin order book")).not.toBeInTheDocument();
+    expect(feed.closed).toBe(false); // the depth chart still uses it
+    view.unmount();
+    expect(feed.closed).toBe(true);
   });
 
   it("says so when a symbol has no prices instead of drawing an empty chart", async () => {

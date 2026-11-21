@@ -7,12 +7,26 @@ writes to the ledger, and nothing on it is used to value an account or an expens
 
 - **Charts.** Open-high-low-close bars by default, with candles, a line or an area one click away. The bar
   size is chosen from a row on every chart: 1m, 5m, 15m, 1h, 4h, 1D, 1W. Volume, 20/50/200-bar moving
-  averages and a log scale are under **Indicators**. Scroll to zoom, drag to move through time, and hover to
-  read a bar's open, high, low and close.
+  averages and a log scale are under **Indicators**. Hover to read a bar's open, high, low and close, and
+  drag to move through time.
+- **Scrolling and zooming.** Scrolling with the pointer over a chart moves the page, as it does anywhere
+  else. To zoom a chart, hold Ctrl or ⌘ and scroll, pinch on a trackpad, use the − and + buttons that appear
+  over the chart, or drag along the dates at the bottom. A sideways swipe moves through time. A chart that
+  fills the screen zooms on a plain scroll, since there is no page to move.
 - **Watchlists.** The latest price, the day's change and a small line of the day's closes for each symbol.
   Clicking a row loads it into the selected chart (the one with the copper top edge).
+- **Bitcoin's order book.** Everyone waiting to buy and sell on Coinbase: sellers above, buyers below, the
+  spread between them, updated about four times a second. Each row shows the price, the bitcoin resting
+  there and the running total out from the middle, shaded by that total. Prices can be shown to the cent or
+  grouped in wider dollar steps.
+- **Bitcoin's depth chart.** The same order book added up outward from the price: buy orders rising to the
+  left, sell orders to the right. Hovering reads how much bitcoin, and how many dollars, sit between the
+  price and the pointer. The reach either side is ±0.25%, ±0.5%, ±1% or ±2.5%.
 - **Any symbol.** Bitcoin, gold, silver, stock indexes and single stocks are quick picks; anything else is
   found by name or ticker through the search.
+
+Panels are added from **+ Add** at the top of the screen. The order book and depth chart are for bitcoin
+only, since Coinbase is the one source here with a public order book.
 
 Panels are dragged by their top edge and resized from the bottom-right corner, the bottom edge or the right
 edge. A chart can fill the screen and come back with Escape. On a phone the panels stack in one column.
@@ -78,6 +92,15 @@ Each trade carries the exchange's own timestamp; on a home connection a trade is
   rests while the browser tab is hidden.
 - Only bitcoin is streamed. Charts priced in bitcoin for other symbols are still read every 5 seconds.
 
+### Bitcoin's order book
+
+The full BTC-USD book is tens of thousands of price levels, so the server keeps it and sends the browser a
+picture about four times a second: the 60 levels nearest the spread on each side exactly as the exchange
+holds them, a view grouped by the dollar a quarter of a percent either way, and a coarser view 2.5% either
+way for the depth chart and the wider groups. The server holds the book only while an order book or depth
+panel is open. If an update is missed and the book stops making sense (a buyer above the lowest seller), it
+is read again from the start instead of being shown wrong. Sizes are in BTC.
+
 The browser only ever talks to your own ledger. The server fetches the prices, so the strict content
 security policy is unchanged and **only ticker symbols leave your machine**: no balances, account names or
 anything else from the ledger. Requests are made only while the Markets screen is open and visible, and
@@ -108,6 +131,9 @@ All require a signed-in owner and are read-only.
 - `GET /api/market/stream`: server-sent events, one per BTC-USD trade, as `{"p": price, "s": size in BTC,
   "t": milliseconds}`. A stream ends after ten minutes and the browser reconnects, which checks the sign-in
   again. It is sent with `X-Accel-Buffering: no`, so the bundled nginx passes events through unbuffered.
+- `GET /api/market/book`: server-sent events, each a picture of the BTC-USD order book as `{"t", "bid",
+  "ask", "top", "near", "wide"}`, where each view is `{"step", "bids", "asks"}` with levels as
+  `[price, size in BTC]`, bids from the highest price down and asks from the lowest up.
 - `GET /api/market/quotes?symbols=A,B,C`: latest price, the earlier price the change is measured from
   (`previous`, with `basis` saying whether that is 24 hours ago or the previous close) and a short run of
   closes. A symbol with no price carries only an `error`.
