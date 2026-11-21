@@ -72,7 +72,7 @@ describe("transactions", () => {
   it("lists the kinds with Bitcoin buy second", async () => {
     await show();
     const kinds = within(screen.getByRole("group", { name: "Kind of entry" })).getAllByRole("button");
-    expect(kinds.map((button) => button.textContent)).toEqual(["Expense", "Bitcoin buy", "Income", "Transfer"]);
+    expect(kinds.map((button) => button.textContent)).toEqual(["Expense", "Bitcoin buy", "Income", "Transfer", "Bitcoin sale"]);
   });
 
   it("on a transfer into a bitcoin wallet, offers only bitcoin accounts to send from", async () => {
@@ -81,7 +81,8 @@ describe("transactions", () => {
     const options = (label: string) => within(within(form()).getByLabelText(label)).getAllByRole("option").map((option) => option.textContent);
     // Nothing picked yet: every destination is there, and checking is paired with one it can pay.
     expect(options("From")).toEqual(["Everyday checking", "Spending wallet", "Cold storage"]);
-    expect(options("To")).toEqual(["Everyday checking", "Ridgeline Visa", "Spending wallet", "Cold storage"]);
+    // Checking is the only dollar account that can send, so nothing could be moved into it.
+    expect(options("To")).toEqual(["Ridgeline Visa", "Spending wallet", "Cold storage"]);
     expect(within(form()).getByLabelText("To")).toHaveValue("8");
 
     set("To", "5");
@@ -92,6 +93,20 @@ describe("transactions", () => {
     fireEvent.click(within(form()).getByRole("button", { name: /^Save/ }));
     await waitFor(() => expect(writes()).toHaveLength(1));
     expect(writes()[0].body).toEqual({ date: expect.any(String), kind: "transfer", account_id: 1, destination_id: 5, amount: "250000", description: "Move to cold storage" });
+  });
+
+  it("records a bitcoin sale with the bitcoin sold and the dollars actually received", async () => {
+    await show();
+    fireEvent.click(screen.getByRole("button", { name: "Bitcoin sale" }));
+    const options = (label: string) => within(within(form()).getByLabelText(label)).getAllByRole("option").map((option) => option.textContent);
+    expect(options("From")).toEqual(["Spending wallet", "Cold storage"]);
+    expect(options("Dollars into")).toEqual(["Everyday checking"]);
+    set("From", "5");
+    set("Bitcoin sold (₿)", "₿420,000");
+    set("Dollars received", "$498.12");
+    fireEvent.click(within(form()).getByRole("button", { name: /^Save/ }));
+    await waitFor(() => expect(writes()).toHaveLength(1));
+    expect(writes()[0].body).toEqual({ date: expect.any(String), kind: "transfer", account_id: 5, destination_id: 3, amount: "420000", destination_amount: "498.12", description: "Bitcoin sale" });
   });
 
   it("on a transfer from checking, never offers a bitcoin wallet as the destination", async () => {

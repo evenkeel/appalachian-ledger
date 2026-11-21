@@ -9,13 +9,16 @@ import type { Account, Category, Transaction } from "../../lib/types";
 import { btc, usd } from "../lib/format";
 import { EntryTable } from "./EntryTable";
 
-type Kind = "expense" | "income" | "transfer" | "stack";
+type Kind = "expense" | "income" | "transfer" | "stack" | "sell";
 const KINDS: { kind: Kind; label: string }[] = [
   { kind: "expense", label: "Expense" },
   { kind: "stack", label: "Bitcoin buy" },
   { kind: "income", label: "Income" },
   { kind: "transfer", label: "Transfer" },
+  { kind: "sell", label: "Bitcoin sale" },
 ];
+/** A buy, a sale and a transfer are all moves between two of your own accounts. */
+const isMove = (kind: Kind) => kind === "stack" || kind === "sell" || kind === "transfer";
 const clean = (value: FormDataEntryValue | null) =>
   String(value ?? "").replace(/[$₿,\s]/g, "");
 const today = () => {
@@ -82,7 +85,7 @@ export function Activity({ onChanged }: { onChanged?: () => void }) {
     target: targetAccount,
   } = accountChoices(kind, accounts, { from: source, to: target }, anchor, editing ? [editing.account_id, ...(editing.destination_id ? [editing.destination_id] : [])] : []);
   const crossCurrency =
-    (kind === "stack" || kind === "transfer") &&
+    isMove(kind) &&
     sourceAccount &&
     targetAccount &&
     sourceAccount.currency !== targetAccount.currency;
@@ -127,7 +130,9 @@ export function Activity({ onChanged }: { onChanged?: () => void }) {
       row.kind === "transfer"
         ? row.currency === "USD" && row.destination_currency === "BITCOIN"
           ? "stack"
-          : "transfer"
+          : row.currency === "BITCOIN" && row.destination_currency === "USD"
+            ? "sell"
+            : "transfer"
         : (row.kind as Kind),
     );
     setSource(String(row.account_id));
@@ -161,10 +166,12 @@ export function Activity({ onChanged }: { onChanged?: () => void }) {
           ? `Nothing can be moved into ${targetAccount.name} from the accounts you have.`
           : kind === "stack"
             ? "Add a dollar account to buy from first."
-            : "Add an account first.",
+            : kind === "sell"
+              ? "Add a bitcoin wallet first."
+              : "Add an account first.",
       );
     const form = new FormData(event.currentTarget);
-    const moving = kind === "stack" || kind === "transfer";
+    const moving = isMove(kind);
     const body: Record<string, unknown> = {
       date: form.get("date"),
       kind: moving ? "transfer" : kind,
@@ -172,14 +179,16 @@ export function Activity({ onChanged }: { onChanged?: () => void }) {
       amount: clean(form.get("amount")),
       description:
         String(form.get("description") ?? "").trim() ||
-        (kind === "stack" ? "Bitcoin buy" : ""),
+        (kind === "stack" ? "Bitcoin buy" : kind === "sell" ? "Bitcoin sale" : ""),
     };
     if (moving) {
       if (!targetAccount)
         return setError(
           kind === "stack"
             ? "Add a bitcoin wallet first."
-            : `Nothing fits as a destination for ${sourceAccount.name}.`,
+            : kind === "sell"
+              ? "Add a dollar account for the money to land in first."
+              : `Nothing fits as a destination for ${sourceAccount.name}.`,
         );
       body.destination_id = targetAccount.id;
       if (crossCurrency) body.destination_amount = clean(form.get("received"));
@@ -270,7 +279,9 @@ export function Activity({ onChanged }: { onChanged?: () => void }) {
   const amountLabel =
     kind === "stack"
       ? "Dollars paid"
-      : sourceAccount?.currency === "BITCOIN"
+      : kind === "sell"
+        ? "Bitcoin sold (₿)"
+        : sourceAccount?.currency === "BITCOIN"
         ? "Amount (₿)"
         : "Amount";
   return (
@@ -339,9 +350,9 @@ export function Activity({ onChanged }: { onChanged?: () => void }) {
               ref={description}
               name="description"
               defaultValue={editing?.description ?? ""}
-              required={kind !== "stack"}
+              required={kind !== "stack" && kind !== "sell"}
               maxLength={500}
-              placeholder={kind === "stack" ? "Bitcoin buy" : undefined}
+              placeholder={kind === "stack" ? "Bitcoin buy" : kind === "sell" ? "Bitcoin sale" : undefined}
               list={learning ? "known-payees" : undefined}
               onChange={(event) => describe(event.target.value)}
               autoFocus
@@ -415,7 +426,7 @@ export function Activity({ onChanged }: { onChanged?: () => void }) {
                 </select>
               </label>
               <label className="field">
-                <span>{kind === "stack" ? "Into wallet" : "To"}</span>
+                <span>{kind === "stack" ? "Into wallet" : kind === "sell" ? "Dollars into" : "To"}</span>
                 <select
                   value={targetAccount ? String(targetAccount.id) : ""}
                   onChange={(event) => {
@@ -487,9 +498,12 @@ export function Activity({ onChanged }: { onChanged?: () => void }) {
         </form>
         {kind === "transfer" && (
           <div className="hint">
-            {sourceAccount?.currency === "BITCOIN" && targetAccount?.currency === "USD"
-              ? "This sells bitcoin for dollars. Enter the bitcoin sent and the dollars you actually received."
-              : "Each list shows only accounts that fit the other. Bitcoin moves between bitcoin accounts; buying bitcoin with dollars is under Bitcoin buy."}
+            Each list shows only accounts that fit the other. Dollars move between dollar accounts and bitcoin between bitcoin accounts; buying and selling bitcoin each have their own kind.
+          </div>
+        )}
+        {kind === "sell" && (
+          <div className="hint">
+            Enter the bitcoin you sold and the dollars you actually received. The price you got is worked out from those two; nothing is estimated.
           </div>
         )}
         {kind === "stack" && (

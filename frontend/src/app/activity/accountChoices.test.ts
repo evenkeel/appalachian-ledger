@@ -52,11 +52,18 @@ describe("which accounts the entry form offers", () => {
     expect(target?.name).toBe("Visa");
   });
 
-  it("from a bitcoin wallet, offers other wallets, and dollar accounts for a sale", () => {
+  it("from a bitcoin wallet, a transfer offers only other bitcoin accounts", () => {
     const { to } = accountChoices("transfer", all, { from: "2", to: "" }, "from");
-    expect(names(to)).toEqual(["Checking", "Savings", "Bitkey"]);
-    expect(canTransfer(cold, visa)).toBe(false);
-    expect(canTransfer(cold, brokerage)).toBe(false);
+    expect(names(to)).toEqual(["Bitkey"]);
+    for (const dollars of [checking, savings, visa, loan, mortgage, brokerage]) expect(canTransfer(cold, dollars)).toBe(false);
+  });
+
+  it("sells bitcoin from a wallet into a dollar money account, nothing else", () => {
+    const { from, to, source, target } = accountChoices("sell", all, none);
+    expect(names(from)).toEqual(["Bitkey", "Cold storage"]);
+    expect(names(to)).toEqual(["Checking", "Savings"]);
+    expect(source?.name).toBe("Bitkey");
+    expect(target?.name).toBe("Checking");
   });
 
   it("never offers a debt or property as where a transfer comes from", () => {

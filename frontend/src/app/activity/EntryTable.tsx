@@ -48,7 +48,7 @@ export function EntryTable({
               <td className="num dim">{shortDate(row.date)}</td>
               <td className="w">{row.description}</td>
               <td className="hide-s">
-                <span className="tag">{row.kind === "transfer" ? (row.destination_currency === "BITCOIN" && row.currency === "USD" ? "Stack" : "Move") : row.category}</span>
+                <span className="tag">{row.kind === "transfer" ? (row.destination_currency === "BITCOIN" && row.currency === "USD" ? "Stack" : row.currency === "BITCOIN" && row.destination_currency === "USD" ? "Sale" : "Move") : row.category}</span>
               </td>
               {account && (
                 <td className="dim hide-s">

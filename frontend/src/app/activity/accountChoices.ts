@@ -6,7 +6,7 @@ export interface Choice {
   role: string;
   currency: "USD" | "BITCOIN";
 }
-export type EntryKind = "expense" | "income" | "stack" | "transfer";
+export type EntryKind = "expense" | "income" | "stack" | "sell" | "transfer";
 /** The transfer field picked by hand last; the other list narrows to fit it. Null until one is picked: both lists are whole. */
 export type Anchor = "from" | "to" | null;
 
@@ -31,14 +31,11 @@ const canSend = (account: Choice) => isMoney(account) || isInvested(account);
 const canReceive = (account: Choice) => isMoney(account) || isInvested(account) || isDebt(account);
 
 /**
- * Bitcoin only arrives from another bitcoin account: dollars turning into bitcoin is a Bitcoin buy.
- * Bitcoin may be sold into a dollar money account; it does not pay a debt or fund a brokerage directly.
+ * A transfer stays in one currency: dollars to dollar accounts, bitcoin to bitcoin accounts.
+ * Dollars turning into bitcoin is a Bitcoin buy, and bitcoin turning into dollars is a Bitcoin sale.
  */
 export function canTransfer(from: Choice, to: Choice) {
-  if (from.id === to.id || !canSend(from) || !canReceive(to)) return false;
-  if (isBitcoin(to)) return isBitcoin(from);
-  if (isBitcoin(from)) return isMoney(to);
-  return true;
+  return from.id !== to.id && canSend(from) && canReceive(to) && isBitcoin(from) === isBitcoin(to);
 }
 
 export function accountChoices<T extends Choice>(
@@ -63,6 +60,11 @@ export function accountChoices<T extends Choice>(
   if (kind === "stack") {
     const from = kept(sorted(accounts.filter((account) => isMoney(account) && !isBitcoin(account))), keep[0]);
     const to = kept(sorted(accounts.filter((account) => account.kind === "bitcoin_wallet" && isBitcoin(account))), keep[1]);
+    return { from, to, source: choose(from, picked.from), target: choose(to, picked.to) };
+  }
+  if (kind === "sell") {
+    const from = kept(sorted(accounts.filter((account) => isMoney(account) && isBitcoin(account))), keep[0]);
+    const to = kept(sorted(accounts.filter((account) => isMoney(account) && !isBitcoin(account))), keep[1]);
     return { from, to, source: choose(from, picked.from), target: choose(to, picked.to) };
   }
   if (anchor === "to") {
