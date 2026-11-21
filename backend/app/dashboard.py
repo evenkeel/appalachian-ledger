@@ -238,7 +238,12 @@ def covered_days(bills, start, today):
 
 
 def cash_ahead(db, today):
-    """Projected everyday balance: bills paid from, and paychecks landing in, everyday accounts."""
+    """Projected everyday balance: bills paid from, and paychecks landing in, everyday accounts.
+
+    Bills charged to a credit card do not leave checking on their due date, but they
+    still have to be paid from it later. They are listed too, marked ``on_card``, and
+    a second running balance, ``all_bills_after``, shows checking with those set aside.
+    """
     accounts = everyday_accounts(db)
     all_bills = active_bills(db)
     result = {
@@ -251,6 +256,9 @@ def cash_ahead(db, today):
         "low": {"date": str(today), "balance": "0.00"},
         "short": None,
         "covered_days": None,
+        "card_bills": {"count": 0, "due_before_paycheck": "0.00", "total": "0.00"},
+        "all_bills": {"due_before_paycheck": "0.00", "low": {"date": str(today), "balance": "0.00"}, "short": None},
+        "other_bills": 0,
     }
     if not accounts:
         return result
@@ -258,6 +266,18 @@ def cash_ahead(db, today):
     start = sum(ledger.balance(db, id, today) for id in ids)
     end = today + timedelta(days=HORIZON_DAYS)
     bills = [bill for bill in all_bills if bill.account_id in ids]
+    cards = {
+        acc.id: acc.name
+        for acc in db.scalars(
+            select(Account).where(
+                Account.internal.is_(False),
+                Account.archived.is_(False),
+                Account.kind == "credit_card",
+                Account.currency == "USD",
+            )
+        )
+    }
+    card_bills = [bill for bill in all_bills if bill.account_id in cards]
     schedules = [schedule for schedule in active_schedules(db) if schedule.account_id in ids]
     events = []
     for bill in bills:
@@ -267,14 +287,39 @@ def cash_ahead(db, today):
                 (
                     (max(due, today), 0, due, bill.id),
                     -amount,
+                    -amount,
                     {
                         "kind": "bill",
                         "date": str(max(due, today)),
                         "name": bill.description,
                         "amount": original(amount, "USD"),
                         "balance_after": None,
+                        "all_bills_after": None,
                         "overdue": due < today,
                         "bill_id": bill.id,
+                        "on_card": False,
+                    },
+                )
+            )
+    for bill in card_bills:
+        amount = to_minor(bill.amount, "USD")
+        for due in bill_dates(bill, today, end):
+            events.append(
+                (
+                    (max(due, today), 0, due, bill.id),
+                    0,
+                    -amount,
+                    {
+                        "kind": "bill",
+                        "date": str(max(due, today)),
+                        "name": bill.description,
+                        "amount": original(amount, "USD"),
+                        "balance_after": None,
+                        "all_bills_after": None,
+                        "overdue": due < today,
+                        "bill_id": bill.id,
+                        "on_card": True,
+                        "account": cards[bill.account_id],
                     },
                 )
             )
@@ -291,12 +336,14 @@ def cash_ahead(db, today):
                 (
                     (day, 1, day, schedule.id),
                     amount,
+                    amount,
                     {
                         "kind": "paycheck",
                         "date": str(day),
                         "name": schedule.name,
                         "amount": original(amount, "USD"),
                         "balance_after": None,
+                        "all_bills_after": None,
                         "schedule_id": schedule.id,
                     },
                 )
@@ -307,21 +354,38 @@ def cash_ahead(db, today):
     running, due_before = start, 0
     low = (start, today)
     deepest, short_on = min(start, 0), today if start < 0 else None
+    # The same walk with bills on a card set aside from checking as well.
+    everything, card_due, card_total = start, 0, 0
+    low_all = (start, today)
+    deepest_all, short_all_on = min(start, 0), today if start < 0 else None
     before_paycheck = True
-    for (day, order, _, _), change, row in events:
+    for (day, order, _, _), change, change_all, row in events:
         running += change
+        everything += change_all
         row["balance_after"] = original(running, "USD")
+        row["all_bills_after"] = original(everything, "USD")
         before_paycheck = before_paycheck and order == 0
+        on_card = bool(row.get("on_card"))
+        if on_card:
+            card_total += -change_all
         if order == 0 and day <= cutoff:
-            due_before += -change
+            if on_card:
+                card_due += -change_all
+            else:
+                due_before += -change
         if before_paycheck and running < low[0]:
             low = (running, day)
+        if before_paycheck and everything < low_all[0]:
+            low_all = (everything, day)
         if running < 0:
             short_on = short_on or day
             deepest = min(deepest, running)
+        if everything < 0:
+            short_all_on = short_all_on or day
+            deepest_all = min(deepest_all, everything)
     result.update(
         start=original(start, "USD"),
-        events=[row for _, _, row in events],
+        events=[row for _, _, _, row in events],
         next_paycheck={"date": str(following[0]), "name": following[2], "amount": original(following[3], "USD")}
         if following
         else None,
@@ -329,6 +393,17 @@ def cash_ahead(db, today):
         low={"date": str(low[1]), "balance": original(low[0], "USD")},
         short={"date": str(short_on), "amount": original(-deepest, "USD")} if short_on else None,
         covered_days=covered_days(bills, start, today),
+        card_bills={
+            "count": len(card_bills),
+            "due_before_paycheck": original(card_due, "USD"),
+            "total": original(card_total, "USD"),
+        },
+        all_bills={
+            "due_before_paycheck": original(due_before + card_due, "USD"),
+            "low": {"date": str(low_all[1]), "balance": original(low_all[0], "USD")},
+            "short": {"date": str(short_all_on), "amount": original(-deepest_all, "USD")} if short_all_on else None,
+        },
+        other_bills=len(all_bills) - len(bills) - len(card_bills),
     )
     return result
 

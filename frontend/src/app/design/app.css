@@ -1798,3 +1798,19 @@ a.btn {
     min-height: 44px;
   }
 }
+
+/* Cash ahead: small note under a figure, and the dotted legend swatch for the card-bills line. */
+.kv div > small {
+  display: block;
+  color: var(--ink-3);
+  font-size: var(--t-label);
+  white-space: nowrap;
+}
+.key i.dotted {
+  background: none;
+  border-bottom: 2px dotted var(--ink);
+  border-radius: 0;
+  height: 0;
+  width: 14px;
+  vertical-align: middle;
+}

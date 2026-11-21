@@ -203,22 +203,23 @@ def seed_demo(db, user):
             )
             db.add(AssetPrice(asset_id=asset.id, date=str(day), value_minor=value, entry_id=entry.id))
     # Upcoming bills mirror the monthly expenses above, so the planner has something to show.
-    for day_of_month, category, amount, description, pays in [
-        (7, "Utilities", "184.50", "Electric & water", None),
-        (21, "Housing", "720.00", "Mortgage interest & insurance", None),
-        (23, "Health", "145.00", "Health & wellness", None),
-        (25, "Utilities", "70.00", "Internet", None),
-        (3, "Transport", "112.00", "Car insurance", None),
-        (5, "Utilities", "65.00", "Phone", None),
-        (12, "Shopping", "22.99", "Streaming", None),
-        (28, "Other expense", "1284.36", "Ridgeline Visa payment", card.id),
+    # Three of them are charged to the card, as many households do; the rest come out of checking.
+    for day_of_month, category, amount, description, pays, on_card in [
+        (7, "Utilities", "184.50", "Electric & water", None, False),
+        (21, "Housing", "720.00", "Mortgage interest & insurance", None, False),
+        (23, "Health", "145.00", "Health & wellness", None, False),
+        (25, "Utilities", "70.00", "Internet", None, False),
+        (3, "Transport", "112.00", "Car insurance", None, True),
+        (5, "Utilities", "65.00", "Phone", None, True),
+        (12, "Shopping", "22.99", "Streaming", None, True),
+        (28, "Other expense", "1284.36", "Ridgeline Visa payment", card.id, False),
     ]:
         due = today.replace(day=day_of_month)
         if due <= today:
             due = (due.replace(day=1) + timedelta(days=32)).replace(day=day_of_month)
         db.add(
             RecurringBill(
-                account_id=accounts["checking"].id,
+                account_id=card.id if on_card else accounts["checking"].id,
                 category_id=cats[category],
                 description=description,
                 amount=amount,

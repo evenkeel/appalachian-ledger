@@ -196,7 +196,7 @@ export function Bills({ go, onChanged }: { go: (route: Route) => void; onChanged
             </div>
             <div>
               <span>Due before payday</span>
-              <b>{usd(data.cash_ahead.due_before_paycheck)}</b>
+              <b>{usd(data.cash_ahead.all_bills.due_before_paycheck)}</b>
             </div>
             <div>
               <span>Next 7 days</span>
@@ -224,7 +224,15 @@ export function Bills({ go, onChanged }: { go: (route: Route) => void; onChanged
             </div>
           ) : !sorted.length ? (
             <div className="sub">No bills yet, so nothing is due.</div>
-          ) : cents(data.cash_ahead.due_before_paycheck) > 0n ? (
+          ) : data.cash_ahead.all_bills.short ? (
+            <div className="sub">
+              Checking covers the bills paid from it. With bills on a card set aside too, it is{" "}
+              <b className="num" style={{ color: "var(--ink)" }}>
+                {usd(data.cash_ahead.all_bills.short.amount)} short
+              </b>{" "}
+              by {shortDate(data.cash_ahead.all_bills.short.date)}.
+            </div>
+          ) : cents(data.cash_ahead.all_bills.due_before_paycheck) > 0n ? (
             <div className="sub ok">{LevelIcon.ok} Enough in checking for every bill before the next payday.</div>
           ) : (
             <div className="sub ok">{LevelIcon.ok} Nothing left to pay before the next payday.</div>

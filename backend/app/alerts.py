@@ -214,7 +214,7 @@ def evaluate(reading, facts, thresholds=None):
                         event["name"], "overdue" if event.get("overdue") else short_date(event["date"]), event["amount"]
                     )
                     for event in cash["events"]
-                    if event["kind"] == "bill" and event["date"] <= cutoff
+                    if event["kind"] == "bill" and not event.get("on_card") and event["date"] <= cutoff
                 ],
                 advice={
                     "text": f"Get at least {{value}} more into checking before {short_date(short['date'])}.",

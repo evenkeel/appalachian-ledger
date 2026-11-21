@@ -81,6 +81,13 @@ def test_empty_ledger_returns_the_documented_shape(owner):
         "low": {"date": today.isoformat(), "balance": "0.00"},
         "short": None,
         "covered_days": None,
+        "card_bills": {"count": 0, "due_before_paycheck": "0.00", "total": "0.00"},
+        "all_bills": {
+            "due_before_paycheck": "0.00",
+            "low": {"date": today.isoformat(), "balance": "0.00"},
+            "short": None,
+        },
+        "other_bills": 0,
     }
     assert data["bills"] == {
         "items": [],
@@ -177,6 +184,52 @@ def test_dollars_in_checking_total_only_everyday_accounts(owner):
     assert reading(date(2026, 3, 11))["checking"]["total"] == "1090.25"
 
 
+def test_bills_on_a_card_are_listed_and_set_aside_without_touching_the_checking_line(owner):
+    checking = new_account(owner, amount="500")
+    card = new_account(owner, "Visa", amount="0", kind="credit_card")
+    savings = new_account(owner, "Savings", amount="900", kind="savings")
+    bill(owner, checking, "Rent", "300.00", "2026-03-12")
+    bill(owner, card, "Phone", "150.00", "2026-03-11")
+    bill(owner, card, "Internet", "120.00", "2026-03-20")
+    bill(owner, savings, "Storage unit", "40.00", "2026-03-13")
+    paycheck(owner, checking, "1000", "2026-03-15")
+    ahead = reading()["cash_ahead"]
+    rows = [(e["name"], e.get("on_card"), e["balance_after"], e["all_bills_after"]) for e in ahead["events"]]
+    assert rows == [
+        ("Phone", True, "500.00", "350.00"),  # charged to the card: checking is untouched
+        ("Rent", False, "200.00", "50.00"),
+        ("Salary", None, "1200.00", "1050.00"),
+        ("Internet", True, "1200.00", "930.00"),
+    ]
+    assert ahead["events"][0]["account"] == "Visa"
+    # What really leaves checking is judged as before.
+    assert ahead["due_before_paycheck"] == "300.00"
+    assert ahead["low"] == {"date": "2026-03-12", "balance": "200.00"} and ahead["short"] is None
+    # With the card's bills set aside too.
+    assert ahead["card_bills"] == {"count": 2, "due_before_paycheck": "150.00", "total": "270.00"}
+    assert ahead["all_bills"] == {
+        "due_before_paycheck": "450.00",
+        "low": {"date": "2026-03-12", "balance": "50.00"},
+        "short": None,
+    }
+    # A bill paid from savings is neither: it is counted, not drawn.
+    assert ahead["other_bills"] == 1
+
+
+def test_setting_card_bills_aside_can_show_a_shortfall_checking_alone_would_hide(owner):
+    checking = new_account(owner, amount="360.39")
+    card = new_account(owner, "Visa", amount="0", kind="credit_card")
+    bill(owner, card, "Insurance", "250.00", "2026-03-11")
+    bill(owner, card, "Phone", "180.00", "2026-03-13")
+    paycheck(owner, checking, "2000", "2026-03-20")
+    ahead = reading()["cash_ahead"]
+    assert ahead["short"] is None and ahead["due_before_paycheck"] == "0.00"
+    assert ahead["all_bills"]["short"] == {"date": "2026-03-13", "amount": "69.61"}
+    assert ahead["all_bills"]["low"] == {"date": "2026-03-13", "balance": "-69.61"}
+    # The real cash-short light is about checking itself, so it stays off.
+    assert all(alert["id"] != "cash" for alert in owner.get("/api/alerts").json()["active"])
+
+
 def test_cash_ahead_walks_bills_and_paychecks_in_order(owner):
     checking = new_account(owner, amount="1000")
     rent = bill(owner, checking, "Rent", "400.00", "2026-03-05")
@@ -204,8 +257,10 @@ def test_cash_ahead_walks_bills_and_paychecks_in_order(owner):
         "name": "Rent",
         "amount": "400.00",
         "balance_after": "600.00",
+        "all_bills_after": "600.00",
         "overdue": True,
         "bill_id": rent["id"],
+        "on_card": False,
     }
     assert paid == {
         "kind": "paycheck",
@@ -213,6 +268,7 @@ def test_cash_ahead_walks_bills_and_paychecks_in_order(owner):
         "name": "Salary",
         "amount": "500.00",
         "balance_after": "990.00",
+        "all_bills_after": "990.00",
         "schedule_id": pay["id"],
     }
     assert [e["overdue"] for e in ahead["events"] if e["kind"] == "bill"] == [True] + [False] * 7

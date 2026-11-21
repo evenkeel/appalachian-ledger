@@ -355,6 +355,10 @@ export function Learn({ go }: { go: (route: Route) => void }) {
                 charged.
               </p>
               <p>
+                A bill you charge to a card still counts. Nothing leaves checking that day, but the card has to be paid from checking later. Cash ahead sets
+                that money aside too, and tells you when checking could not cover both.
+              </p>
+              <p>
                 A destroyed bill is the best kind of win, because it repeats. <span className="num">$30</span> a month you no longer owe is{" "}
                 <span className="num">$360</span> a year you can stack instead, every year.
               </p>
