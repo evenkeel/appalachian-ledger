@@ -18,18 +18,6 @@ const NAV: { route: Route; label: string }[] = [
   { route: "retirement", label: "Retirement" },
   { route: "learn", label: "Learn" },
 ];
-const TITLE: Record<Route, string> = {
-  dashboard: "Dashboard",
-  activity: "Transactions",
-  spending: "Spending",
-  bills: "Bills",
-  stack: "Stack · your bitcoin",
-  markets: "Markets · live prices",
-  accounts: "Accounts",
-  retirement: "Retirement",
-  learn: "Learn",
-  settings: "Settings",
-};
 // The phone bar holds four screens; everything else is under More.
 const TABS: Route[] = ["dashboard", "bills", "stack"];
 const MORE: Route[] = ["activity", "spending", "markets", "accounts", "retirement", "learn", "settings"];
@@ -94,8 +82,7 @@ export function Shell({
             <div className="rail-mark" style={{ padding: 0 }}>
               <Tile size={32} />
             </div>
-            <Lockup />
-            <span className="crumb">{TITLE[route]}</span>
+            <Lockup className="lockup" width={176} />
             {demo && <span className="tag">Fictional demo</span>}
             <span className="grow" />
             {price ? (

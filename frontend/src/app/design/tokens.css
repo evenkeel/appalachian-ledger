@@ -27,6 +27,8 @@
   --brand-amethyst: #b37cdb;
 
   /* Type */
+  /* The name in the logo; nothing else is set in it. */
+  --font-brand: Georgia, "Times New Roman", serif;
   --font-ui: "B612", system-ui, -apple-system, "Segoe UI", sans-serif;
   /* B612 digits are all one width, so numbers align without a monospaced face. */
   --font-num: "B612", system-ui, -apple-system, "Segoe UI", sans-serif;
