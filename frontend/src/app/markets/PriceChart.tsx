@@ -33,7 +33,8 @@ function palette(element: HTMLElement) {
     text: read("--ink-3", "#7d95a2"),
     grid: read("--hairline", "#172831"),
     edge: read("--bezel", "#20343e"),
-    label: read("--brand-slate", "#304e5d"),
+    label: read("--mk-label", "#304e5d"),
+    font: style.fontFamily || "system-ui, sans-serif",
     up: read("--mk-up", "#4cc38a"),
     down: read("--mk-down", "#e2647c"),
     bitcoin: read("--btc", "#e58b4e"),
@@ -82,6 +83,7 @@ export function PriceChart({
   bitcoin,
   inBitcoin = false,
   fillsScreen = false,
+  look = "",
 }: {
   bars: Bar[];
   /** Changes when the bars belong to a different symbol or bar size, which resets the view. */
@@ -98,6 +100,8 @@ export function PriceChart({
   inBitcoin?: boolean;
   /** The chart is the whole screen, so a plain scroll zooms it instead of moving the page. */
   fillsScreen?: boolean;
+  /** The Markets colour theme in use. A change redraws the chart in the new colours. */
+  look?: string;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const chart = useRef<IChartApi | null>(null);
@@ -120,7 +124,7 @@ export function PriceChart({
     if (!host.current) return;
     const made = createChart(host.current, {
       autoSize: true,
-      layout: { background: { type: ColorType.Solid, color: "transparent" }, fontFamily: "B612, system-ui, sans-serif", fontSize: 11, attributionLogo: false },
+      layout: { background: { type: ColorType.Solid, color: "transparent" }, fontSize: 11, attributionLogo: false },
       crosshair: { mode: CrosshairMode.Normal },
       // A finger moving up or down scrolls the page; sideways it moves through the chart.
       handleScroll: { vertTouchDrag: false },
@@ -158,13 +162,13 @@ export function PriceChart({
   useEffect(() => {
     const made = chart.current;
     if (!made || !host.current) return;
-    const shape = [style, volume, averagesKey, theme, digits, bitcoin, inBitcoin].join("|");
+    const shape = [style, volume, averagesKey, theme, look, digits, bitcoin, inBitcoin].join("|");
     let now = drawn.current;
     if (!now || now.shape !== shape) {
       if (now) for (const series of [now.main, now.volume, ...now.averages.map((line) => line.series)]) if (series) made.removeSeries(series);
       const colors = palette(host.current);
       made.applyOptions({
-        layout: { textColor: colors.text },
+        layout: { textColor: colors.text, fontFamily: colors.font },
         grid: { vertLines: { color: colors.grid }, horzLines: { color: colors.grid } },
         crosshair: {
           vertLine: { color: colors.text, width: 1, style: LineStyle.Dashed, labelBackgroundColor: colors.label },
@@ -240,7 +244,7 @@ export function PriceChart({
     now.key = rows.length ? dataKey : "";
     now.first = rows[0]?.time ?? 0;
     now.count = rows.length;
-  }, [rows, lines, dataKey, interval, style, volume, log, averagesKey, averages, digits, bitcoin, inBitcoin, theme]);
+  }, [rows, lines, dataKey, interval, style, volume, log, averagesKey, averages, digits, bitcoin, inBitcoin, theme, look]);
 
   const at = hover !== null && hover < rows.length ? hover : rows.length - 1;
   const shown = rows[at]?.bar;

@@ -54,6 +54,7 @@ export function ChartPanel({
   spec,
   quote,
   lens,
+  look,
   active,
   expanded,
   onChange,
@@ -64,6 +65,8 @@ export function ChartPanel({
   spec: ChartSpec;
   quote: Quote | undefined;
   lens: Lens;
+  /** The Markets colour theme, passed on so the chart redraws when it changes. */
+  look: string;
   active: boolean;
   expanded: boolean;
   onChange: (patch: Partial<ChartSpec>) => void;
@@ -196,7 +199,7 @@ export function ChartPanel({
       </div>
       <div className="mk-body">
         {feed.bars.length > 0 ? (
-          <PriceChart bars={feed.bars} dataKey={feed.key} interval={spec.interval} style={spec.style} volume={spec.volume} log={spec.log} averages={spec.averages} digits={digits} bitcoin={spec.symbol === BITCOIN} inBitcoin={priced} fillsScreen={expanded} />
+          <PriceChart bars={feed.bars} dataKey={feed.key} interval={spec.interval} style={spec.style} volume={spec.volume} log={spec.log} averages={spec.averages} digits={digits} bitcoin={spec.symbol === BITCOIN} inBitcoin={priced} fillsScreen={expanded} look={look} />
         ) : feed.error ? (
           <div className="mk-empty" role="alert">
             <p className="sub">{feed.error}</p>

@@ -7,6 +7,7 @@ import type { Picture } from "./book";
 import { change, compact, inBitcoin, mergeBars } from "./feed";
 import type { Bar, Quote } from "./feed";
 import { applyTrades, barStart, resetLive } from "./live";
+import { LOOKS, loadLook, saveLook } from "./looks";
 import { movingAverage, rowsFrom, wheelAction } from "./series";
 
 const calls: string[] = [];
@@ -72,7 +73,7 @@ vi.mock("../../lib/api", () => ({
 vi.mock("../lib/session", () => ({ useSession: () => ({ lens, setLens }) }));
 // jsdom has no canvas and no layout: the chart and the grid are stood in for by plain elements.
 vi.mock("./PriceChart", () => ({
-  PriceChart: (props: { dataKey: string; style: string; bars: Bar[]; averages: number[]; volume: boolean; inBitcoin?: boolean }) => (
+  PriceChart: (props: { dataKey: string; style: string; bars: Bar[]; averages: number[]; volume: boolean; inBitcoin?: boolean; look?: string }) => (
     <div
       data-testid="chart"
       data-key={props.dataKey}
@@ -81,6 +82,7 @@ vi.mock("./PriceChart", () => ({
       data-averages={props.averages.join(",")}
       data-volume={String(props.volume)}
       data-bitcoin={String(Boolean(props.inBitcoin))}
+      data-look={props.look}
     />
   ),
 }));
@@ -543,6 +545,43 @@ describe("markets screen", () => {
     expect(feed.closed).toBe(false); // the depth chart still uses it
     view.unmount();
     expect(feed.closed).toBe(true);
+  });
+
+  it("changes the colours of the Markets screen alone and remembers the choice", async () => {
+    expect(LOOKS.map((look) => look.name)).toEqual(["Appalachian", "Terminal", "Slate", "Paper"]);
+    expect(loadLook()).toBe("app");
+    localStorage.setItem("appalachian-bitcoin.markets.look", "neon");
+    expect(loadLook()).toBe("app"); // a look this version does not have falls back to the app's own
+    localStorage.clear();
+
+    const view = render(<Markets />);
+    const bitcoin = await screen.findByLabelText("Bitcoin chart, 15 minutes bars");
+    const page = bitcoin.closest(".mk")!;
+    expect(page).toHaveAttribute("data-look", "app");
+    await waitFor(() => expect(within(bitcoin).getByTestId("chart")).toHaveAttribute("data-look", "app"));
+
+    fireEvent.click(screen.getByRole("button", { name: /^Colors/ }));
+    const menu = screen.getByRole("group", { name: "Colors" });
+    expect(within(menu).getByRole("button", { name: /^Appalachian/ })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(within(menu).getByRole("button", { name: /^Terminal amber on black/ }));
+    // The whole screen takes the look, and each chart is told so it redraws in the new colours.
+    expect(page).toHaveAttribute("data-look", "terminal");
+    expect(within(bitcoin).getByTestId("chart")).toHaveAttribute("data-look", "terminal");
+    expect(screen.queryByRole("group", { name: "Colors" })).not.toBeInTheDocument();
+    expect(loadLook()).toBe("terminal");
+    // The app's own theme and lens are left alone, and the board is untouched.
+    expect(setLens).not.toHaveBeenCalled();
+    expect(saved()).toEqual(defaultBoard());
+
+    view.unmount();
+    render(<Markets />);
+    expect((await screen.findByLabelText("Bitcoin chart, 15 minutes bars")).closest(".mk")).toHaveAttribute("data-look", "terminal");
+    // Resetting the board keeps the colours: they are a separate choice.
+    fireEvent.click(screen.getByRole("button", { name: "Reset board" }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Reset the board" })).getByRole("button", { name: "Reset" }));
+    expect(loadLook()).toBe("terminal");
+    saveLook("paper");
+    expect(loadLook()).toBe("paper");
   });
 
   it("says so when a symbol has no prices instead of drawing an empty chart", async () => {

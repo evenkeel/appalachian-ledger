@@ -3,6 +3,7 @@
    kept apart from the alert red so a falling bar is never read as a warning light. */
 .mk {
   --mk-up: var(--ok);
+  --mk-label: var(--brand-slate);
   --mk-down: #e2647c;
   --mk-ma-1: #a9c1cf;
   --mk-ma-2: #bd90e4;
@@ -810,4 +811,125 @@
   .mk-tick-down {
     animation: none;
   }
+}
+
+/* ---------- Colour themes for this screen ----------
+   Each one replaces the app's colour tokens for the Markets page only, so every panel, menu and chart on
+   it follows. The class is doubled so these outrank the day-theme rules above whichever theme the app is in. */
+.mk.mk[data-look]:not([data-look="app"]) {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  /* Fill the screen below the last panel, so the app's own background does not show through. */
+  min-height: calc(100dvh - 57px);
+  --ok: var(--mk-up);
+}
+.mk-swatch {
+  display: inline-flex;
+  margin-right: 8px;
+  border: 1px solid var(--bezel);
+  border-radius: 3px;
+  overflow: hidden;
+  vertical-align: -2px;
+}
+.mk-swatch i {
+  width: 9px;
+  height: 12px;
+}
+.mk-pop > button[aria-pressed="true"] {
+  background: var(--panel);
+  box-shadow: inset 2px 0 0 var(--btc);
+}
+.mk-pop > button > small {
+  margin-left: auto;
+}
+
+/* Terminal: amber text on black with hard green and red, set in a fixed-width face with square corners. */
+.mk.mk[data-look="terminal"] {
+  color-scheme: dark;
+  --font-ui: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+  --font-num: var(--font-ui);
+  --bg: #000000;
+  --panel: #050505;
+  --panel-2: #1c1505;
+  --well: #000000;
+  --bezel: #3d3d3d;
+  --hairline: #232323;
+  --ink: #ffa028;
+  --ink-2: #e0901f;
+  --ink-3: #a87922;
+  --btc: #ffffff;
+  --btc-soft: rgba(255, 255, 255, 0.14);
+  --usd: #ffa028;
+  --mk-up: #33d17a;
+  --mk-down: #ff433d;
+  --mk-ma-1: #4da3ff;
+  --mk-ma-2: #e052e0;
+  --mk-ma-3: #4af6c3;
+  --mk-label: #ffa028;
+  --adv: #4da3ff;
+  --shadow: 0 0 0 1px #3d3d3d;
+  --r-inst: 0px;
+}
+.mk[data-look="terminal"] :is(.seg, .btn, .mk-pop, .mk-pop > button, .mk-symbol, .mk-tool, .tag, .mk-depth-read, .mk-swatch) {
+  border-radius: 0;
+}
+.mk[data-look="terminal"] .inst {
+  box-shadow: none;
+}
+.mk[data-look="terminal"] :is(.mk-zoom button) {
+  border-radius: 0;
+}
+.mk[data-look="terminal"] .btn.primary {
+  color: #000000;
+}
+
+/* Slate: the dark grey with teal and red that most charting sites use. */
+.mk.mk[data-look="slate"] {
+  color-scheme: dark;
+  --bg: #131722;
+  --panel: #1e222d;
+  --panel-2: #2a2e39;
+  --well: #131722;
+  --bezel: #363a45;
+  --hairline: #2a2e39;
+  --ink: #d1d4dc;
+  --ink-2: #b2b5be;
+  --ink-3: #8a8e9a;
+  --btc: #f7931a;
+  --btc-soft: rgba(247, 147, 26, 0.16);
+  --usd: #5b9cf6;
+  --mk-up: #26a69a;
+  --mk-down: #ef5350;
+  --mk-ma-1: #5b9cf6;
+  --mk-ma-2: #ba68c8;
+  --mk-ma-3: #ffb74d;
+  --mk-label: #363a45;
+  --adv: #5b9cf6;
+  --shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+
+/* Paper: black on white, for a bright room or a printout. */
+.mk.mk[data-look="paper"] {
+  color-scheme: light;
+  --bg: #ffffff;
+  --panel: #ffffff;
+  --panel-2: #f1f1f1;
+  --well: #fafafa;
+  --bezel: #c4c4c4;
+  --hairline: #e4e4e4;
+  --ink: #111111;
+  --ink-2: #333333;
+  --ink-3: #5c5c5c;
+  --btc: #b3540e;
+  --btc-soft: rgba(179, 84, 14, 0.12);
+  --usd: #111111;
+  --mk-up: #0a7d3e;
+  --mk-down: #c62828;
+  --mk-ma-1: #1565c0;
+  --mk-ma-2: #7b1fa2;
+  --mk-ma-3: #00796b;
+  --mk-label: #333333;
+  --adv: #1565c0;
+  --shadow: 0 10px 28px rgba(0, 0, 0, 0.16);
 }

@@ -11,6 +11,8 @@ import { DepthChart } from "./DepthChart";
 import { Menu } from "./Menu";
 import { OrderBook } from "./OrderBook";
 import { useQuotes } from "./feed";
+import { LOOKS, loadLook, saveLook } from "./looks";
+import type { Look } from "./looks";
 import { SymbolPicker } from "./SymbolPicker";
 import { Watchlist } from "./Watchlist";
 import "./markets.css";
@@ -22,6 +24,7 @@ const STACK_BELOW = 720;
 export function Markets() {
   const { lens } = useSession();
   const [board, setBoard] = useState<Board>(() => loadBoard());
+  const [look, setLook] = useState<Look>(() => loadLook());
   const [expanded, setExpanded] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [resetting, setResetting] = useState(false);
@@ -71,6 +74,7 @@ export function Markets() {
         spec={spec}
         quote={quotes[spec.symbol]}
         lens={lens}
+        look={look}
         active={board.active === spec.id && board.panels.filter((other) => other.kind === "chart").length > 1}
         expanded={expanded === spec.id}
         onChange={(patch) => setBoard((before) => changePanel<ChartSpec>(before, spec.id, patch))}
@@ -101,7 +105,7 @@ export function Markets() {
     return { ...slot, minW: SMALLEST[kind].w, minH: SMALLEST[kind].h };
   });
   return (
-    <div className="page mk">
+    <div className="page mk" data-look={look}>
       <div className="mk-top">
         <h1>Markets</h1>
         <span className={`mk-live${error ? " off" : ""}`} role="status" title={error || "Prices are updating"}>
@@ -109,6 +113,28 @@ export function Markets() {
           {error ? "Reconnecting…" : "Live"}
         </span>
         <span className="mk-gap" />
+        <Menu label="Colors" className="btn" align="right">
+          {(close) =>
+            LOOKS.map((option) => (
+              <button
+                key={option.id}
+                aria-pressed={look === option.id}
+                onClick={() => {
+                  close();
+                  setLook(option.id);
+                  saveLook(option.id);
+                }}
+              >
+                <span className="mk-swatch" aria-hidden="true">
+                  {option.swatch.map((color) => (
+                    <i key={color} style={{ background: color }} />
+                  ))}
+                </span>
+                {option.name} <small>{option.about}</small>
+              </button>
+            ))
+          }
+        </Menu>
         {full ? (
           <button className="btn" disabled title={`The board holds ${MAX_PANELS} panels`}>
             + Add

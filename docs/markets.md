@@ -31,6 +31,22 @@ only, since Coinbase is the one source here with a public order book.
 Panels are dragged by their top edge and resized from the bottom-right corner, the bottom edge or the right
 edge. A chart can fill the screen and come back with Escape. On a phone the panels stack in one column.
 
+## Colours
+
+**Colors**, at the top of the screen, changes how the Markets screen alone looks. The rest of the app keeps
+its own night and day themes, and the choice is saved in this browser.
+
+| Look | What it is |
+| --- | --- |
+| Appalachian | The app's own colours; follows the night and day switch |
+| Terminal | Amber text on black with hard green and red, fixed-width type and square corners, like a trading terminal |
+| Slate | Dark grey with teal and red, as most charting sites use |
+| Paper | Black on white, for a bright room |
+
+Every panel follows the look: charts, watchlists, the order book and the depth chart. Dialogs such as the
+symbol search belong to the app and keep its theme. A look is a set of colour tokens in
+`frontend/src/app/markets/markets.css` and one entry in `looks.ts`, so another can be added in a few lines.
+
 ## Priced in bitcoin
 
 Every chart except bitcoin's own can be drawn in dollars or in whole bitcoin.
@@ -117,7 +133,7 @@ browser's time zone.
 ## What is saved
 
 The board (which panels, their symbols, bar sizes, styles and positions) is kept in this browser's local
-storage under `appalachian-bitcoin.markets.v1`. It is not part of the ledger or its backups, so another
+storage under `appalachian-bitcoin.markets.v1`, and the colour look under `appalachian-bitcoin.markets.look`. It is not part of the ledger or its backups, so another
 browser or device starts from the default board. **Reset board** returns to that default.
 
 ## Endpoints
