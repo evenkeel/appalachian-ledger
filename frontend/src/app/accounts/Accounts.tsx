@@ -23,7 +23,7 @@ type Card = DashboardData["debt"]["cards"][number];
 const ADD_KINDS = ["checking", "bitcoin_wallet", "credit_card", "savings", "cash", "loan", "mortgage", "brokerage", "real_estate", "vehicle", "other_asset", "other_liability"];
 const DEBT_KINDS = ["credit_card", "loan", "mortgage", "other_liability"];
 const GROUPS: { key: Account["holding_type"]; name: string; plain: string; empty: string }[] = [
-  { key: "dollars", name: "Dollars", plain: "checking, savings and cash", empty: "No dollar accounts yet. Add your checking account: bills are paid from it." },
+  { key: "dollars", name: "Dollars", plain: "checking, savings and cash", empty: "No dollar accounts yet. Add your checking or cash account: bills are paid from it." },
   { key: "bitcoin", name: "Bitcoin", plain: "your stack, by wallet", empty: "No bitcoin wallet yet. Add one and the Stack panel turns on." },
   { key: "debt", name: "Cards and debt", plain: "what you owe", empty: "No cards or loans. Nothing owed." },
   { key: "valued_asset", name: "Investments and property", plain: "valued in dollars", empty: "Nothing here yet. Add a brokerage account, a home or a vehicle if you track them." },
@@ -131,7 +131,7 @@ export function Accounts({ go, onChanged }: { go: (route: Route) => void; onChan
       <div className="grid2">
         {open.length === 0 ? (
           <Panel className="c6" name="Start here" plain="add your first account" inop>
-            <div className="sub">Add your checking account first. Bills are paid from it, and it turns on Checking forecast and Spend pace.</div>
+            <div className="sub">Add your checking or cash account first. Bills are paid from it, and it turns on Checking forecast and Spend pace.</div>
             <div>
               <button className="btn sm primary" onClick={() => setSheet("new")}>
                 Add an account

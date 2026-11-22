@@ -101,7 +101,7 @@ export function CashAheadChart({ data }: { data: DashboardData }) {
             steps.push(<line key={`s${index}`} x1={ex} x2={ex} y1={y(balance)} y2={y(next)} stroke="var(--plan)" strokeWidth="2.5" strokeLinecap="round" />);
             marks.push(
               <circle key={`m${index}`} cx={ex} cy={y(next)} r="8" fill="transparent">
-                <title>{`Planned: ${event.name} ${usd(event.amount)} on ${shortDate(event.date)}. Not recorded yet. Checking after: ${usd(event.balance_after)}.`}</title>
+                <title>{`${event.estimate ? "Expected" : "Planned"}: ${event.name} ${event.estimate ? "about " : ""}${usd(event.amount)} on ${shortDate(event.date)}. ${event.estimate ? "The amount varies. " : ""}Not recorded yet. Checking after: ${usd(event.balance_after)}.`}</title>
               </circle>,
             );
           } else if (isCardPayment(event)) {

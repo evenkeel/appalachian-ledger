@@ -108,6 +108,20 @@ describe("checking forecast with a card paid off in full", () => {
     expect(panel).toHaveTextContent("Checking runs out on Nov 25, even with the Nov 24 paycheck.");
   });
 
+  it("says when the forecast is covered only by income that varies", () => {
+    const data = withCard(false);
+    const tips = data.cash_ahead.events.find((event) => event.kind === "paycheck")!;
+    tips.name = "Tips";
+    tips.estimate = true;
+    data.cash_ahead.leans_on_estimate = { income: "600.00", date: "2026-11-25", amount: "100.00" };
+    const panel = show(data);
+    expect(panel).toHaveTextContent("Covered through payday");
+    expect(panel).toHaveTextContent("This counts on about $600.00 of income that varies. Without it, checking runs $100.00 short on Nov 25.");
+    expect(panel).toHaveTextContent("Expected income, not recorded yet; amounts that vary are estimates");
+    const titles = [...within(panel).getByRole("img").querySelectorAll("circle > title")].map((title) => title.textContent);
+    expect(titles).toContain("Expected: Tips about $3,100.00 on Dec 1. The amount varies. Not recorded yet. Checking after: $3,140.39.");
+  });
+
   it("leaves a card to the bill that pays it down, and names that bill on the chart", () => {
     const data = withCard(false);
     data.cash_ahead.events[1] = { kind: "bill", date: "2026-11-25", name: "Visa payment", amount: "150.00", balance_after: "170.39", overdue: false, bill_id: 6, account_id: 10 };

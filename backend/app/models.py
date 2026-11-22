@@ -311,7 +311,7 @@ class EntryReview(Base):
 
 
 class IncomeSchedule(Base):
-    """An expected paycheck. Scheduling never posts income by itself."""
+    """Income the owner expects: a paycheck, tips, side work. Scheduling never posts income by itself."""
 
     __tablename__ = "income_schedules"
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -323,6 +323,8 @@ class IncomeSchedule(Base):
     next_date: Mapped[str] = mapped_column(String(10))
     anchor_day: Mapped[int] = mapped_column(Integer)
     archived: Mapped[bool] = mapped_column(Boolean, default=False)
+    # The amount is a typical one (tips, side work), so the forecast treats it as an estimate.
+    varies: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     created_at: Mapped[str] = mapped_column(default=now)
 
 

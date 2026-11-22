@@ -222,7 +222,7 @@ export function BillSheet({
   );
 }
 
-/** A planned paycheck. It never posts by itself; it only tells the checking forecast when money lands in checking. */
+/** Income the owner expects: a paycheck, tips, side work. It never posts by itself; it only tells the checking forecast when money lands. */
 export interface Paycheck {
   id: number;
   account_id: number;
@@ -232,11 +232,14 @@ export interface Paycheck {
   frequency: string;
   next_date: string;
   next_occurrence: string | null;
+  /** The amount is a typical one, so the forecast treats it as an estimate. */
+  varies?: boolean;
 }
 
 export function PaycheckSheet({ data, schedule, onClose, onDone }: { data: DashboardData; schedule?: Paycheck; onClose: () => void; onDone: () => void }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [varies, setVaries] = useState(schedule?.varies ?? false);
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -244,6 +247,7 @@ export function PaycheckSheet({ data, schedule, onClose, onDone }: { data: Dashb
     setError("");
     try {
       await api(schedule ? `/income-schedules/${schedule.id}` : "/income-schedules", schedule ? "PUT" : "POST", {
+        varies,
         account_id: Number(form.get("account_id")),
         name: form.get("name"),
         amount: String(form.get("amount")).replace(/[$,\s]/g, ""),
@@ -257,9 +261,9 @@ export function PaycheckSheet({ data, schedule, onClose, onDone }: { data: Dashb
     }
   }
   return (
-    <Sheet label={schedule ? `Change ${schedule.name}` : "Set your next paycheck"} onClose={onClose}>
-      <h2>{schedule ? `Change ${schedule.name}` : "Set your next paycheck"}</h2>
-      <p className="sub">Used to show whether checking covers your bills until payday. It never records income by itself.</p>
+    <Sheet label={schedule ? `Change ${schedule.name}` : "Add income you expect"} onClose={onClose}>
+      <h2>{schedule ? `Change ${schedule.name}` : "Add income you expect"}</h2>
+      <p className="sub">A paycheck, tips, side work: anything you can count on. It shows whether checking covers your bills until the money lands, and never records income by itself.</p>
       <form onSubmit={save} style={{ display: "grid", gap: 10 }}>
         <div className="sheet-fields">
           <label className="field">
@@ -267,7 +271,7 @@ export function PaycheckSheet({ data, schedule, onClose, onDone }: { data: Dashb
             <input name="name" defaultValue={schedule?.name ?? "Paycheck"} required maxLength={120} data-autofocus />
           </label>
           <label className="field">
-            <span>Take-home amount</span>
+            <span>{varies ? "Typical amount" : "Take-home amount"}</span>
             <input name="amount" className="num" inputMode="decimal" placeholder="0.00" defaultValue={schedule?.amount} required />
           </label>
           <label className="field">
@@ -280,7 +284,7 @@ export function PaycheckSheet({ data, schedule, onClose, onDone }: { data: Dashb
             </select>
           </label>
           <label className="field">
-            <span>Next payday</span>
+            <span>{varies ? "Next time you expect it" : "Next payday"}</span>
             <input name="next_date" type="date" min={schedule ? undefined : data.today} defaultValue={schedule?.next_occurrence ?? schedule?.next_date} required />
           </label>
           <label className="field" style={{ gridColumn: "1/-1" }}>
@@ -293,7 +297,11 @@ export function PaycheckSheet({ data, schedule, onClose, onDone }: { data: Dashb
               ))}
             </select>
           </label>
+          <label className="check-line" style={{ gridColumn: "1/-1" }}>
+            <input type="checkbox" checked={varies} onChange={(event) => setVaries(event.target.checked)} /> The amount varies, like tips or side work
+          </label>
         </div>
+        {varies && <p className="hint">Enter what you usually get. The forecast shows it as an estimate and tells you if your bills depend on it.</p>}
         {error && (
           <p className="gate-error" role="alert">
             {error}
@@ -301,7 +309,7 @@ export function PaycheckSheet({ data, schedule, onClose, onDone }: { data: Dashb
         )}
         <div className="acts">
           <button className="btn primary" disabled={busy}>
-            Save paycheck
+            Save income
           </button>
           <button type="button" className="btn ghost" onClick={onClose}>
             Cancel <kbd>Esc</kbd>

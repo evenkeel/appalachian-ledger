@@ -164,7 +164,7 @@ export function CashAheadPanel({
         className={className}
         name={FORECAST}
         plain={FORECAST_PLAIN}
-        needs="Add your checking account first. This panel then shows whether it covers every bill and card payment before your next paycheck."
+        needs="Add your checking or cash account first. This panel then shows whether it covers every bill and card payment before your next paycheck."
         action={
           <button className="btn sm" onClick={() => go("accounts", "add")}>
             Add an account
@@ -193,7 +193,7 @@ export function CashAheadPanel({
             )}
             {!data.setup.has_paycheck && (
               <button className="btn sm" onClick={onPaycheck}>
-                Set payday
+                Add income
               </button>
             )}
           </span>
@@ -202,6 +202,8 @@ export function CashAheadPanel({
     );
   const short = cash.short;
   const payday = cash.next_paycheck;
+  const leans = cash.leans_on_estimate ?? null;
+  const estimates = cash.events.some((event) => event.kind === "paycheck" && event.estimate);
   // A card paid off after payday can take checking under even with the paycheck in it.
   const late = short !== null && payday !== null && short.date > payday.date;
   const payments = cash.events.filter(isCardPayment);
@@ -261,11 +263,16 @@ export function CashAheadPanel({
               <>
                 {" "}
                 <button className="inst-link" onClick={onPaycheck}>
-                  Set your payday →
+                  Add income you expect →
                 </button>
               </>
             )}
           </div>
+          {leans && (
+            <div className="sub" style={{ color: "var(--caution)" }}>
+              This counts on about {usd(leans.income)} of income that varies. Without it, checking runs <b className="num">{usd(leans.amount)}</b> short on {shortDate(leans.date)}.
+            </div>
+          )}
         </div>
         <div className="kv" style={{ flex: "2 1 330px" }}>
           <div>
@@ -309,7 +316,7 @@ export function CashAheadPanel({
         )}
         <span>
           <i style={{ background: "var(--plan)" }} />
-          Planned paycheck, not recorded yet
+          {estimates ? "Expected income, not recorded yet; amounts that vary are estimates" : "Planned paycheck, not recorded yet"}
         </span>
       </div>
       {notes}
@@ -711,8 +718,8 @@ export function BudgetsPanel({ className, data, flag, go }: { className?: string
 export function SetupPanel({ className, data, demoEnabled, go, onPaycheck, onDemo }: { className?: string; data: DashboardData; demoEnabled: boolean; go: Go; onPaycheck: () => void; onDemo: () => void }) {
   const s = data.setup;
   const steps: { done: boolean; title: string; sub: string; action?: ReactNode }[] = [
-    { done: s.has_account, title: "Add your checking account", sub: "Turns on: Checking forecast, Spend pace", action: <button className="btn sm" onClick={() => go("accounts", "add")}>Add account</button> },
-    { done: s.has_paycheck, title: "Set your next paycheck", sub: "Turns on: payday in Checking forecast", action: s.has_account ? <button className="btn sm" onClick={onPaycheck}>Set payday</button> : undefined },
+    { done: s.has_account, title: "Add your checking or cash account", sub: "Turns on: Checking forecast, Spend pace", action: <button className="btn sm" onClick={() => go("accounts", "add")}>Add account</button> },
+    { done: s.has_paycheck, title: "Add the income you expect", sub: "A paycheck, tips, side work. Turns on: payday in Checking forecast", action: s.has_account ? <button className="btn sm" onClick={onPaycheck}>Add income</button> : undefined },
     { done: s.has_bills, title: "Add recurring bills", sub: "Turns on: Checking forecast, Bills", action: <button className="btn sm" onClick={() => go("bills", "add")}>Add bills</button> },
     { done: s.has_bitcoin, title: "Record your bitcoin", sub: "Turns on: Stack", action: <button className="btn sm" onClick={() => go("accounts", "add-bitcoin")}>Add bitcoin</button> },
     { done: s.has_price_source, title: "Choose a price source", sub: "Turns on: bitcoin cost on every expense", action: <button className="btn sm" onClick={() => go("settings")}>Choose</button> },

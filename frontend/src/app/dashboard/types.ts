@@ -9,6 +9,8 @@ export interface CashEvent {
   overdue?: boolean;
   bill_id?: number;
   schedule_id?: number;
+  /** "paycheck" only: the amount is a typical one (tips, side work), not a fixed one. */
+  estimate?: boolean;
   /** The card being paid: on a "card" payment, and on a bill that pays a card down. */
   account_id?: number;
   /** "card" payments only: what was owed on the card today, and the bills charged to it since. */
@@ -67,10 +69,12 @@ export interface DashboardData {
     horizon_days: number;
     start: string;
     events: CashEvent[];
-    next_paycheck: { date: string; name: string; amount: string } | null;
+    next_paycheck: { date: string; name: string; amount: string; estimate?: boolean } | null;
     due_before_paycheck: string;
     low: { date: string; balance: string };
     short: { date: string; amount: string } | null;
+    /** Covered only if income that varies arrives: how much of it is counted on, and the shortfall without it. */
+    leans_on_estimate?: { income: string; date: string; amount: string } | null;
     covered_days: number | null;
     /** Credit cards with a balance or bills on them. */
     cards: CashCard[];

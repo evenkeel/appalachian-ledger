@@ -229,7 +229,7 @@ class PortfolioInput(StrictModel):
 
 class RecurringBillInput(StrictModel):
     transaction: TransactionInput
-    frequency: Literal["once", "weekly", "monthly", "quarterly", "semiannual", "yearly"] = "monthly"
+    frequency: Literal["once", "weekly", "biweekly", "monthly", "quarterly", "semiannual", "yearly"] = "monthly"
     record_now: bool = False
 
     @model_validator(mode="after")

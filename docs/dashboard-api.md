@@ -8,7 +8,7 @@ Nothing here creates a posting except the three write actions that say so.
 
 - **Everyday accounts**: non-archived asset accounts in USD of kind `checking` or `cash` with `exclude_from_liquid_usd` false. Their summed balance is the dollars in checking.
 - **Bill**: a non-archived `recurring_bills` row. Overdue when `next_due` is before today.
-- **Paycheck**: a non-archived `income_schedules` row (new table). It never posts by itself.
+- **Paycheck**: a non-archived `income_schedules` row (new table): any income the owner expects, such as a salary, tips or side work. It never posts by itself. One marked `varies` holds a typical amount and is an estimate.
 - **Bitcoin held**: the existing rule in `reports.ownership` (`bitcoin_held`).
 - **Stacked**: USD → BITCOIN transfers between asset accounts, as in `tracking.py` (`bitcoin_bought`, `bitcoin_paid_usd`).
 - **Stack rate** for a month: stacked dollars ÷ USD-equivalent income for that month × 100, one decimal, half-even; `null` when income is zero or a conversion is missing.
@@ -117,6 +117,7 @@ Nothing here creates a posting except the three write actions that say so.
 - Bills paid from anywhere else (savings, a bitcoin wallet) are counted in `other_bills` and not drawn.
 - Overdue bills are placed on today. On the same day, bills come before paychecks. A paycheck dated today is assumed to have landed.
 - `next_paycheck` may fall after the 30 days shown.
+- A `paycheck` event and `next_paycheck` carry `estimate: true` when the schedule's amount varies. `leans_on_estimate` is `null` unless the line stays at or above $0 only because of such income; then it is `{ "income", "date", "amount" }`: the varying income counted on over the 30 days, and the first day and depth of the shortfall without it. It lights the cash alert at caution, never warning.
 - `bills.next_7`, `bills.next_30`, `paid_this_month.total` and `destroyed.monthly_freed` are `null` when a bitcoin-denominated bill cannot be valued because no price is saved. Nothing is guessed.
 - `stack.rates` and `stack.history` cover only months since the first entry, so both are empty on a new ledger.
 - `price.usd_per_btc` has at least two decimals and is never rounded.
@@ -125,7 +126,7 @@ Nothing here creates a posting except the three write actions that say so.
 
 | Endpoint | Does |
 | --- | --- |
-| `GET/POST /api/income-schedules`, `PUT/DELETE /api/income-schedules/{id}` | Paycheck schedule. Body: `account_id`, `name`, `amount`, `frequency` (`weekly`, `biweekly`, `semimonthly`, `monthly`), `next_date`. Delete archives. |
+| `GET/POST /api/income-schedules`, `PUT/DELETE /api/income-schedules/{id}` | Paycheck schedule. Body: `account_id`, `name`, `amount`, `frequency` (`weekly`, `biweekly`, `semimonthly`, `monthly`), `next_date`, optional `varies` (the amount is a typical one). The account may be checking or cash. Delete archives. |
 | `PUT /api/accounts/{id}/card-terms` | Body: `credit_limit` (string or null), `due_day` (1–31 or null). Credit-card accounts only. |
 | `PUT /api/recurring-bills/{id}/pays-account` | Body: `account_id` (a liability account) or null. Links a bill to the debt it pays down. |
 | `POST /api/recurring-bills/{id}/destroy` | Archives the bill and stamps `destroyed_on` with today. No posting. Returns `{ "monthly_freed": "22.99" }`. |
