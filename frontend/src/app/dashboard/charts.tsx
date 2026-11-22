@@ -8,7 +8,7 @@ import { useSize } from "../lib/useSize";
 import type { Bill, CashEvent, DashboardData } from "./types";
 
 // Without layout (tests), charts draw at a nominal size so their labels can still be checked.
-const NO_LAYOUT = typeof ResizeObserver === "undefined";
+export const NO_LAYOUT = typeof ResizeObserver === "undefined";
 
 export function Frame({
   height,
