@@ -1,6 +1,7 @@
 import json
 from datetime import date
-from sqlalchemy import select, or_
+from sqlalchemy import func, or_, select
+from sqlalchemy.exc import OperationalError
 from .models import (
     Account,
     Asset,
@@ -119,12 +120,21 @@ def internal_account(db, role, currency):
 
 def balance(db, id, day=None):
     stmt = (
-        select(Posting.amount_minor).join(JournalEntry).where(Posting.account_id == id, JournalEntry.status == "posted")
+        select(func.sum(Posting.amount_minor))
+        .join(JournalEntry)
+        .where(Posting.account_id == id, JournalEntry.status == "posted")
     )
     if day:
         stmt = stmt.where(JournalEntry.date <= str(day))
-    # Python integers prevent SQLite SUM overflow, then enforce the balance bound.
-    return checked(sum(db.scalars(stmt)))
+    # Summed in the database, so years of entries cost one row, not one row each. SQLite refuses
+    # to return an integer sum past 64 bits rather than wrapping it; that is the balance bound.
+    try:
+        total = db.scalar(stmt)
+    except OperationalError as exc:
+        if "integer overflow" in str(exc):
+            raise ValueError("Amount exceeds signed 64-bit storage") from exc
+        raise
+    return checked(int(total or 0))
 
 
 def post(db, entry, legs):

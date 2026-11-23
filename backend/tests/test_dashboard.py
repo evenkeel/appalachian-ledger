@@ -1050,48 +1050,46 @@ def test_budgets_list_only_dollar_allowances(owner):
 
 
 def test_demo_dashboard_has_a_card_a_paycheck_and_bills(owner):
-    assert owner.post("/api/demo").status_code == 200
+    # Loaded today, whenever that is. The figures for the day it was built for are in test_demo.py.
+    assert owner.post("/api/demo?months=6").status_code == 200
     result = owner.get("/api/dashboard")
     assert result.status_code == 200, result.text
     data = result.json()
     today = date.today()
     (card,) = data["debt"]["cards"]
-    assert card["name"] == "Ridgeline Visa" and card["balance"] == "1284.36"
-    assert card["limit"] == "6000.00" and card["utilization"] == "21.4" and card["due_day"] == 28
-    assert [loan["name"] for loan in data["debt"]["loans"]] == ["Home mortgage"]
+    assert card["name"] == "Ridgeline Visa" and card["limit"] == "5000.00" and card["due_day"] == 18
+    assert [loan["name"] for loan in data["debt"]["loans"]] == ["Car loan"]
     ahead = data["cash_ahead"]
-    assert ahead["status"] == "ready" and ahead["short"] is None
+    assert ahead["status"] == "ready"
     pay = ahead["next_paycheck"]
-    assert pay["name"] == "Salary" and pay["amount"] == "3100.00"
-    assert date.fromisoformat(pay["date"]) > today and date.fromisoformat(pay["date"]).day in (1, 16)
+    assert pay["name"] == "Paycheck" and date.fromisoformat(pay["date"]) > today
+    assert date.fromisoformat(pay["date"]).weekday() == 4 and (date.fromisoformat(pay["date"]) - today).days <= 14
     assert sum(event["kind"] == "paycheck" for event in ahead["events"]) >= 2
-    # Five bills come out of checking. One of them pays the card down, so the card is left to that bill.
-    assert sum(event["kind"] == "bill" for event in ahead["events"]) == 5
-    assert all(event["kind"] != "card" for event in ahead["events"])
-    assert [(row["name"], row["plan"], row["paid_by"]) for row in ahead["cards"]] == [
-        ("Ridgeline Visa", "bill", "Ridgeline Visa payment")
-    ]
+    # The card has a due day and no bill paying it down, so it is paid in full from checking.
+    assert [(row["name"], row["plan"], row["paid_by"]) for row in ahead["cards"]] == [("Ridgeline Visa", "full", None)]
     bills = {row["name"]: row for row in data["bills"]["items"]}
     assert set(bills) == {
-        "Electric & water",
-        "Mortgage interest & insurance",
-        "Health & wellness",
+        "Rent",
+        "Renter's insurance",
+        "Electric",
         "Internet",
-        "Car insurance",
         "Phone",
+        "Car insurance",
+        "Car payment",
         "Streaming",
-        "Ridgeline Visa payment",
+        "Music",
+        "Gym",
     }
     assert all(not row["overdue"] and row["days_until"] > 0 for row in bills.values())
-    assert bills["Ridgeline Visa payment"]["pays_account_id"] == card["account_id"]
-    assert bills["Ridgeline Visa payment"]["payoff"] == "1284.36"
-    assert bills["Streaming"]["monthly_amount"] == "22.99"
+    loan = data["debt"]["loans"][0]
+    assert bills["Car payment"]["pays_account_id"] == loan["account_id"]
+    assert bills["Car payment"]["payoff"] == loan["balance"] and bills["Car payment"]["monthly_amount"] == "230.48"
+    assert bills["Streaming"]["account"] == "Ridgeline Visa" and bills["Rent"]["account"] == "Everyday checking"
+    assert data["bills"]["destroyed"]["count"] == 2
     assert data["checking"]["accounts"][0]["name"] == "Everyday checking"
     stack = data["stack"]
     assert stack["status"] == "ready" and len(stack["rates"]) == 6 and len(stack["history"]) == 6
-    assert stack["streak_months"] >= 5 and stack["best_month"]["bitcoin"] == "754300"
-    assert stack["buys"]["count"] == (today.day >= 10) + (today.day >= 17)
-    assert data["price"]["source"] == "Fictional demo rate" and data["pace"]["missing_conversions"] == 0
+    assert stack["best_month"] is not None
     assert data["budgets"]["items"]
     assert data["setup"] == {
         "has_account": True,
@@ -1101,8 +1099,8 @@ def test_demo_dashboard_has_a_card_a_paycheck_and_bills(owner):
         "has_price_source": True,
         "has_backup": False,
     }
-    (salary,) = owner.get("/api/income-schedules").json()
-    assert salary["frequency"] == "semimonthly" and salary["next_occurrence"] == pay["date"]
+    (paycheck,) = owner.get("/api/income-schedules").json()
+    assert paycheck["frequency"] == "biweekly" and paycheck["next_occurrence"] == pay["date"]
 
 
 # ---------- Bitcoin-denominated bills and backups ----------

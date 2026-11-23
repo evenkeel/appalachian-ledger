@@ -1,253 +1,187 @@
-"""Explicitly fictional data. Never fetched or represented as real market history."""
+"""The fictional demo: one made-up person's money, priced with real bitcoin closes.
 
+The person, his pay, his bills and everything he spends are fictional; they come from the plan
+in `demo_plan.py`. The bitcoin prices are real: Coinbase BTC-USD daily closes saved in
+`demo_data/btc_usd_daily.json`, with their source and retrieval time. Seeding reads that file
+and never calls the network, so the demo loads offline.
+
+The demo opens five years before the file's last close and runs through today. The file ends
+at a release date, so days after it have no saved close. Those days are entered in dollars
+only: their bitcoin price is left missing, and he records no bitcoin buy on them, because a buy
+needs a real price. The demo turns on automatic Coinbase prices, so the ledger's ordinary price
+sync fills those days in when the computer is online. Nothing is guessed in the meantime.
+"""
+
+import json
 from datetime import date, timedelta
 from sqlalchemy import select
-from .accounting import create_account, create_transaction, adjustment, balance, audit
+from . import demo_plan as plan
+from .accounting import audit, create_account, create_transaction
+from .demo_life import load_prices, simulate, window_start
 from .models import (
     Account,
-    Asset,
-    AssetPrice,
+    BillOccurrence,
     Budget,
     CardTerms,
     Category,
     ExchangeRate,
     IncomeSchedule,
     RecurringBill,
-    SavingsGoal,
 )
-from .reports import month_sequence, month_days
+from .money import original
+from .reports import month_sequence
 from .schemas import AccountInput, TransactionInput
 
 
-def seed_demo(db, user):
+def seed_demo(db, user, today=None, prices=None, months=None):
+    """Load the demo person into an empty ledger.
+
+    ``months`` loads only that many recent months, opening with the balances he had by then.
+    The full five years is the default and what the app and the website use.
+    """
     if db.scalar(select(Account.id).limit(1)):
         raise ValueError("Demo requires an empty ledger")
-    today = date.today()
-    months = month_sequence(today, 6)
-    first = month_days(months[0])[0]
-    day = first
-    while day <= today:
-        # Fictional daily price path, with clear source labels and no random fluctuations.
-        offset = (day - first).days
-        value = 92000 + offset * 155 + (offset % 13) * 92
-        db.add(ExchangeRate(day=str(day), usd_per_btc=str(value), source="Fictional demo rate"))
-        day += timedelta(days=1)
-    db.flush()
-    specs = [
-        ("Cold storage", "bitcoin_wallet", "BITCOIN", "18500000"),
-        ("Spending wallet", "bitcoin_wallet", "BITCOIN", "420000"),
-        ("Everyday checking", "checking", "USD", "8200"),
-        ("Rainy day savings", "savings", "USD", "18000"),
-        ("Long-term brokerage", "brokerage", "USD", "42500"),
-        ("Blue Ridge home", "real_estate", "USD", "325000"),
-        ("Home mortgage", "mortgage", "USD", "214000"),
-    ]
-    accounts = {}
-    for name, kind, currency, amount in specs:
-        accounts[kind] = accounts[name] = create_account(
-            db, AccountInput(name=name, kind=kind, currency=currency, opening_balance=amount, date=first)
-        )
-    # Added after the original accounts so their order and identifiers stay as they were.
-    card = create_account(
-        db,
-        AccountInput(name="Ridgeline Visa", kind="credit_card", currency="USD", opening_balance="1284.36", date=first),
-    )
-    db.add(CardTerms(account_id=card.id, credit_limit_minor=600000, due_day=28))
-    cats = {c.name: c.id for c in db.scalars(select(Category))}
-    spending_types = {
-        "Housing": "fixed",
-        "Utilities": "fixed",
-        "Groceries": "essential",
-        "Health": "essential",
-        "Transport": "essential",
-        "Dining": "discretionary",
-        "Shopping": "discretionary",
-    }
-    for category in db.scalars(select(Category).where(Category.kind == "expense")):
-        category.spending_type = spending_types.get(category.name, category.spending_type)
-    for idx, month in enumerate(months):
-        start, end = month_days(month)
-        events = [
-            (2, "income", "Salary", "6200", "Monthly salary"),
-            (4, "expense", "Groceries", str(286 + idx * 7), "Mountain market"),
-            (7, "expense", "Utilities", "184.50", "Electric & water"),
-            (9, "expense", "Transport", "72.40", "Fuel & transit"),
-            (12, "expense", "Dining", "68.25", "Dinner on Main Street"),
-            (16, "expense", "Groceries", "194.80", "Weekly groceries"),
-            (18, "income", "Freelance", "850", "Design project"),
-            (21, "expense", "Housing", "720", "Mortgage interest & insurance"),
-            (23, "expense", "Health", "145", "Health & wellness"),
-            (26, "expense", "Shopping", "129.95", "Home essentials"),
-        ]
-        for d, kind, cat, amount, description in events:
-            when = date(start.year, start.month, d)
-            if when > today:
-                continue
-            create_transaction(
-                db,
-                TransactionInput(
-                    date=when,
-                    kind=kind,
-                    account_id=accounts["checking"].id,
-                    amount=amount,
-                    category_id=cats[cat],
-                    description=description,
-                ),
-            )
-        # Actual bitcoin activity stays distinct from the USD expenses above.
-        for d, kind, category_name, amount, description in [
-            (6, "income", "Freelance", "100000", "Fictional bitcoin consulting payment"),
-            (14, "expense", "Dining", "18000", "Fictional bitcoin cafe purchase"),
-        ]:
-            when = date(start.year, start.month, d)
-            if when <= today:
-                create_transaction(
-                    db,
-                    TransactionInput(
-                        date=when,
-                        kind=kind,
-                        account_id=accounts["bitcoin_wallet"].id,
-                        amount=amount,
-                        category_id=cats[category_name],
-                        description=description,
-                    ),
-                )
-        db.add(Budget(month=month, category_id=cats["Dining"], amount_minor=40000, currency="BITCOIN", scope="native"))
-        when = start + timedelta(days=9)
-        if when <= today:
-            create_transaction(
-                db,
-                TransactionInput(
-                    date=when,
-                    kind="transfer",
-                    account_id=accounts["checking"].id,
-                    destination_id=accounts["brokerage"].id,
-                    amount="500",
-                    description="Monthly investment contribution",
-                ),
-            )
-            create_transaction(
-                db,
-                TransactionInput(
-                    date=when,
-                    kind="transfer",
-                    account_id=accounts["checking"].id,
-                    destination_id=accounts["mortgage"].id,
-                    amount="680",
-                    description="Mortgage principal",
-                ),
-            )
-            create_transaction(
-                db,
-                TransactionInput(
-                    date=when,
-                    kind="transfer",
-                    account_id=accounts["checking"].id,
-                    destination_id=accounts["savings"].id,
-                    amount="1200",
-                    description="Monthly savings",
-                ),
-            )
-            create_transaction(
-                db,
-                TransactionInput(
-                    date=when,
-                    kind="transfer",
-                    account_id=accounts["checking"].id,
-                    destination_id=accounts["Cold storage"].id,
-                    amount="400",
-                    destination_amount="420000",
-                    description="Bitcoin buy",
-                ),
-            )
-        # A second, smaller buy later in the month.
-        when = start + timedelta(days=16)
-        if when <= today:
-            create_transaction(
-                db,
-                TransactionInput(
-                    date=when,
-                    kind="transfer",
-                    account_id=accounts["checking"].id,
-                    destination_id=accounts["Cold storage"].id,
-                    amount="400",
-                    destination_amount="334300",
-                    description="Bitcoin buy",
-                ),
-            )
-        for name, planned in [
-            ("Groceries", "60000"),
-            ("Dining", "18000"),
-            ("Transport", "20000"),
-            ("Housing", "70000"),
-            ("Shopping", "22000"),
-        ]:
+    today = today or date.today()
+    prices = prices or load_prices()
+    start = window_start(prices)
+    if months:
+        index = today.year * 12 + today.month - months
+        start = max(start, date(index // 12, index % 12 + 1, 1))
+    life = simulate(today, prices, start)
+
+    # Real daily closes, labelled exactly as the price sync would have saved them.
+    last_priced = min(prices.end, today)
+    day = life.start
+    while day <= last_priced:
+        close = prices.close(day)
+        if close is not None:
             db.add(
-                Budget(month=month, category_id=cats[name], amount_minor=int(planned), currency="USD", scope="native")
+                ExchangeRate(
+                    day=str(day),
+                    usd_per_btc=close,
+                    source=prices.source,
+                    method=prices.method,
+                    observed_at=f"{day + timedelta(days=1)}T00:00:00+00:00",
+                    fetched_at=prices.retrieved_at,
+                )
             )
-    for kind in ("real_estate", "brokerage"):
-        acc = accounts[kind]
-        asset = Asset(account_id=acc.id, name=acc.name, kind=kind, quantity="1")
-        db.add(asset)
-        db.flush()
-        # The current month has no valuation yet: one dated today would block new
-        # transfers into the account and a same-day "Update value".
-        for idx, month in enumerate(months[:-1]):
-            day = month_days(month)[1]
-            base = 32500000 if kind == "real_estate" else 4250000
-            value = base + idx * (110000 if kind == "real_estate" else 65000)
-            if kind == "brokerage":
-                value += (idx + 1) * 50000
-            entry = adjustment(
-                db, acc, value - balance(db, acc.id, day), day, "Fictional manual valuation", "valuation"
-            )
-            db.add(AssetPrice(asset_id=asset.id, date=str(day), value_minor=value, entry_id=entry.id))
-    # Upcoming bills mirror the monthly expenses above, so the planner has something to show.
-    # Three of them are charged to the card, as many households do; the rest come out of checking.
-    for day_of_month, category, amount, description, pays, on_card in [
-        (7, "Utilities", "184.50", "Electric & water", None, False),
-        (21, "Housing", "720.00", "Mortgage interest & insurance", None, False),
-        (23, "Health", "145.00", "Health & wellness", None, False),
-        (25, "Utilities", "70.00", "Internet", None, False),
-        (3, "Transport", "112.00", "Car insurance", None, True),
-        (5, "Utilities", "65.00", "Phone", None, True),
-        (12, "Shopping", "22.99", "Streaming", None, True),
-        (28, "Other expense", "1284.36", "Ridgeline Visa payment", card.id, False),
-    ]:
-        due = today.replace(day=day_of_month)
+        day += timedelta(days=1)
+    # The ledger prices entries from the owner's chosen source, so choose it before the first entry.
+    user.preferences = json.dumps(json.loads(user.preferences) | {"rate_source": "coinbase", "automatic_prices": True})
+    db.flush()
+
+    categories = {category.name: category for category in db.scalars(select(Category))}
+    for name in plan.INCOME_CATEGORIES:
+        if name not in categories:
+            categories[name] = Category(name=name, kind="income")
+            db.add(categories[name])
+    for name, spending_type in plan.CATEGORIES.items():
+        if name not in categories:
+            categories[name] = Category(name=name, kind="expense")
+            db.add(categories[name])
+        categories[name].spending_type = spending_type
+    db.flush()
+
+    def open_account(key, kind, currency, amount, opened):
+        return create_account(
+            db,
+            AccountInput(
+                name=plan.ACCOUNTS[key],
+                kind=kind,
+                currency=currency,
+                opening_balance=original(amount, currency),
+                date=opened,
+            ),
+        )
+
+    accounts = {
+        "checking": open_account("checking", "checking", "USD", life.opening["checking"], life.start),
+        "card": open_account("card", "credit_card", "USD", life.opening["card"], life.start),
+        "bitcoin": open_account("bitcoin", "bitcoin_wallet", "BITCOIN", life.opening["bitcoin"], life.start),
+    }
+    if life.loan_opened:
+        owed = life.opening["loan"] or plan.CAR_LOAN["principal"]
+        accounts["loan"] = open_account("loan", "loan", "USD", owed, life.loan_opened)
+    db.add(CardTerms(account_id=accounts["card"].id, credit_limit_minor=life.card_limit, due_day=plan.CARD_DUE_DAY))
+
+    # Bills as they stand today. The two he cancelled are kept as destroyed.
+    bills = {}
+    for item in life.bills:
+        bills[item["name"]] = bill = RecurringBill(
+            account_id=accounts[item["pay_with"]].id,
+            category_id=categories[item["category"]].id,
+            description=item["name"],
+            amount=original(item["amount"], "USD"),
+            frequency="monthly",
+            next_due=str(item["next_due"]),
+            anchor_day=item["day"],
+            anchor_month=item["next_due"].month,
+            archived=item["destroyed"] is not None,
+            destroyed_on=str(item["destroyed"]) if item["destroyed"] else None,
+        )
+        db.add(bill)
+    if "loan" in accounts and life.balances["loan"] > 0:
+        due = today.replace(day=plan.CAR_LOAN["due_day"])
         if due <= today:
-            due = (due.replace(day=1) + timedelta(days=32)).replace(day=day_of_month)
+            due = (due.replace(day=1) + timedelta(days=32)).replace(day=plan.CAR_LOAN["due_day"])
+        due = max(due, plan.CAR_LOAN["first_payment"])
         db.add(
             RecurringBill(
-                account_id=card.id if on_card else accounts["checking"].id,
-                category_id=cats[category],
-                description=description,
-                amount=amount,
+                account_id=accounts["checking"].id,
+                category_id=categories["Transport"].id,
+                description="Car payment",
+                amount=original(life.loan_payment, "USD"),
                 frequency="monthly",
                 next_due=str(due),
-                anchor_day=day_of_month,
+                anchor_day=plan.CAR_LOAN["due_day"],
                 anchor_month=due.month,
-                pays_account_id=pays,
+                pays_account_id=accounts["loan"].id,
             )
         )
-    # Paid on the 1st and the 16th; the schedule only forecasts and never posts income.
-    payday = today.replace(day=16) if today.day < 16 else (today.replace(day=1) + timedelta(days=32)).replace(day=1)
+    db.flush()
+
+    # Every entry goes through the same door a typed-in one does.
+    for event in life.events:
+        entry = create_transaction(
+            db,
+            TransactionInput(
+                date=event.day,
+                kind=event.kind,
+                account_id=accounts[event.account].id,
+                amount=original(event.amount, "USD"),
+                description=event.description,
+                category_id=categories[event.category].id if event.category else None,
+                destination_id=accounts[event.destination].id if event.destination else None,
+                destination_amount=str(event.bitcoin) if event.bitcoin is not None else None,
+            ),
+        )
+        if event.bill:
+            db.add(BillOccurrence(bill_id=bills[event.bill].id, due_date=str(event.day), entry_id=entry.id))
+
+    # Paid every second Friday; the schedule only forecasts and never posts income.
     db.add(
         IncomeSchedule(
             account_id=accounts["checking"].id,
-            name="Salary",
-            amount="3100.00",
-            frequency="semimonthly",
-            next_date=str(payday),
-            anchor_day=payday.day,
+            name="Paycheck",
+            amount=original(life.take_home, "USD"),
+            frequency="biweekly",
+            next_date=str(life.next_payday),
+            anchor_day=life.next_payday.day,
         )
     )
-    # Two goals share the savings account; the earlier one fills first.
-    trip = (today.replace(day=1) + timedelta(days=125)).replace(day=1)
-    fund = (today.replace(day=1) + timedelta(days=400)).replace(day=1)
-    for name, target, target_date in [("Summer trip", 300000, trip), ("Emergency fund", 3000000, fund)]:
-        db.add(
-            SavingsGoal(name=name, account_id=accounts["savings"].id, target_minor=target, target_date=str(target_date))
-        )
+    first_month = life.start.strftime("%Y-%m")
+    for month in month_sequence(today, plan.ALLOWANCE_MONTHS):
+        if month < first_month:
+            continue
+        for name, amount in plan.ALLOWANCES.items():
+            db.add(
+                Budget(month=month, category_id=categories[name].id, amount_minor=amount, currency="USD", scope="all")
+            )
     user.demo = True
-    audit(db, "demo.seed", user.id, {"fictional": True})
+    audit(
+        db,
+        "demo.seed",
+        user.id,
+        {"person": "fictional", "prices": f"{prices.source} {prices.method}", "prices_through": str(prices.end)},
+    )
+    return life

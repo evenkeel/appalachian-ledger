@@ -62,7 +62,7 @@ def rewind_to_0013():
 def test_an_existing_ledger_migrates_with_nothing_lost(owner):
     # Six fictional months, then the awkward cases: a recorded bill payment (which is what
     # makes a table rebuild fail), a correction, a deletion, bitcoin spending and a missing price.
-    assert owner.post("/api/demo").status_code == 200
+    assert owner.post("/api/demo?months=6").status_code == 200
     today = date.today().isoformat()
     checking = next(a["id"] for a in owner.get("/api/accounts").json() if a["kind"] == "checking")
     bill = post(
@@ -182,7 +182,7 @@ def restore(client, content):
 
 
 def test_a_backup_from_before_the_dashboard_restores_with_nothing_lost(owner):
-    assert owner.post("/api/demo").status_code == 200
+    assert owner.post("/api/demo?months=6").status_code == 200
     today = date.today().isoformat()
     checking = next(a["id"] for a in owner.get("/api/accounts").json() if a["kind"] == "checking")
     post(

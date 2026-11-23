@@ -92,25 +92,28 @@ def test_a_bill_whose_payment_was_deleted_can_be_recorded_again(owner):
 
 
 def test_demo_classifies_spending_plans_bills_and_leaves_accounts_usable(owner):
-    assert owner.post("/api/demo").status_code == 200
+    assert owner.post("/api/demo?months=6").status_code == 200
     today = date.today().isoformat()
     accounts = {a["name"]: a for a in owner.get("/api/accounts").json()}
-    transfer = owner.post(
+    assert set(accounts) == {"Everyday checking", "Ridgeline Visa", "Bitcoin wallet", "Car loan"}
+    payment = owner.post(
         "/api/transactions",
         json={
             "date": today,
             "kind": "transfer",
             "account_id": accounts["Everyday checking"]["id"],
-            "destination_id": accounts["Long-term brokerage"]["id"],
+            "destination_id": accounts["Ridgeline Visa"]["id"],
             "amount": "25.00",
-            "description": "Extra contribution",
+            "description": "Extra card payment",
         },
     )
-    assert transfer.status_code == 200, transfer.text
+    assert payment.status_code == 200, payment.text
     types = {c["name"]: c["spending_type"] for c in owner.get("/api/categories").json() if c["kind"] == "expense"}
-    assert types["Housing"] == "fixed" and types["Dining"] == "discretionary"
+    assert types["Housing"] == "fixed" and types["Dining"] == "discretionary" and types["Subscriptions"] == "fixed"
     bills = owner.get("/api/recurring-bills").json()
-    assert len(bills) == 8
+    assert {"Rent", "Electric", "Phone", "Car insurance", "Car payment", "Streaming"} <= {
+        bill["description"] for bill in bills
+    }
     assert all(bill["next_due"] > today for bill in bills)
 
 

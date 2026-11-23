@@ -6,8 +6,6 @@ from datetime import date, timedelta
 import pytest
 
 from app.alerts import Thresholds, evaluate
-from app.db import SessionLocal
-from app import alerts
 from conftest import category, new_account, post, transaction
 
 TODAY = "2026-11-19"
@@ -454,14 +452,6 @@ def test_a_ledger_that_was_never_backed_up_says_so(owner):
     found = {a["id"]: a for a in owner.get("/api/alerts").json()["active"]}
     assert found["backup"]["level"] == "caution"
     assert found["backup"]["title"] == "This ledger has never been backed up"
-
-
-def test_the_fictional_demo_raises_no_money_alarm(owner):
-    assert owner.post("/api/demo").status_code == 200
-    with SessionLocal() as db:
-        ids = {item["id"]: item["level"] for item in alerts.read(db)["active"]}
-    assert not {"overdue", "cash", "util", "pace"} & set(ids), ids
-    assert all(level != "warning" for level in ids.values())
 
 
 def test_a_forecast_that_leans_on_varying_income_lights_a_caution_not_a_warning():

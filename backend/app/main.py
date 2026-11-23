@@ -831,11 +831,22 @@ def audit_events(user=Depends(authenticate), db=Depends(get_db, scope="function"
 
 
 @app.post("/api/demo")
-def demo(user=Depends(authenticate), db=Depends(get_db, scope="function")):
+def demo(
+    months: int | None = Query(None, ge=1, le=120),
+    user=Depends(authenticate),
+    db=Depends(get_db, scope="function"),
+):
     if os.getenv("DEMO_ENABLED", "false").lower() != "true":
         raise HTTPException(403, "Demo is disabled; set DEMO_ENABLED=true")
-    seed_demo(db, user)
-    return {"ok": True, "fictional": True}
+    life = seed_demo(db, user, months=months)
+    # The person is made up. The bitcoin prices are real Coinbase daily closes.
+    return {
+        "ok": True,
+        "fictional": True,
+        "prices": "Coinbase daily close",
+        "from": str(life.start),
+        "entries": len(life.events),
+    }
 
 
 @app.get("/api/node/status")
