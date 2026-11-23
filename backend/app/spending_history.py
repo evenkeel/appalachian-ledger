@@ -13,10 +13,7 @@ from .reports import add_nullable
 router = APIRouter(prefix="/api", dependencies=[Depends(authenticate)])
 
 
-def spending_history(db, start, end, category_id=None, account_id=None, interval="month"):
-    if start > end or start.year < 1970 or end > date.today() or (end - start).days > 366 * 50:
-        raise ValueError("Choose a date range of at most 50 years, from 1970 through today")
-    rate = ledger.current_rate(db)
+def expense_rows(db, start, end, category_id, account_id, rate):
     rows = []
     for entry in ledger.active_transactions(db, start, end):
         if entry.kind != "expense" or (category_id is not None and entry.category_id != category_id):
@@ -52,6 +49,15 @@ def spending_history(db, start, end, category_id=None, account_id=None, interval
                 else None,
             }
         )
+    return rows
+
+
+def spending_history(db, start, end, category_id=None, account_id=None, interval="month"):
+    if start > end or start.year < 1970 or end > date.today() or (end - start).days > 366 * 50:
+        raise ValueError("Choose a date range of at most 50 years, from 1970 through today")
+    rate = ledger.current_rate(db)
+    with ledger.bulk_read(db):
+        rows = expense_rows(db, start, end, category_id, account_id, rate)
 
     def aggregate(items):
         return {

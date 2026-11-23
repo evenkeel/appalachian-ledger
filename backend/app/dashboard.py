@@ -750,7 +750,11 @@ def setup(db, has_account, has_bitcoin):
 
 
 def build(db, today=None):
-    today = today or date.today()
+    with ledger.bulk_read(db):
+        return read_all(db, today or date.today())
+
+
+def read_all(db, today):
     first_entry = db.scalar(
         select(func.min(JournalEntry.date)).where(JournalEntry.status == "posted", JournalEntry.date <= str(today))
     )

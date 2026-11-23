@@ -334,13 +334,15 @@ def transactions(
 ):
     rows = ledger.active_transactions(db, start, end)
     reviewed = insights.reviewed_ids(db)
-    return [
-        ledger.transaction_dict(db, e, reporting=True) | {"review_reasons": insights.review_reasons(db, e, reviewed)}
-        for e in rows
-        if (not q or q.casefold() in (e.description + " " + e.notes).casefold())
-        and (not kind or e.kind == kind)
-        and (not account_id or account_id in (e.account_id, e.destination_id))
-    ]
+    with ledger.bulk_read(db):
+        return [
+            ledger.transaction_dict(db, e, reporting=True)
+            | {"review_reasons": insights.review_reasons(db, e, reviewed)}
+            for e in rows
+            if (not q or q.casefold() in (e.description + " " + e.notes).casefold())
+            and (not kind or e.kind == kind)
+            and (not account_id or account_id in (e.account_id, e.destination_id))
+        ]
 
 
 @app.post("/api/transactions")

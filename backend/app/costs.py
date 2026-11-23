@@ -142,7 +142,7 @@ def history(db, bill_id=None, category_id=None, search=""):
 
 
 def snapshot_dict(db, entry_id):
-    cost = db.get(ExpenseCost, entry_id)
+    cost = ledger.cost_for(db, entry_id)
     if cost is None:
         return None
     return {name: getattr(cost, name) for name in ("usd", "bitcoin", "usd_per_btc", "source", "method", "observed_at")}

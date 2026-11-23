@@ -563,8 +563,9 @@ def thresholds(db):
 
 def read(db, today=None):
     today = today or date.today()
-    reading = dashboard.build(db, today)
-    found = evaluate(reading, gather_facts(db, today, reading), thresholds(db))
+    with ledger.bulk_read(db):
+        reading = dashboard.build(db, today)
+        found = evaluate(reading, gather_facts(db, today, reading), thresholds(db))
     active = {item["id"] for item in found}
     saved = {ack.alert_id: ack for ack in db.scalars(select(AlertAcknowledgement))}
     for id, ack in saved.items():
