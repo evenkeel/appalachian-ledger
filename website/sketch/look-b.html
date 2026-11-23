@@ -24,16 +24,19 @@
   header { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding: 40px 0 18px; border-bottom: 1px solid var(--ink); }
   .logo { width: 176px; height: auto; color: var(--ink); display: block; }
   .kind { font-size: 14px; color: var(--ink-2); font-style: italic; text-align: right; margin: 0; }
-  .ref { margin: 16px 0 0; font-size: 17px; font-variant: small-caps; letter-spacing: 0.08em; color: var(--ink-2); }
+  .verse { width: fit-content; max-width: 100%; }
+  .ref { margin: 14px 0 0; text-align: right; font-size: 17px; font-variant: small-caps; letter-spacing: 0.08em; color: var(--ink-2); }
   h1 {
     font-weight: 400;
     font-size: clamp(26px, 3.6vw, 38px);
     line-height: 1.26;
     letter-spacing: -0.005em;
     margin: 64px 0 0;
-    max-width: 33ch;
     text-wrap: balance;
   }
+  /* One clause to a line where there is room, so the reference lines up with the verse's right edge. */
+  h1 span { display: block; }
+  @media (max-width: 700px) { h1 span { display: inline; } }
   .lede { max-width: 60ch; margin: 36px 0 0; text-wrap: pretty; }
   .actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 32px; }
   .btn {
@@ -69,8 +72,10 @@
   </header>
 
   <main>
-    <h1>There is treasure to be desired and oil in the dwelling of the wise; but a foolish man spendeth it up.</h1>
-    <p class="ref">Proverbs 21:20</p>
+    <div class="verse">
+      <h1><span>There is treasure to be desired</span> <span>and oil in the dwelling of the wise;</span> <span>but a foolish man spendeth it up.</span></h1>
+      <p class="ref">Proverbs 21:20</p>
+    </div>
     <p class="lede">Appalachian Bitcoin is a personal finance manager that runs on your own computer. Input your paychecks, bills and everyday spending, so you can analyze what&rsquo;s actually happening and make wise decisions. Easily toggle between using dollars as a measuring stick or bitcoin.</p>
     <div class="actions">
       <a class="btn primary" href="#demo">Try the demo</a>
