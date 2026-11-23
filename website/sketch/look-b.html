@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Appalachian Bitcoin — Look B, plain paper</title>
+<style>
+  :root {
+    --paper: #fcfbf7;
+    --ink: #1c1c1a;
+    --ink-2: #55534d;
+    --rule: #cfccc2;
+    --slate: #304e5d;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font: 19px/1.65 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  }
+  .sheet { max-width: 880px; margin: 0 auto; padding: 0 28px 72px; }
+  header { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding: 40px 0 18px; border-bottom: 1px solid var(--ink); }
+  .logo { width: 176px; height: auto; color: var(--ink); display: block; }
+  .kind { font-size: 14px; color: var(--ink-2); font-style: italic; text-align: right; margin: 0; }
+  .ref { margin: 16px 0 0; font-size: 17px; font-variant: small-caps; letter-spacing: 0.08em; color: var(--ink-2); }
+  h1 {
+    font-weight: 400;
+    font-size: clamp(26px, 3.6vw, 38px);
+    line-height: 1.26;
+    letter-spacing: -0.005em;
+    margin: 64px 0 0;
+    max-width: 33ch;
+    text-wrap: balance;
+  }
+  .lede { max-width: 60ch; margin: 36px 0 0; text-wrap: pretty; }
+  .actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 32px; }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-height: 48px; padding: 0 24px; border-radius: 3px;
+    font: 600 16px/1 "Avenir Next", "Segoe UI", system-ui, -apple-system, sans-serif;
+    text-decoration: none; letter-spacing: 0.01em;
+    border: 1.5px solid var(--ink); color: var(--ink); background: transparent;
+  }
+  .btn.primary { background: var(--ink); color: var(--paper); }
+  .btn:hover { background: var(--slate); border-color: var(--slate); color: var(--paper); }
+  .btn:focus-visible { outline: 3px solid #a9c1cf; outline-offset: 3px; }
+  .notes { margin: 18px 0 0; color: var(--ink-2); font-size: 15.5px; font-style: italic; max-width: 56ch; }
+  figure { margin: 64px 0 0; }
+  figure img { display: block; width: 100%; height: auto; border: 1px solid var(--rule); border-radius: 2px; }
+  figcaption { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--rule); font-size: 15px; color: var(--ink-2); display: flex; gap: 12px; }
+  figcaption b { font-weight: 400; font-variant: small-caps; letter-spacing: 0.06em; color: var(--ink); white-space: nowrap; }
+  @media (max-width: 520px) { .kind { display: none; } h1 { margin-top: 44px; } }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <header>
+    <svg class="logo" viewBox="0 0 200 49" role="img" aria-label="Appalachian Bitcoin">
+      <g transform="scale(0.90909)">
+        <path fill="#a9c1cf" d="M0,19.5C1.67,18.67 6.33,16.15 10,14.5C13.67,12.85 18,10.72 22,9.6C26,8.48 30,8.4 34,7.8C38,7.2 42,6.97 46,6C50,5.03 54.17,2.97 58,2C61.83,1.03 65.33,0.23 69,0.2C72.67,0.17 75.5,1 80,1.8C84.5,2.6 90.67,3.97 96,5C101.33,6.03 104.67,6.58 112,8C119.33,9.42 130.33,11.5 140,13.5C149.67,15.5 160,17.58 170,20C180,22.42 195,26.67 200,28V28H0Z"/>
+        <path fill="#db8046" d="M60,24C64,22.58 77.33,17.58 84,15.5C90.67,13.42 94.33,13.08 100,11.5C105.67,9.92 113.5,7.3 118,6C122.5,4.7 124.42,4.18 127,3.7C129.58,3.22 131.33,3.1 133.5,3.1C135.67,3.1 136.92,3.13 140,3.7C143.08,4.27 147.67,5.37 152,6.5C156.33,7.63 161.67,9.45 166,10.5C170.33,11.55 174,12.23 178,12.8C182,13.37 186.33,13.28 190,13.9C193.67,14.52 196.67,15.57 200,16.5C203.33,17.43 206.67,18.42 210,19.5C213.33,20.58 218.33,22.42 220,23V28H60Z"/>
+        <path fill="#304e5d" d="M0,23.6C2.33,23.08 9.33,21.52 14,20.5C18.67,19.48 23.67,18.53 28,17.5C32.33,16.47 36.83,15.1 40,14.3C43.17,13.5 44.83,13.05 47,12.7C49.17,12.35 50.83,12.2 53,12.2C55.17,12.2 56.83,12.32 60,12.7C63.17,13.08 67.33,13.7 72,14.5C76.67,15.3 83,16.72 88,17.5C93,18.28 97.33,19.2 102,19.2C106.67,19.2 111.67,18.2 116,17.5C120.33,16.8 124.5,15.63 128,15C131.5,14.37 134.33,13.98 137,13.7C139.67,13.42 141.5,13.28 144,13.3C146.5,13.32 148.67,13.27 152,13.8C155.33,14.33 159.67,15.93 164,16.5C168.33,17.07 173.67,17 178,17.2C182.33,17.4 186.33,17.23 190,17.7C193.67,18.17 196.67,19.2 200,20C203.33,20.8 206.67,21.77 210,22.5C213.33,23.23 218.33,24.08 220,24.4V28H0Z"/>
+      </g>
+      <text x="0" y="44" textLength="200" lengthAdjust="spacing" fill="currentColor" font-family="Georgia, 'Times New Roman', serif" font-size="19.2" font-weight="700">Appalachian Bitcoin</text>
+    </svg>
+    <p class="kind">A personal finance manager</p>
+  </header>
+
+  <main>
+    <h1>There is treasure to be desired and oil in the dwelling of the wise; but a foolish man spendeth it up.</h1>
+    <p class="ref">Proverbs 21:20</p>
+    <p class="lede">Appalachian Bitcoin is a personal finance manager that runs on your own computer. Input your paychecks, bills and everyday spending, so you can analyze what&rsquo;s actually happening and make wise decisions. Easily toggle between using dollars as a measuring stick or bitcoin.</p>
+    <div class="actions">
+      <a class="btn primary" href="#demo">Try the demo</a>
+      <a class="btn" href="#download">Download</a>
+    </div>
+    <p class="notes">The demo is a made-up person&rsquo;s money. No sign-up, and nothing is saved. The software is free; installing it takes a few steps today.</p>
+
+    <figure>
+      <img src="screen.png" width="2400" height="1500" alt="The Appalachian Bitcoin dashboard with a fictional ledger: checking forecast, bills, bitcoin held and spending so far this month.">
+      <figcaption><b>Fig. 1</b> <span>The dashboard, shown with a fictional ledger.</span></figcaption>
+    </figure>
+  </main>
+</div>
+</body>
+</html>
