@@ -79,6 +79,7 @@ export function createServer(core: Core, load: (file: string) => Promise<unknown
         interval: query.get("interval") === "year" ? "year" : "month",
         category: category ? (names("/categories").get(category) ?? "\u0000") : null,
         account: account ? (names("/accounts").get(account) ?? "\u0000") : null,
+        summary: query.get("summary") === "true",
       },
       answers,
     );

@@ -62,7 +62,10 @@ describe.skipIf(!checks)("the saved demo against the server it was saved from", 
     const [start, end] = [query.get("start")!, query.get("end")!];
     const answers = monthsBetween(start, end).map((month) => saved[month]);
     expect(answers.every(Boolean)).toBe(true);
-    const composed = composeSpending({ start, end, interval: query.get("interval") as "month" | "year", category }, answers);
+    const composed = composeSpending(
+      { start, end, interval: query.get("interval") as "month" | "year", category, summary: query.get("summary") === "true" },
+      answers,
+    );
     expect(composed).toEqual(answer);
   });
 });

@@ -23,7 +23,12 @@ SITE = ROOT / "website"
 PAGES = SITE / "pages"
 DIST = SITE / "dist"
 
-NAV = [("demo/", "Demo"), ("download/", "Download"), ("how-it-thinks-about-money/", "How it thinks about money"), ("privacy/", "Privacy")]
+NAV = [
+    ("demo/", "Demo"),
+    ("download/", "Download"),
+    ("how-it-thinks-about-money/", "How it thinks about money"),
+    ("privacy/", "Privacy"),
+]
 
 # The logo: three gentle layered hills over the name, the same drawing the app uses.
 LOGO = """<svg class="logo" viewBox="0 0 200 49" role="img" aria-label="Appalachian Bitcoin">
@@ -120,7 +125,9 @@ def main() -> int:
             print(f"{page.name}: unknown placeholder {left[0]}", file=sys.stderr)
             return 1
         nav = "".join(
-            '<a href="{}{}"{}>{}</a>'.format(root, href, ' aria-current="page"' if path and href == path + "/" else "", label)
+            '<a href="{}{}"{}>{}</a>'.format(
+                root, href, ' aria-current="page"' if path and href == path + "/" else "", label
+            )
             for href, label in NAV
         )
         footer = nav + f'<a href="{repo}">Source code</a>'
@@ -149,16 +156,33 @@ def main() -> int:
     shutil.copytree(PAGES / "img", DIST / "img")
     (DIST / "_headers").write_text(HEADERS)
     (DIST / "robots.txt").write_text(f"User-agent: *\nAllow: /\n\nSitemap: {site['address']}/sitemap.txt\n")
-    (DIST / "sitemap.txt").write_text("\n".join(f"{site['address']}/{href}" for href in ["", *[href for href, _ in NAV]]) + "\n")
+    (DIST / "sitemap.txt").write_text(
+        "\n".join(f"{site['address']}/{href}" for href in ["", *[href for href, _ in NAV]]) + "\n"
+    )
     # A wrong address can be any depth, so this one page uses addresses from the top of the site.
     lost = '<h1>That page is not here</h1>\n<p class="lede">The address may be mistyped, or the page may have moved.</p>\n<div class="actions"><a class="btn primary" href="/">Go to the home page</a></div>'
     top_nav = "".join(f'<a href="/{href}">{label}</a>' for href, label in NAV)
     (DIST / "404.html").write_text(
-        LAYOUT.format(title="Page not found · Appalachian Bitcoin", description="", root="/", logo=LOGO, nav=top_nav, footer=top_nav, body=lost)
+        LAYOUT.format(
+            title="Page not found · Appalachian Bitcoin",
+            description="",
+            root="/",
+            logo=LOGO,
+            nav=top_nav,
+            footer=top_nav,
+            body=lost,
+        )
     )
-    missing = [name for name in re.findall(r'src="(?:\.\./)?img/([^"]+)"', "".join(p.read_text() for p in PAGES.glob("*.html"))) if not (PAGES / "img" / name).exists()]
+    missing = [
+        name
+        for name in re.findall(r'src="(?:\.\./)?img/([^"]+)"', "".join(p.read_text() for p in PAGES.glob("*.html")))
+        if not (PAGES / "img" / name).exists()
+    ]
     if missing:
-        print(f"Missing pictures in website/pages/img: {', '.join(sorted(set(missing)))}. Run: make site-shots", file=sys.stderr)
+        print(
+            f"Missing pictures in website/pages/img: {', '.join(sorted(set(missing)))}. Run: make site-shots",
+            file=sys.stderr,
+        )
     if not (DIST / "demo" / "index.html").exists():
         print("Note: the browser demo is not built yet (website/dist/demo). Run: make web-demo")
     print(f"Built {len(built)} pages into website/dist: {', '.join(built)}")

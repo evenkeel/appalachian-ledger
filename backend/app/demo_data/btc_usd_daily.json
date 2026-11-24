@@ -4,13 +4,13 @@
  "method": "daily_close",
  "definition": "Close of each completed 00:00-00:00 UTC daily candle, keyed by the candle's opening date.",
  "endpoint": "https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=86400",
- "retrieved_at": "2026-11-23T23:47:14+00:00",
+ "retrieved_at": "2026-11-24T00:44:06+00:00",
  "start": "2021-11-01",
- "end": "2026-11-22",
+ "end": "2026-11-23",
  "missing": [],
  "quote": {
-  "usd_per_btc": "61147.96",
-  "observed_at": "2026-11-23T23:47:17.401150+00:00"
+  "usd_per_btc": "61261.9",
+  "observed_at": "2026-11-24T00:44:08.721711+00:00"
  },
  "closes": {
   "2021-11-01": "60949.54",
@@ -1860,6 +1860,7 @@
   "2026-11-19": "61913.23",
   "2026-11-20": "58814.99",
   "2026-11-21": "60086",
-  "2026-11-22": "61163.01"
+  "2026-11-22": "61163.01",
+  "2026-11-23": "61189.97"
  }
 }

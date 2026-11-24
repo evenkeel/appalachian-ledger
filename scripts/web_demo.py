@@ -64,9 +64,27 @@ def month_end(month: str, today: date) -> date:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    parser.add_argument("--offline", action="store_true", help="do not refresh prices; use the saved price file as it is")
+    parser.add_argument(
+        "--offline", action="store_true", help="do not refresh prices; use the saved price file as it is"
+    )
     parser.add_argument("--out", type=Path, default=OUT)
     args = parser.parse_args()
+
+    # The throwaway ledger is chosen before anything from the app is imported. The app decides
+    # where its database is the moment it is first imported, and its default is ./data/ledger.db,
+    # which on an owner's machine may be a real ledger.
+    work = tempfile.TemporaryDirectory()
+    database = Path(work.name).resolve() / "demo.db"
+    os.environ.update(
+        DATABASE_URL=f"sqlite:///{database}",
+        DEMO_ENABLED="true",
+        PRICE_WORKER_ENABLED="false",
+        APP_ORIGIN="http://testserver",
+    )
+    from app.db import engine
+
+    if Path(engine.url.database).resolve() != database:
+        raise SystemExit(f"Refusing to run: the app opened {engine.url.database}, not the throwaway ledger.")
 
     if not args.offline:
         sys.path.insert(0, str(ROOT / "scripts"))
@@ -75,13 +93,6 @@ def main() -> int:
         if demo_prices.main():
             return 1
 
-    work = tempfile.TemporaryDirectory()
-    os.environ.update(
-        DATABASE_URL=f"sqlite:///{Path(work.name) / 'demo.db'}",
-        DEMO_ENABLED="true",
-        PRICE_WORKER_ENABLED="false",
-        APP_ORIGIN="http://testserver",
-    )
     from alembic import command
     from alembic.config import Config
     from fastapi.testclient import TestClient
@@ -202,6 +213,7 @@ def main() -> int:
         spans = [
             (f"/spending-history?start={first}&end={today}&interval=year", None),
             (f"/spending-history?start={first}&end={today}&interval=month", None),
+            (f"/spending-history?start={first}&end={today}&interval=month&summary=true", None),
             (f"/spending-history?start={year_ago}-01&end={month_end(months[-2], today)}&interval=month", None),
             (
                 f"/spending-history?start={months[-25] if len(months) > 25 else months[0]}-01&end={today}"
@@ -222,7 +234,12 @@ def main() -> int:
                 "first_month": months[0],
                 "recent_from": str(recent_from),
                 "quote": quote,
-                "prices": {"source": prices.source, "method": prices.method, "through": str(prices.end), "retrieved_at": prices.retrieved_at},
+                "prices": {
+                    "source": prices.source,
+                    "method": prices.method,
+                    "through": str(prices.end),
+                    "retrieved_at": prices.retrieved_at,
+                },
                 "lazy": lazy,
                 "responses": responses,
             },

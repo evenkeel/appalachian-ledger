@@ -16,12 +16,17 @@ of the file and reported; it is never filled in.
 """
 
 import json
+import os
 import sys
 import time
 from datetime import date, timedelta
 from pathlib import Path
 
-from app.prices import Coinbase, RateUnavailable, utcnow
+# This script only fetches public prices. Importing the app's price code also loads its
+# database settings, so point those at nothing unless a caller has already chosen a database.
+os.environ.setdefault("DATABASE_URL", "sqlite://")
+
+from app.prices import Coinbase, RateUnavailable, utcnow  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 PRICE_FILE = ROOT / "backend" / "app" / "demo_data" / "btc_usd_daily.json"

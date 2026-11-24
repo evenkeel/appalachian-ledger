@@ -27,6 +27,8 @@ export interface Ask {
   interval: "month" | "year";
   category?: string | null;
   account?: string | null;
+  /** Sums only, without the list of entries, as the server's `summary=true` gives. */
+  summary?: boolean;
 }
 
 /** Exact decimal sum of strings such as "12.50" and "7"; null if any is missing. */
@@ -97,8 +99,8 @@ export function composeSpending(ask: Ask, answers: MonthAnswer[]) {
     totals: aggregate(rows),
     periods: sorted(groups).map(([period, items]) => ({ period, ...aggregate(items) })),
     categories: sorted(categories).map(([name, items]) => ({ name, ...aggregate(items) })),
-    transactions: rows.slice(0, 500),
-    transactions_truncated: rows.length > 500,
+    transactions: ask.summary ? [] : rows.slice(0, 500),
+    transactions_truncated: !ask.summary && rows.length > 500,
     current_reference: answers[0]?.current_reference ?? null,
   };
 }

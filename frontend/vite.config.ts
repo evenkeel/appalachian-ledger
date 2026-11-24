@@ -22,6 +22,8 @@ const demoPage: Plugin = {
 
 export default defineConfig(({ mode }) => {
   const demo = mode === "demo";
+  // index.html is the new interface; legacy.html keeps the previous one until every screen is rebuilt.
+  const input: Record<string, string> = demo ? { main: "index.html" } : { main: "index.html", legacy: "legacy.html" };
   return {
     plugins: [react(), tailwindcss(), ...(demo ? [demoPage] : [])],
     base: demo ? "./" : "/",
@@ -32,8 +34,7 @@ export default defineConfig(({ mode }) => {
       outDir: demo ? "../website/dist/demo" : "dist",
       emptyOutDir: true,
       rollupOptions: {
-        // index.html is the new interface; legacy.html keeps the previous one until every screen is rebuilt.
-        input: demo ? { main: "index.html" } : { main: "index.html", legacy: "legacy.html" },
+        input,
         output: { manualChunks: { charts: ["recharts"] } },
       },
     },

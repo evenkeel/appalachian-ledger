@@ -17,8 +17,9 @@ from app.money import convert
 from app.prices import parse_time
 
 PRICES = load_prices()
-# The day the demo was built for: the morning after the last saved close.
-DAY = PRICES.end + timedelta(days=1)
+# The day the demo was built for: the morning after the last saved close. Closes are UTC days,
+# so west of Greenwich that morning can still be tomorrow; the ledger takes no entry dated ahead.
+DAY = min(PRICES.end + timedelta(days=1), date.today())
 
 
 def days(start, end):
@@ -40,6 +41,7 @@ def test_the_price_file_holds_a_real_close_for_every_day_of_the_window():
     start = window_start(PRICES)
     assert PRICES.source == "Coinbase" and PRICES.method == "daily_close"
     assert parse_time(PRICES.retrieved_at).date() > PRICES.end, "closes are completed UTC days only"
+    assert PRICES.end < date.today() + timedelta(days=1)
     assert (PRICES.end.year - start.year, start.day) == (5, 1), "five years, opening on the first of a month"
     missing = [str(day) for day in days(start, PRICES.end) if PRICES.close(day) is None]
     assert not missing, f"days in the demo window with no saved close: {missing[:5]}"
