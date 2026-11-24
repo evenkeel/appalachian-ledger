@@ -1,4 +1,4 @@
-.PHONY: test lint migrate dev-backend dev-frontend demo-prices web-demo website site-preview
+.PHONY: test lint migrate dev-backend dev-frontend demo-prices web-demo website site-preview site-shots
 PYTHON ?= .venv/bin/python
 
 test:
@@ -35,3 +35,7 @@ website: web-demo
 
 site-preview:
 	$(PYTHON) scripts/serve_site.py
+
+# Retake the website's pictures from the built demo. Needs Chrome, and `make site-preview` running.
+site-shots:
+	node website/shots.mjs

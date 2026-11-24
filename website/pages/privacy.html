@@ -1,0 +1,27 @@
+<!-- title: Privacy · Appalachian Bitcoin -->
+<!-- description: Appalachian Bitcoin runs on your own machine, with no cloud account, no telemetry and no analytics. This website has no analytics either. -->
+<!-- path: privacy -->
+<h1>Privacy</h1>
+<p class="lede">Short version: your records stay on your computer, and nobody is watching you use the app or this website.</p>
+
+<h2>The app</h2>
+<ul>
+  <li><b>It runs on your own machine.</b> Your ledger is one file on the computer you install it on. There is no cloud account and nothing to sign up for. The only account is the one you create on your own computer, with your own password.</li>
+  <li><b>No telemetry and no analytics.</b> The app does not report what you do, how often you open it, or anything about your money, to us or to anyone else.</li>
+  <li><b>It works offline.</b> You can enter everything by hand and never connect it to anything.</li>
+  <li><b>Public prices are the only thing it ever fetches, and only if you ask.</b> If you turn on automatic prices, the app asks Coinbase&rsquo;s public price service for the bitcoin price: the current price, and the daily closing price for past days. (CoinGecko is offered as an alternative.) The request contains the currency pair and the dates. It does not contain your amounts, descriptions, accounts or balances. You can leave it off and type prices in yourself.</li>
+  <li><b>The Markets screen and share prices are optional too.</b> Opening Markets fetches public price charts for the symbols you choose to watch, from Coinbase and Yahoo Finance. If you record shares you own, the app looks up their public prices the same way. Those requests name the symbol and nothing else. If you use neither, nothing is fetched.</li>
+  <li><b>Your own Bitcoin node, if you have one.</b> You can point the app at your own node to read balances. That connection stays between your computer and your node.</li>
+  <li><b>Backups are yours.</b> A backup is a file encrypted with a passphrase you choose. It goes wherever you put it. We cannot recover a lost passphrase, because we never have it.</li>
+  <li><b>The source code is open.</b> Anyone can read exactly what the app does: <a href="{{repo_url}}">{{repo_url}}</a>.</li>
+</ul>
+
+<h2>This website</h2>
+<ul>
+  <li><b>No analytics, no tracking, no cookies, no advertising.</b> There are no third-party scripts or fonts on these pages.</li>
+  <li><b>The demo runs entirely in your browser.</b> It shows a made-up person&rsquo;s ledger. Nothing you click or type in the demo is sent anywhere or saved, and it is gone when you close the page.</li>
+  <li><b>The hosting company keeps ordinary server logs.</b> The site is served by Cloudflare, which, like any web host, sees the address a request comes from in order to answer it. We do not add anything on top of that.</li>
+</ul>
+
+<h2>Questions</h2>
+<p>{{help_sentence}}</p>
