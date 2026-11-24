@@ -8,6 +8,8 @@ import { Dashboard } from "./dashboard/Dashboard";
 import type { DashboardData } from "./dashboard/types";
 import { Lockup } from "./design/Logo";
 import { Learn } from "./learn/Learn";
+import { DemoBanner, NotInDemo } from "../demo/Banner";
+import { DEMO } from "../demo/mode";
 import { useRoute } from "./lib/router";
 import { Retirement } from "./retirement/Retirement";
 import { SessionProvider, useSession } from "./lib/session";
@@ -25,15 +27,21 @@ function Screens() {
   const { phase, error, retry } = useSession();
   const [route, go] = useRoute();
   const [price, setPrice] = useState<PriceReading | null | undefined>(undefined);
-  const onData = useCallback((data: DashboardData) => setPrice(data.price), []);
+  // Whether a price source is chosen, so a missing price is not mistaken for a missing source.
+  const [priceChosen, setPriceChosen] = useState(false);
+  const read = useCallback((data: DashboardData) => {
+    setPrice(data.price);
+    setPriceChosen(data.setup.has_price_source);
+  }, []);
+  const onData = read;
   const alerts = useAlerts(phase === "ready");
   const refreshAlerts = alerts.refresh;
   // The top bar's price is read here too, so it is right on every screen and after any change.
   const refreshPrice = useCallback(() => {
     api<DashboardData>("/dashboard")
-      .then((data) => setPrice(data.price))
+      .then(read)
       .catch(() => {});
-  }, []);
+  }, [read]);
   useEffect(() => {
     if (phase === "ready") refreshPrice();
   }, [phase, refreshPrice]);
@@ -71,10 +79,12 @@ function Screens() {
   if (phase === "setup" || phase === "locked") return <SignIn />;
   return (
     <>
+      {DEMO && <DemoBanner />}
       <Shell
         route={route}
         go={go}
         price={price}
+        priceChosen={priceChosen}
         alerts={
           alerts.data && (
             <AlertsButton
@@ -111,9 +121,21 @@ function Screens() {
         ) : route === "learn" ? (
           <Learn go={go} />
         ) : route === "retirement" ? (
-          <Retirement go={go} />
+          DEMO ? (
+            <NotInDemo title="Retirement">
+              Retirement planning works out each projection in the app on your own computer, so it is not part of the
+              browser demo.
+            </NotInDemo>
+          ) : (
+            <Retirement go={go} />
+          )
         ) : route === "stack" ? (
           <Stack go={go} />
+        ) : route === "markets" && DEMO ? (
+          <NotInDemo title="Markets">
+            Markets shows live prices, fetched by the app running on your own computer, so it is not part of the
+            browser demo.
+          </NotInDemo>
         ) : route === "markets" ? (
           <Suspense
             fallback={

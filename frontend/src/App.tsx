@@ -476,7 +476,7 @@ export default function App() {
       setOwner((o) => (o ? { ...o, demo: true } : o));
       refresh();
       setNotice(
-        "Fictional demo loaded. All accounts, transactions, and exchange rates are illustrative.",
+        "Fictional demo loaded. The person and his money are made up. The bitcoin prices are real Coinbase daily closes.",
       );
     } catch (e) {
       setError((e as Error).message);

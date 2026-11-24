@@ -56,7 +56,13 @@ docker compose -p appalachian-ledger-demo \
   -f docker-compose.yml -f deployment/demo.compose.yml up --build -d
 ```
 
-Open [the isolated demo](http://localhost:8081), create a local owner, and click **Load fictional demo** on the empty Overview. The demo includes cold storage, a spending wallet, checking, savings, brokerage, a home, a mortgage, six months of income/expenses/transfers, valuations and category budgets. **Every record and exchange rate is fictional.** It works offline and cannot seed a nonempty ledger.
+Open [the isolated demo](http://localhost:8081), create a local owner, and click **Or load the fictional demo** on the empty dashboard. It takes a few seconds and cannot seed a nonempty ledger.
+
+**The person is fictional. The bitcoin prices are real.** The demo follows one made-up man, 25 today, an electrician who rents in the city, for five years: every paycheck, every bill on its due date, everyday spending, a credit card, a car loan, and a little bitcoin bought every payday. His life is written as a plan in [`backend/app/demo_plan.py`](backend/app/demo_plan.py); his dollar amounts are invented, modelled on how US prices moved from 2021 on. Every bitcoin figure uses the real Coinbase BTC-USD daily close for its day, saved with its source and retrieval time in [`backend/app/demo_data/btc_usd_daily.json`](backend/app/demo_data/btc_usd_daily.json). Each buy is the dollars paid divided by that day's close, with the ledger's usual rounding. Nothing is estimated, interpolated or invented.
+
+Loading the demo reads that file and never uses the network. The file ends at the last release, so days after it are entered in dollars only: their bitcoin price shows as missing and he records no bitcoin buy on them. The demo switches on automatic Coinbase prices, so the ordinary price sync fills those days in when the computer is online; turn it off in **Settings → Prices** to stay offline.
+
+At each release, `make demo-prices` fetches the newest closes and moves the five-year window forward, and `make website` rebuilds the website's browser demo from the same person and prices (see [the website](website/README.md)).
 
 Alternatively, set `DEMO_ENABLED=true` in `.env` before starting an empty normal installation. Keep real financial records in a separate installation. There is no automatic demo login or shared demo password.
 
@@ -138,7 +144,7 @@ In **Manage account** on Accounts or Assets & liabilities, turn on **Exclude fro
 - Atomic CSV imports with duplicate detection and import audit; CSV transaction export and complete JSON journal export.
 - AES-256-GCM/scrypt encrypted SQLite backups and verified restore that revokes sessions.
 - Bitcoin Core read-only method allowlist, private-key-disabled wallet checks, sync status, balances, latest-1,000 transaction retrieval/deduplication and balance reconciliation.
-- Optional six-month fictional demo, migrations, Dockerfiles, localhost Compose deployment, documentation and CI configuration.
+- Optional fictional demo (one made-up person over five years, priced with real Coinbase daily closes), migrations, Dockerfiles, localhost Compose deployment, documentation and CI configuration.
 
 ## Scope and remaining work
 

@@ -239,8 +239,7 @@ export function PriceSettings({
               stay unavailable.
             </p>
             <p className="hint">
-              Original amounts and saved conversions stay fixed. Fictional demo
-              rates are never replaced. Only public market prices are requested;
+              Original amounts and saved conversions stay fixed. Only public market prices are requested;
               your records stay here.
             </p>
             <Field

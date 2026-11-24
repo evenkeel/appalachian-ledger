@@ -59,3 +59,8 @@ docs/*.png
 screenshots/
 playwright-report/
 test-results/
+
+# The website demo's saved answers and the built site are made by `make web-demo`.
+frontend/demo-public/
+frontend/demo-checks.json
+website/dist/

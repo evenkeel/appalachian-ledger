@@ -1,0 +1,79 @@
+/* The website demo only. The strip stays in view, so the app's own sticky parts sit below it. */
+html.demo {
+  --demo-banner: 40px;
+}
+.demo-banner {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  box-sizing: border-box;
+  min-height: var(--demo-banner);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 4px 14px;
+  background: var(--ink);
+  color: var(--bg);
+  font-size: var(--t-body);
+}
+.demo-banner p {
+  margin: 0;
+}
+.demo-banner .btn {
+  min-height: 30px;
+  padding: 0 14px;
+  background: var(--bg);
+  color: var(--ink);
+  border-color: var(--bg);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  font-weight: 700;
+}
+.demo-banner .btn:hover {
+  background: var(--panel);
+}
+html.demo .shell {
+  min-height: calc(100vh - var(--demo-banner));
+}
+html.demo .rail {
+  top: var(--demo-banner);
+  height: calc(100vh - var(--demo-banner));
+}
+html.demo .glare {
+  top: var(--demo-banner);
+}
+.demo-absent {
+  max-width: 560px;
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+  padding: 20px;
+}
+.demo-absent p {
+  margin: 0;
+}
+.demo-absent .btn {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  align-self: flex-start;
+  width: auto;
+}
+@media (max-width: 720px) {
+  html.demo {
+    --demo-banner: 48px;
+  }
+  .demo-more {
+    display: none;
+  }
+  .demo-banner {
+    justify-content: space-between;
+  }
+  /* Tall enough to press with a thumb. */
+  .demo-banner .btn {
+    min-height: 40px;
+  }
+}
