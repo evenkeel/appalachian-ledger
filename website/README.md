@@ -55,7 +55,22 @@ installation; retake them by hand when those screens change.
 - **The Download button** links to GitHub's ZIP of the `main` branch. Whatever is on `main` is
   what visitors get, so merge the release there first.
 
-## Put it on Cloudflare Pages
+## Publishing
+
+**Live since 2026-11-23.** The Cloudflare Pages project `appalachian-bitcoin-preview` already serves
+appalachianbitcoin.com (and www, which redirects), so publishing a new version needs no DNS change:
+
+```sh
+make website
+npx wrangler pages deploy website/dist --project-name appalachian-bitcoin-preview --branch new-site   # test address
+npx wrangler pages deploy website/dist --project-name appalachian-bitcoin-preview --branch main       # live
+```
+
+The test address is https://new-site.appalachian-bitcoin-preview.pages.dev. To undo a release, open the
+project in the Cloudflare dashboard, choose **Deployments**, and **Rollback** to the one before. The
+last version of the old site is deployment `5b10b7c2`.
+
+## Put it on Cloudflare Pages (first-time setup, for reference)
 
 The domain is already on Cloudflare. Nothing below is done automatically: each step is a click
 by the owner. Steps 1 to 3 do not touch the live domain. **Step 4 replaces the site that is at
