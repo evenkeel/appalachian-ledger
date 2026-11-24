@@ -45,8 +45,8 @@ installation; retake them by hand when those screens change.
 
 ## Before it goes live
 
-- **Signal chat link.** Put the invitation address in `site.json` as `signal_url` and rebuild.
-  Until then the help sections point to GitHub issues.
+- **Signal chat link.** Set in `site.json` as `signal_url`; it appears in the help sections and
+  the footer. If it is ever emptied, the help sections point to GitHub issues instead.
 - **Email.** `contact_email` in `site.json` is empty, so no address appears anywhere. If one is
   added it shows only as a small link in the footer.
 - **Try the install guide.** The steps on `/download/` come from the project's own Docker
