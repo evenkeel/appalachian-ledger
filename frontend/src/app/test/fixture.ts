@@ -164,3 +164,30 @@ export const periods: Period[] = [
   { period: "2026-09", usd: "2905.00", bitcoin: "2665138", missing_bitcoin: 0 },
   { period: "2026-10", usd: "2946.10", bitcoin: "2584298", missing_bitcoin: 0 },
 ];
+
+const monthAt = (index: number) => `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, "0")}`;
+const NOV_2021 = 2021 * 12 + 10;
+
+/** Five full years, November 2021 to October 2026. Dollars climb $20 a month from $2,000.00 to $3,180.00 (+59.0%).
+    Bitcoin starts at ₿4,000,000, is ₿16,000,000 in December 2022 and ends at ₿3,000,000 (−25.0%). */
+export const longPeriods: Period[] = Array.from({ length: 60 }, (_, index) => ({
+  period: monthAt(NOV_2021 + index),
+  usd: `${2000 + index * 20}.00`,
+  bitcoin: String(index === 13 ? 16_000_000 : index === 59 ? 3_000_000 : index < 13 ? 4_000_000 + index * 900_000 : 15_000_000 - (index - 13) * 250_000),
+  missing_bitcoin: 0,
+}));
+
+/** GET /api/stack/history for the same five years plus November 2026 so far: ₿300,000 bought for $300.00 every month. */
+export const stackHistory = {
+  today: "2026-11-19",
+  status: "ready",
+  months: Array.from({ length: 61 }, (_, index) => ({
+    month: monthAt(NOV_2021 + index),
+    held: String(3_000_000 + (index + 1) * 300_000),
+    buys: 1,
+    bought: "300000",
+    paid_usd: "300.00",
+    // March 2023 is the record; the rest sit at 10%.
+    stack_rate: index === 16 ? "21.4" : index === 60 ? "11.3" : "10.0",
+  })),
+};

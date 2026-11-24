@@ -52,7 +52,7 @@ def expense_rows(db, start, end, category_id, account_id, rate):
     return rows
 
 
-def spending_history(db, start, end, category_id=None, account_id=None, interval="month"):
+def spending_history(db, start, end, category_id=None, account_id=None, interval="month", summary=False):
     if start > end or start.year < 1970 or end > date.today() or (end - start).days > 366 * 50:
         raise ValueError("Choose a date range of at most 50 years, from 1970 through today")
     rate = ledger.current_rate(db)
@@ -81,8 +81,9 @@ def spending_history(db, start, end, category_id=None, account_id=None, interval
         "totals": aggregate(rows),
         "periods": [{"period": key, **aggregate(items)} for key, items in sorted(groups.items())],
         "categories": [{"name": key, **aggregate(items)} for key, items in sorted(categories.items())],
-        "transactions": rows[:500],
-        "transactions_truncated": len(rows) > 500,
+        # A chart of several years needs the sums only, not five hundred entries it will never list.
+        "transactions": [] if summary else rows[:500],
+        "transactions_truncated": not summary and len(rows) > 500,
         "current_reference": {
             "price_usd": rate.usd_per_btc,
             "day": rate.day,
@@ -101,6 +102,7 @@ def history(
     interval: str = Query("month", pattern="^(month|year)$"),
     category_id: int | None = None,
     account_id: int | None = None,
+    summary: bool = False,
     db=Depends(get_db, scope="function"),
 ):
-    return spending_history(db, start, end, category_id, account_id, interval)
+    return spending_history(db, start, end, category_id, account_id, interval, summary)

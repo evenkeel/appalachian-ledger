@@ -35,6 +35,9 @@ export const monthName = (month: string) =>
   parse(`${month}-01`).toLocaleDateString("en-US", { month: "short" });
 export const longMonth = (month: string) =>
   parse(`${month}-01`).toLocaleDateString("en-US", { month: "long" });
+/** A month with its year, for anything that can be more than a year back: "November 2021", "Nov 2021". */
+export const monthYear = (month: string) => `${longMonth(month)} ${month.slice(0, 4)}`;
+export const shortMonthYear = (month: string) => `${monthName(month)} ${month.slice(0, 4)}`;
 export function daysBetween(from: string, to: string) {
   return Math.round((parse(to).getTime() - parse(from).getTime()) / 86400000);
 }

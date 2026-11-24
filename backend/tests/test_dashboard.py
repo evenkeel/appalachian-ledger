@@ -1,9 +1,17 @@
 from datetime import date, datetime, timezone
 from types import SimpleNamespace
 
-from sqlalchemy import func, select
+from sqlalchemy import event, func, select
 
-from app.dashboard import bill_dates, build, milestone, monthly_minor, next_day_of_month, paycheck_dates
+from app.dashboard import (
+    bill_dates,
+    build,
+    milestone,
+    monthly_minor,
+    next_day_of_month,
+    paycheck_dates,
+    stack_history,
+)
 from app.db import SessionLocal
 from app.models import JournalEntry, Posting, RecurringBill
 from conftest import category, new_account, post, transaction
@@ -907,6 +915,99 @@ def test_stack_counts_buys_holdings_rate_streak_and_best_month(owner):
     stack = reading()["stack"]
     assert stack["stack_rate"] is None and stack["rates"][-1] == {"month": "2026-03", "rate": None}
     assert stack["held"] == "1505000"
+
+
+def test_stack_history_covers_every_month_since_the_first_entry_in_one_pass(owner):
+    assert owner.get("/api/stack/history").json() == {
+        "today": date.today().isoformat(),
+        "status": "needs_bitcoin",
+        "months": [],
+    }
+    checking = new_account(owner, amount="10000")
+    wallet = new_account(owner, "Cold storage", "BITCOIN", "1000000", "bitcoin_wallet")
+    buy(owner, checking, wallet, "300", "310000", "2026-02-10")
+    transaction(owner, checking, kind="income", amount="800.00", date="2026-03-02")
+    buy(owner, checking, wallet, "100", "100000", "2026-03-03")
+    buy(owner, checking, wallet, "150", "140000", "2026-03-05")
+    undone = buy(owner, checking, wallet, "75", "70000", "2026-03-07")
+    assert owner.delete(f"/api/transactions/{undone['id']}").status_code == 200
+    # Selling lowers what is held without undoing a buy; bitcoin income with no price leaves the rate unknown.
+    transaction(
+        owner, wallet, "transfer", "50000", destination_id=checking, destination_amount="40.00", date="2026-04-08"
+    )
+    transaction(owner, checking, kind="income", amount="500.00", date="2026-05-02")
+    transaction(owner, wallet, kind="income", amount="5000", date="2026-05-04")
+    with SessionLocal() as db:
+        result = stack_history(db, date(2026, 6, 10))
+    blank = {"buys": 0, "bought": "0", "paid_usd": "0.00", "stack_rate": None}
+    assert result == {
+        "today": "2026-06-10",
+        "status": "ready",
+        "months": [
+            {"month": "2026-01", "held": "1000000", **blank},
+            {"month": "2026-02", "held": "1310000", **blank, "buys": 1, "bought": "310000", "paid_usd": "300.00"},
+            # 250 of 800 is 31.25: half-even.
+            {
+                "month": "2026-03",
+                "held": "1550000",
+                "buys": 2,
+                "bought": "240000",
+                "paid_usd": "250.00",
+                "stack_rate": "31.2",
+            },
+            {"month": "2026-04", "held": "1500000", **blank},
+            {"month": "2026-05", "held": "1505000", **blank},
+            {"month": "2026-06", "held": "1505000", **blank},
+        ],
+    }
+    # A day inside a month reads that month so far, and nothing after it.
+    with SessionLocal() as db:
+        early = stack_history(db, date(2026, 3, 4))
+    assert [row["month"] for row in early["months"]] == ["2026-01", "2026-02", "2026-03"]
+    assert early["months"][-1] == {
+        "month": "2026-03",
+        "held": "1410000",
+        "buys": 1,
+        "bought": "100000",
+        "paid_usd": "100.00",
+        "stack_rate": "12.5",
+    }
+    # The dashboard's six months are the last six of these, figure for figure.
+    with SessionLocal() as db:
+        long = stack_history(db, date(2026, 9, 5))["months"]
+    stack = reading(date(2026, 9, 5))["stack"]
+    assert [{"month": row["month"], "held": row["held"]} for row in long[-6:]] == stack["history"]
+    assert [{"month": row["month"], "rate": row["stack_rate"]} for row in long[-6:]] == stack["rates"]
+    live = owner.get("/api/stack/history")
+    assert live.status_code == 200 and live.json()["months"][0]["month"] == "2026-01"
+    assert live.json()["months"][-1]["month"] == date.today().strftime("%Y-%m")
+    owner.cookies.clear()
+    assert owner.get("/api/stack/history").status_code == 401
+
+
+def test_stack_history_matches_the_dashboard_on_the_demo_and_reads_the_ledger_once(owner):
+    assert owner.post("/api/demo?months=14").status_code == 200
+    months = owner.get("/api/stack/history").json()["months"]
+    stack = owner.get("/api/dashboard").json()["stack"]
+    assert len(months) >= 14 and months[-1]["held"] == stack["held"]
+    assert [{"month": row["month"], "held": row["held"]} for row in months[-6:]] == stack["history"]
+    assert [{"month": row["month"], "rate": row["stack_rate"]} for row in months[-6:]] == stack["rates"]
+    assert months[-1]["bought"] == stack["buys"]["bitcoin"] and months[-1]["paid_usd"] == stack["buys"]["usd"]
+    best = max(months, key=lambda row: int(row["bought"]))
+    assert int(best["bought"]) == int(stack["best_month"]["bitcoin"])
+    # One pass: the number of queries must not grow with the number of months.
+    statements = []
+
+    def count(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    with SessionLocal() as db:
+        event.listen(db.get_bind(), "before_cursor_execute", count)
+        try:
+            stack_history(db)
+        finally:
+            event.remove(db.get_bind(), "before_cursor_execute", count)
+    assert len(statements) < 30, len(statements)
 
 
 def test_milestones_step_on_the_second_digit():

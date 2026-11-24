@@ -1,0 +1,128 @@
+/* History controls: the span of a chart, a month stepper, and reading a chart month by month.
+   Colours and sizes are the tokens in tokens.css; .seg comes from app.css. */
+.tl-range {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  min-width: 0;
+}
+/* The span choice keeps to the right edge, also when a narrow panel wraps it under the pager. */
+.tl-range > .tl-seg:last-child {
+  margin-left: auto;
+}
+.tl-pager {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.tl-when {
+  font-size: var(--t-small);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.tl-pager .tl-when {
+  min-width: 44px;
+  padding: 0 4px;
+  text-align: center;
+}
+.tl-pager.tl-wide .tl-when {
+  min-width: 132px;
+}
+.tl-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  min-height: 30px;
+  border: 1px solid var(--bezel);
+  border-radius: 7px;
+  background: var(--panel-2);
+  color: var(--ink);
+  font-size: var(--t-lead);
+  line-height: 1;
+}
+.tl-step:hover:not([disabled]) {
+  border-color: var(--ink-3);
+}
+.tl-step[disabled] {
+  color: var(--ink-3);
+  background: transparent;
+  opacity: 0.55;
+  cursor: default;
+}
+.tl-seg button {
+  font-family: var(--font-num);
+  min-width: 40px;
+}
+.tl-select {
+  min-height: 30px;
+  max-width: 100%;
+  border-radius: 7px;
+  border: 1px solid var(--bezel);
+  background: var(--well);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--t-small);
+  padding: 0 8px;
+}
+.tl-pager .tl-when:has(.tl-select) {
+  min-width: 0;
+  padding: 0;
+}
+
+/* A chart read month by month. One tab stop; the arrow keys move the marker. */
+.tl-scrub {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-radius: 6px;
+  cursor: crosshair;
+  touch-action: pan-y;
+}
+/* The drawing fills its frame without adding to the frame's own height. Otherwise a chart that grew to fill
+   its row would hold the row at that height, and every change of the text around it would ratchet it taller. */
+.tl-scrub .chart svg {
+  position: absolute;
+  inset: 0;
+}
+.tl-scrub:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+/* The reading under a chart: the month under the marker, or the latest. */
+.tl-read {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 14px;
+  font-size: var(--t-small);
+  color: var(--ink-2);
+  min-height: 18px;
+}
+.tl-read b {
+  font-family: var(--font-num);
+  font-weight: 400;
+  color: var(--ink);
+}
+.tl-read b.btc {
+  color: var(--btc);
+}
+
+@media (max-width: 720px) {
+  .main main .tl-step,
+  .main main .tl-select {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .tl-pager.tl-wide .tl-when {
+    min-width: 0;
+    flex: 1;
+  }
+  .tl-range .tl-pager {
+    flex: 1 1 100%;
+    justify-content: space-between;
+  }
+}
