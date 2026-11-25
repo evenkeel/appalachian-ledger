@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { DEMO } from "../../demo/mode";
 import { api } from "../../lib/api";
 import { Panel } from "../dashboard/panels";
 import { btc, coordinate, longMonth, shortDate, usd, usdWhole } from "../lib/format";
@@ -71,7 +72,10 @@ function RetirementAge({ go, onPlanner }: { go: Go; onPlanner: () => void }) {
   const latest = useRef("");
   latest.current = question;
   useEffect(() => {
-    if (!settings || invalid || question === answered) return;
+    if (!settings || invalid) return;
+    // A message about a choice that could not be worked out goes when the choice does.
+    setProblem("");
+    if (question === answered) return;
     const timer = window.setTimeout(() => {
       api<RetirementView>("/planning/retirement/draft", "POST", { settings, trying })
         .then((next) => {
@@ -116,6 +120,7 @@ function RetirementAge({ go, onPlanner }: { go: Go; onPlanner: () => void }) {
     setErrors({});
     setTrying([]);
     setStatus("");
+    setProblem("");
   };
   async function save() {
     setBusy(true);
@@ -189,7 +194,7 @@ function RetirementAge({ go, onPlanner }: { go: Go; onPlanner: () => void }) {
           </>
         )}
         <span className="sub" role="status">
-          {status || (stale && !invalid ? "Working it out…" : "")}
+          {status || (stale && !invalid && !problem ? "Working it out…" : "")}
         </span>
       </div>
 
@@ -356,12 +361,15 @@ function RetirementAge({ go, onPlanner }: { go: Go; onPlanner: () => void }) {
 
         <Panel className="c12" name="Adjust the details" plain="what counts, and how it is worked out">
           <Details view={view} settings={settings} change={change} />
-          <div className="ret-row">
-            <button className="btn sm" onClick={onPlanner}>
-              Open the detailed planner
-            </button>
-            <span className="sub">Set every assumption yourself, save plans and compare them side by side.</span>
-          </div>
+          {/* The planner works out each plan on the app's own server, so the website demo leaves it out. */}
+          {!DEMO && (
+            <div className="ret-row">
+              <button className="btn sm" onClick={onPlanner}>
+                Open the detailed planner
+              </button>
+              <span className="sub">Set every assumption yourself, save plans and compare them side by side.</span>
+            </div>
+          )}
         </Panel>
       </div>
     </div>

@@ -226,19 +226,19 @@ def test_export_names_estimates_and_preserves_actual_exchange(owner):
     assert row["destination_amount"] == "95000" and row["destination_currency"] == "BITCOIN"
 
 
-def test_new_demo_includes_native_activity_and_budgets_in_both_currencies(owner):
+def test_demo_spends_dollars_keeps_bitcoin_for_saving_and_budgets_in_dollars(owner):
     from datetime import date
 
-    assert owner.post("/api/demo").status_code == 200
+    assert owner.post("/api/demo?months=6").status_code == 200
     month = date.today().strftime("%Y-%m")
-    # A complete preceding month always contains both currencies, including early-month runs.
+    # A complete preceding month: he earns and spends in dollars, and bitcoin only ever comes in as buys.
     result = report(owner, month, months=6)
     complete = result["history"][-2]
-    assert complete["native_flows"]["BITCOIN"]["income"] == "100000"
-    assert complete["native_flows"]["BITCOIN"]["expenses"] == "18000"
+    assert complete["native_flows"]["BITCOIN"]["income"] == "0"
+    assert complete["native_flows"]["BITCOIN"]["expenses"] == "0"
+    assert float(complete["native_flows"]["USD"]["income"]) > 2000
     budgets = owner.get(f"/api/budgets?month={month}").json()
-    assert {b["currency"] for b in budgets} == {"USD", "BITCOIN"}
-    assert all(b["scope"] == "native" for b in budgets)
+    assert budgets and {b["currency"] for b in budgets} == {"USD"}
 
 
 def test_overview_totals_keep_original_asset_and_debt_currencies_without_prices(owner):

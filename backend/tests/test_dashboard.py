@@ -1,9 +1,17 @@
 from datetime import date, datetime, timezone
 from types import SimpleNamespace
 
-from sqlalchemy import func, select
+from sqlalchemy import event, func, select
 
-from app.dashboard import bill_dates, build, milestone, monthly_minor, next_day_of_month, paycheck_dates
+from app.dashboard import (
+    bill_dates,
+    build,
+    milestone,
+    monthly_minor,
+    next_day_of_month,
+    paycheck_dates,
+    stack_history,
+)
 from app.db import SessionLocal
 from app.models import JournalEntry, Posting, RecurringBill
 from conftest import category, new_account, post, transaction
@@ -909,6 +917,99 @@ def test_stack_counts_buys_holdings_rate_streak_and_best_month(owner):
     assert stack["held"] == "1505000"
 
 
+def test_stack_history_covers_every_month_since_the_first_entry_in_one_pass(owner):
+    assert owner.get("/api/stack/history").json() == {
+        "today": date.today().isoformat(),
+        "status": "needs_bitcoin",
+        "months": [],
+    }
+    checking = new_account(owner, amount="10000")
+    wallet = new_account(owner, "Cold storage", "BITCOIN", "1000000", "bitcoin_wallet")
+    buy(owner, checking, wallet, "300", "310000", "2026-02-10")
+    transaction(owner, checking, kind="income", amount="800.00", date="2026-03-02")
+    buy(owner, checking, wallet, "100", "100000", "2026-03-03")
+    buy(owner, checking, wallet, "150", "140000", "2026-03-05")
+    undone = buy(owner, checking, wallet, "75", "70000", "2026-03-07")
+    assert owner.delete(f"/api/transactions/{undone['id']}").status_code == 200
+    # Selling lowers what is held without undoing a buy; bitcoin income with no price leaves the rate unknown.
+    transaction(
+        owner, wallet, "transfer", "50000", destination_id=checking, destination_amount="40.00", date="2026-04-08"
+    )
+    transaction(owner, checking, kind="income", amount="500.00", date="2026-05-02")
+    transaction(owner, wallet, kind="income", amount="5000", date="2026-05-04")
+    with SessionLocal() as db:
+        result = stack_history(db, date(2026, 6, 10))
+    blank = {"buys": 0, "bought": "0", "paid_usd": "0.00", "stack_rate": None}
+    assert result == {
+        "today": "2026-06-10",
+        "status": "ready",
+        "months": [
+            {"month": "2026-01", "held": "1000000", **blank},
+            {"month": "2026-02", "held": "1310000", **blank, "buys": 1, "bought": "310000", "paid_usd": "300.00"},
+            # 250 of 800 is 31.25: half-even.
+            {
+                "month": "2026-03",
+                "held": "1550000",
+                "buys": 2,
+                "bought": "240000",
+                "paid_usd": "250.00",
+                "stack_rate": "31.2",
+            },
+            {"month": "2026-04", "held": "1500000", **blank},
+            {"month": "2026-05", "held": "1505000", **blank},
+            {"month": "2026-06", "held": "1505000", **blank},
+        ],
+    }
+    # A day inside a month reads that month so far, and nothing after it.
+    with SessionLocal() as db:
+        early = stack_history(db, date(2026, 3, 4))
+    assert [row["month"] for row in early["months"]] == ["2026-01", "2026-02", "2026-03"]
+    assert early["months"][-1] == {
+        "month": "2026-03",
+        "held": "1410000",
+        "buys": 1,
+        "bought": "100000",
+        "paid_usd": "100.00",
+        "stack_rate": "12.5",
+    }
+    # The dashboard's six months are the last six of these, figure for figure.
+    with SessionLocal() as db:
+        long = stack_history(db, date(2026, 9, 5))["months"]
+    stack = reading(date(2026, 9, 5))["stack"]
+    assert [{"month": row["month"], "held": row["held"]} for row in long[-6:]] == stack["history"]
+    assert [{"month": row["month"], "rate": row["stack_rate"]} for row in long[-6:]] == stack["rates"]
+    live = owner.get("/api/stack/history")
+    assert live.status_code == 200 and live.json()["months"][0]["month"] == "2026-01"
+    assert live.json()["months"][-1]["month"] == date.today().strftime("%Y-%m")
+    owner.cookies.clear()
+    assert owner.get("/api/stack/history").status_code == 401
+
+
+def test_stack_history_matches_the_dashboard_on_the_demo_and_reads_the_ledger_once(owner):
+    assert owner.post("/api/demo?months=14").status_code == 200
+    months = owner.get("/api/stack/history").json()["months"]
+    stack = owner.get("/api/dashboard").json()["stack"]
+    assert len(months) >= 14 and months[-1]["held"] == stack["held"]
+    assert [{"month": row["month"], "held": row["held"]} for row in months[-6:]] == stack["history"]
+    assert [{"month": row["month"], "rate": row["stack_rate"]} for row in months[-6:]] == stack["rates"]
+    assert months[-1]["bought"] == stack["buys"]["bitcoin"] and months[-1]["paid_usd"] == stack["buys"]["usd"]
+    best = max(months, key=lambda row: int(row["bought"]))
+    assert int(best["bought"]) == int(stack["best_month"]["bitcoin"])
+    # One pass: the number of queries must not grow with the number of months.
+    statements = []
+
+    def count(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    with SessionLocal() as db:
+        event.listen(db.get_bind(), "before_cursor_execute", count)
+        try:
+            stack_history(db)
+        finally:
+            event.remove(db.get_bind(), "before_cursor_execute", count)
+    assert len(statements) < 30, len(statements)
+
+
 def test_milestones_step_on_the_second_digit():
     assert milestone(21932000) == {"previous": "21000000", "next": "22000000"}
     assert milestone(22000000) == {"previous": "22000000", "next": "23000000"}
@@ -1050,48 +1151,46 @@ def test_budgets_list_only_dollar_allowances(owner):
 
 
 def test_demo_dashboard_has_a_card_a_paycheck_and_bills(owner):
-    assert owner.post("/api/demo").status_code == 200
+    # Loaded today, whenever that is. The figures for the day it was built for are in test_demo.py.
+    assert owner.post("/api/demo?months=6").status_code == 200
     result = owner.get("/api/dashboard")
     assert result.status_code == 200, result.text
     data = result.json()
     today = date.today()
     (card,) = data["debt"]["cards"]
-    assert card["name"] == "Ridgeline Visa" and card["balance"] == "1284.36"
-    assert card["limit"] == "6000.00" and card["utilization"] == "21.4" and card["due_day"] == 28
-    assert [loan["name"] for loan in data["debt"]["loans"]] == ["Home mortgage"]
+    assert card["name"] == "Ridgeline Visa" and card["limit"] == "5000.00" and card["due_day"] == 18
+    assert [loan["name"] for loan in data["debt"]["loans"]] == ["Car loan"]
     ahead = data["cash_ahead"]
-    assert ahead["status"] == "ready" and ahead["short"] is None
+    assert ahead["status"] == "ready"
     pay = ahead["next_paycheck"]
-    assert pay["name"] == "Salary" and pay["amount"] == "3100.00"
-    assert date.fromisoformat(pay["date"]) > today and date.fromisoformat(pay["date"]).day in (1, 16)
+    assert pay["name"] == "Paycheck" and date.fromisoformat(pay["date"]) > today
+    assert date.fromisoformat(pay["date"]).weekday() == 4 and (date.fromisoformat(pay["date"]) - today).days <= 14
     assert sum(event["kind"] == "paycheck" for event in ahead["events"]) >= 2
-    # Five bills come out of checking. One of them pays the card down, so the card is left to that bill.
-    assert sum(event["kind"] == "bill" for event in ahead["events"]) == 5
-    assert all(event["kind"] != "card" for event in ahead["events"])
-    assert [(row["name"], row["plan"], row["paid_by"]) for row in ahead["cards"]] == [
-        ("Ridgeline Visa", "bill", "Ridgeline Visa payment")
-    ]
+    # The card has a due day and no bill paying it down, so it is paid in full from checking.
+    assert [(row["name"], row["plan"], row["paid_by"]) for row in ahead["cards"]] == [("Ridgeline Visa", "full", None)]
     bills = {row["name"]: row for row in data["bills"]["items"]}
     assert set(bills) == {
-        "Electric & water",
-        "Mortgage interest & insurance",
-        "Health & wellness",
+        "Rent",
+        "Renter's insurance",
+        "Electric",
         "Internet",
-        "Car insurance",
         "Phone",
+        "Car insurance",
+        "Car payment",
         "Streaming",
-        "Ridgeline Visa payment",
+        "Music",
+        "Gym",
     }
     assert all(not row["overdue"] and row["days_until"] > 0 for row in bills.values())
-    assert bills["Ridgeline Visa payment"]["pays_account_id"] == card["account_id"]
-    assert bills["Ridgeline Visa payment"]["payoff"] == "1284.36"
-    assert bills["Streaming"]["monthly_amount"] == "22.99"
+    loan = data["debt"]["loans"][0]
+    assert bills["Car payment"]["pays_account_id"] == loan["account_id"]
+    assert bills["Car payment"]["payoff"] == loan["balance"] and bills["Car payment"]["monthly_amount"] == "230.48"
+    assert bills["Streaming"]["account"] == "Ridgeline Visa" and bills["Rent"]["account"] == "Everyday checking"
+    assert data["bills"]["destroyed"]["count"] == 2
     assert data["checking"]["accounts"][0]["name"] == "Everyday checking"
     stack = data["stack"]
     assert stack["status"] == "ready" and len(stack["rates"]) == 6 and len(stack["history"]) == 6
-    assert stack["streak_months"] >= 5 and stack["best_month"]["bitcoin"] == "754300"
-    assert stack["buys"]["count"] == (today.day >= 10) + (today.day >= 17)
-    assert data["price"]["source"] == "Fictional demo rate" and data["pace"]["missing_conversions"] == 0
+    assert stack["best_month"] is not None
     assert data["budgets"]["items"]
     assert data["setup"] == {
         "has_account": True,
@@ -1101,8 +1200,8 @@ def test_demo_dashboard_has_a_card_a_paycheck_and_bills(owner):
         "has_price_source": True,
         "has_backup": False,
     }
-    (salary,) = owner.get("/api/income-schedules").json()
-    assert salary["frequency"] == "semimonthly" and salary["next_occurrence"] == pay["date"]
+    (paycheck,) = owner.get("/api/income-schedules").json()
+    assert paycheck["frequency"] == "biweekly" and paycheck["next_occurrence"] == pay["date"]
 
 
 # ---------- Bitcoin-denominated bills and backups ----------

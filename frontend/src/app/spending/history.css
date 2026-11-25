@@ -1,0 +1,93 @@
+/* Spending history: twelve places for a year's months, or one column per year.
+   The columns themselves (.hist, .hist-col, .hist-v, .hist-m) are in design/app.css. */
+/* Each part of a column has its own row. Without this, hiding the figure on a phone moved the bar into
+   the row that sizes to its content, where a bar measured in percent has no height at all. */
+.hist-col {
+  grid-row: 2;
+}
+.hist-m {
+  grid-row: 3;
+}
+.hist-sum {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
+.hist-sum b {
+  font-weight: 400;
+}
+/* A month outside the ledger keeps its place and its name, and has nothing to select. */
+.hist-none {
+  display: grid;
+  align-content: end;
+  height: 100%;
+  min-width: 0;
+  padding: 2px 2px 4px;
+  color: var(--ink-3);
+  font-size: var(--t-micro);
+  opacity: 0.6;
+}
+/* While the sums are on their way the columns keep their height, so nothing jumps when they arrive. */
+.hist[aria-busy="true"] {
+  border-bottom: 1px solid var(--hairline);
+}
+
+.hist.hist-years {
+  height: 196px;
+  gap: 10px;
+}
+.hist-years .hist-col i {
+  width: min(100%, 96px);
+  opacity: 0.8;
+}
+/* A year that is not whole: the same colour, lighter, so it is not read against the full years beside it. */
+.hist-years .hist-col i.part {
+  opacity: 0.38;
+}
+.hist-years button:hover .hist-col i,
+.hist-years button:focus-visible .hist-col i {
+  opacity: 1;
+}
+.hist-years .hist-v {
+  font-size: var(--t-small);
+  color: var(--ink);
+}
+.hist-years .hist-v small,
+.hist-years .hist-m small {
+  display: block;
+  font-size: var(--t-micro);
+  color: var(--ink-3);
+}
+.hist-years .hist-m b {
+  font-family: var(--font-num);
+  font-size: var(--t-small);
+  color: var(--ink-2);
+}
+.hist-years .hist-m small {
+  min-height: 14px;
+}
+
+@media (max-width: 720px) {
+  /* Six years fit their figures on a phone; twelve months do not, and say theirs when selected. */
+  .hist-years .hist-v {
+    display: block;
+    font-size: var(--t-label);
+  }
+  .hist.hist-years {
+    height: 184px;
+    gap: 4px;
+  }
+  .hist-sum {
+    flex: 1 1 100%;
+    order: 3;
+    text-align: left;
+  }
+  /* "a month" does not fit under six narrow columns; the note below the bars says what the figure is. */
+  .hist-per {
+    display: none;
+  }
+  /* A month's column is narrower than a thumb, so it is at least as tall as one. */
+  .hist button {
+    min-height: 44px;
+  }
+}

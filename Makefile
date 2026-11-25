@@ -1,4 +1,4 @@
-.PHONY: test lint migrate dev-backend dev-frontend
+.PHONY: test lint migrate dev-backend dev-frontend demo-prices web-demo website site-preview site-shots
 PYTHON ?= .venv/bin/python
 
 test:
@@ -18,3 +18,24 @@ dev-backend: migrate
 
 dev-frontend:
 	cd frontend && npm run dev
+
+# Fetch the newest real Coinbase daily closes for the demo and move its five-year window forward.
+demo-prices:
+	PYTHONPATH=backend $(PYTHON) scripts/demo_prices.py
+
+# The website's browser demo: refresh prices, save the real server's answers about the fictional
+# ledger, check that the browser adds them up exactly as the server does, and build it.
+web-demo:
+	PYTHONPATH=backend $(PYTHON) scripts/web_demo.py
+	cd frontend && npx vitest run src/demo && npm run build:demo
+
+# The whole website into website/dist: its pages and the browser demo.
+website: web-demo
+	$(PYTHON) scripts/build_site.py
+
+site-preview:
+	$(PYTHON) scripts/serve_site.py
+
+# Retake the website's pictures from the built demo. Needs Chrome, and `make site-preview` running.
+site-shots:
+	node website/shots.mjs

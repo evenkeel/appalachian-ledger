@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, btc, cents, daysBetween, fromCents, shortDate, usd, usdWhole } from "./format";
+import { addDays, btc, cents, daysBetween, fromCents, monthYear, shortDate, shortMonthYear, usd, usdWhole } from "./format";
 import { parseRoute } from "./router";
 
 describe("exact money formatting", () => {
@@ -29,6 +29,10 @@ describe("dates", () => {
     expect(daysBetween("2026-11-19", "2026-12-01")).toBe(12);
     expect(addDays("2026-11-28", 7)).toBe("2026-12-05");
     expect(shortDate("2026-11-21")).toBe("Nov 21");
+  });
+  it("names a month with its year, for anything that may be more than a year back", () => {
+    expect(monthYear("2021-11")).toBe("November 2021");
+    expect(shortMonthYear("2026-01")).toBe("Jan 2026");
   });
 });
 

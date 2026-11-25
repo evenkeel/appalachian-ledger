@@ -3,6 +3,19 @@ export const setCsrf = (value: string) => {
   csrf = value;
 };
 
+/**
+ * The website demo has no server. There, every request is answered from saved fictional
+ * responses by this stand-in, and nothing below it ever runs. The app itself never sets one.
+ */
+export interface StandIn {
+  request: (path: string, method: string, body?: unknown) => Promise<unknown>;
+  download: (path: string, filename: string) => Promise<void>;
+}
+let standIn: StandIn | null = null;
+export const setStandIn = (value: StandIn | null) => {
+  standIn = value;
+};
+
 function checkSession(response: Response) {
   if (response.status === 401 && csrf) {
     csrf = "";
@@ -47,6 +60,7 @@ export async function api<T = unknown>(
   method = "GET",
   body?: unknown,
 ): Promise<T> {
+  if (standIn) return standIn.request(path, method, body) as Promise<T>;
   const form = body instanceof FormData;
   const response = await fetch("/api" + path, {
     method,
@@ -61,6 +75,7 @@ export async function api<T = unknown>(
   return response.json() as Promise<T>;
 }
 export async function download(path: string, filename: string, body?: unknown) {
+  if (standIn) return standIn.download(path, filename);
   const response = await fetch("/api" + path, {
     method: body ? "POST" : "GET",
     credentials: "same-origin",

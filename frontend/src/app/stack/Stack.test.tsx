@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Account, Transaction } from "../../lib/types";
 import type { DashboardData } from "../dashboard/types";
-import { categories, empty, periods, reading, report, transactions } from "../test/fixture";
+import { categories, empty, periods, reading, report, stackHistory, transactions } from "../test/fixture";
 import { bitcoinPerDollar, buysFrom, totals, usdPerBtc } from "./price";
 
 const wallet = (id: number, name: string, balance: string, usd: string | null, archived = false): Account => ({
@@ -56,6 +56,7 @@ let current: DashboardData = reading;
 let accounts: Account[] = [];
 let moves: Transaction[] = transfers;
 let failing = "";
+let longHistory: { months: object[] } = { months: [] };
 vi.mock("../../lib/api", () => ({
   setCsrf: () => {},
   api: vi.fn(async (path: string) => {
@@ -65,6 +66,7 @@ vi.mock("../../lib/api", () => ({
     if (path === "/accounts") return accounts;
     if (path === "/transactions?kind=transfer") return moves;
     if (path.startsWith("/transactions")) return transactions;
+    if (path === "/stack/history") return longHistory;
     if (path === "/prices/status") return { source: "manual", automatic: false, quote: null, history: null };
     if (path === "/categories") return categories;
     if (path.startsWith("/reports")) return report;
@@ -83,6 +85,7 @@ beforeEach(() => {
   accounts = [checking, wallet(5, "Cold storage", "21000000", "24940.62"), wallet(6, "Phone wallet", "932000", "1106.89"), wallet(7, "Old wallet", "0", "0.00", true)];
   moves = transfers;
   failing = "";
+  longHistory = { months: [] };
 });
 
 describe("price paid", () => {
@@ -110,13 +113,15 @@ describe("stack screen", () => {
   it("shows what is held, the score and every buy at the price paid", async () => {
     render(<Stack go={go} />);
     const held = await screen.findByLabelText("Held: all your bitcoin");
-    expect(within(held).getByText("₿21,932,000")).toBeInTheDocument();
+    expect(within(held).getByText("₿21,932,000", { selector: ".hero" })).toBeInTheDocument();
+    // The best month is named with its year: on a ledger of several years the month alone could be any of them.
+    expect(held).toHaveTextContent("Best month ₿700,000 in September 2026");
     expect(within(held).getByText("₿68,000 to go")).toBeInTheDocument();
     expect(within(held).getByText("2 buys for $800.00 this month")).toBeInTheDocument();
     expect(within(held).getByText("6-month streak")).toBeInTheDocument();
 
     const rate = screen.getByLabelText(/^Stack rate: your score/);
-    expect(within(rate).getByText("11.3%", { selector: "b" })).toBeInTheDocument();
+    expect(within(rate).getByText("11.3%", { selector: "b.hero" })).toBeInTheDocument();
     expect(within(rate).getByText("of November's income stacked so far")).toBeInTheDocument();
     expect(within(rate).getByText("▲ 1.1 pts")).toBeInTheDocument();
     expect(within(rate).getByText("Best yet.")).toBeInTheDocument();
@@ -137,8 +142,54 @@ describe("stack screen", () => {
     expect(within(buys).getByText("$118,750.00")).toBeInTheDocument();
     expect(within(buys).queryByText(/To savings/)).not.toBeInTheDocument();
 
-    expect(await screen.findByLabelText(/^Cost of living/)).toBeInTheDocument();
+    expect(await screen.findByLabelText("Cost of living: the same life, priced two ways")).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/\bsats?\b|satoshi/i);
+  });
+
+  it("shows bitcoin held and stack rate over every month on record, with one span for both charts", async () => {
+    longHistory = stackHistory;
+    render(<Stack go={go} />);
+    const held = await screen.findByLabelText("Held: all your bitcoin");
+    const rate = screen.getByLabelText(/^Stack rate: your score/);
+    const heldSpans = within(await within(held).findByRole("group", { name: "Bitcoin held: how much history" }));
+    expect(heldSpans.getAllByRole("button").map((button) => button.textContent)).toEqual(["1Y", "2Y", "All"]);
+    expect(heldSpans.getByRole("button", { name: "All of it" })).toHaveAttribute("aria-pressed", "true");
+    expect(held).toHaveTextContent("Nov 2021 – Nov 2026");
+    expect(held).toHaveTextContent("Up ₿18,000,000 over the months shown.");
+    // Every month can be read exactly, with what was bought and paid.
+    const heldSlider = within(held).getByRole("slider");
+    expect(heldSlider).toHaveAttribute("aria-valuetext", "November 2026: held ₿21,300,000 so far, bought ₿300,000 for $300.00");
+    fireEvent.keyDown(heldSlider, { key: "Home" });
+    expect(heldSlider).toHaveAttribute("aria-valuetext", "November 2021: held ₿3,300,000, bought ₿300,000 for $300.00");
+    // Sixty-one bars carry no figures; the years are marked and the reading names the month with its year.
+    const bars = within(rate).getByRole("img");
+    expect(bars.querySelectorAll("rect")).toHaveLength(61);
+    expect([...bars.querySelectorAll("text")].map((node) => node.textContent)).toEqual(["2022", "2023", "2024", "2025", "2026"]);
+    const rateSlider = within(rate).getByRole("slider");
+    expect(rateSlider).toHaveAttribute("aria-valuetext", "November 2026: 11.3% of income stacked so far, bought ₿300,000 for $300.00");
+    // The record is found across all of it, not only the last six months, and says its year.
+    expect(rate).toHaveTextContent("Best earlier month21.4%March 2023");
+    expect(rate).toHaveTextContent("61-month average10.2%");
+
+    // Choosing a span on one chart moves both.
+    fireEvent.click(within(rate).getByRole("button", { name: "One year" }));
+    expect(rate).toHaveTextContent("Dec 2025 – Nov 2026");
+    expect(held).toHaveTextContent("Dec 2025 – Nov 2026");
+    expect(held).toHaveTextContent("Up ₿3,600,000 over the months shown.");
+    expect(rate).toHaveTextContent("12-month average10.1%");
+    expect(within(rate).getByRole("img").querySelectorAll("rect")).toHaveLength(12);
+    fireEvent.click(within(held).getByRole("button", { name: "Earlier year" }));
+    expect(rate).toHaveTextContent("Dec 2024 – Nov 2025");
+    expect(within(rate).getByRole("slider")).toHaveAttribute("aria-valuetext", "November 2025: 10.0% of income stacked, bought ₿300,000 for $300.00");
+  });
+
+  it("falls back to the six months on the dashboard reading when the long history cannot load", async () => {
+    failing = "/stack/history";
+    render(<Stack go={go} />);
+    await screen.findByText(/Stack history could not load: server said no/);
+    const held = screen.getByLabelText("Held: all your bitcoin");
+    expect(within(held).getByRole("slider")).toHaveAttribute("aria-valuetext", "November 2026: held ₿21,932,000 so far");
+    expect(screen.queryByRole("group", { name: "Bitcoin held: how much history" })).toBeNull();
   });
 
   it("lists active wallets with their dollar value, and says so when there is no price", async () => {

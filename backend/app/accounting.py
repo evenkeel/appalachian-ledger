@@ -1,6 +1,8 @@
 import json
+from contextlib import contextmanager
 from datetime import date
-from sqlalchemy import select, or_
+from sqlalchemy import func, or_, select
+from sqlalchemy.exc import OperationalError
 from .models import (
     Account,
     Asset,
@@ -53,10 +55,43 @@ def selected_source(db):
     return json.loads(user.preferences).get("rate_source", "manual") if user else "manual"
 
 
+@contextmanager
+def bulk_read(db):
+    """Reading many entries at once: fetch every cost record and attachment in two queries.
+
+    Without this each entry asks for its own, which is two queries an entry and seconds on a
+    ledger of several years. Only for reads; nothing may be posted inside the block.
+    """
+    if "bulk" in db.info:  # already inside one
+        yield
+        return
+    db.info["bulk"] = {
+        "costs": {cost.entry_id: cost for cost in db.scalars(select(ExpenseCost))},
+        "attachments": {item.entry_id: item for item in db.scalars(select(ConversionAttachment))},
+        # The session forgets a row nobody is holding. Holding every account and category here
+        # means each entry finds them already loaded.
+        "held": [*db.scalars(select(Account)), *db.scalars(select(Category))],
+    }
+    try:
+        yield
+    finally:
+        db.info.pop("bulk", None)
+
+
+def attachment_for(db, entry_id):
+    bulk = db.info.get("bulk")
+    return bulk["attachments"].get(entry_id) if bulk else db.get(ConversionAttachment, entry_id)
+
+
+def cost_for(db, entry_id):
+    bulk = db.info.get("bulk")
+    return bulk["costs"].get(entry_id) if bulk else db.get(ExpenseCost, entry_id)
+
+
 def entry_rate(db, entry):
     if entry.rate_snapshot is not None:
         return entry.rate_snapshot
-    attachment = db.get(ConversionAttachment, entry.id)
+    attachment = attachment_for(db, entry.id)
     return db.get(ExchangeRate, attachment.rate_id).usd_per_btc if attachment else None
 
 
@@ -119,12 +154,21 @@ def internal_account(db, role, currency):
 
 def balance(db, id, day=None):
     stmt = (
-        select(Posting.amount_minor).join(JournalEntry).where(Posting.account_id == id, JournalEntry.status == "posted")
+        select(func.sum(Posting.amount_minor))
+        .join(JournalEntry)
+        .where(Posting.account_id == id, JournalEntry.status == "posted")
     )
     if day:
         stmt = stmt.where(JournalEntry.date <= str(day))
-    # Python integers prevent SQLite SUM overflow, then enforce the balance bound.
-    return checked(sum(db.scalars(stmt)))
+    # Summed in the database, so years of entries cost one row, not one row each. SQLite refuses
+    # to return an integer sum past 64 bits rather than wrapping it; that is the balance bound.
+    try:
+        total = db.scalar(stmt)
+    except OperationalError as exc:
+        if "integer overflow" in str(exc):
+            raise ValueError("Amount exceeds signed 64-bit storage") from exc
+        raise
+    return checked(int(total or 0))
 
 
 def post(db, entry, legs):
@@ -373,9 +417,7 @@ def transaction_dict(db, entry, reporting=False):
         "conversion_at": reference["observed_at"],
         "rate_snapshot": entry_rate(db, entry),
         "original_rate_snapshot": entry.rate_snapshot,
-        "conversion_attachment_rate_id": attachment.rate_id
-        if (attachment := db.get(ConversionAttachment, entry.id))
-        else None,
+        "conversion_attachment_rate_id": attachment.rate_id if (attachment := attachment_for(db, entry.id)) else None,
         "rate_id": entry.rate_id,
         "valuation_basis": "native bitcoin" if acc.currency == "BITCOIN" else "historical purchasing power",
         "created_at": entry.created_at,

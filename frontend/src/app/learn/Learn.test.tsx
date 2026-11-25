@@ -24,7 +24,7 @@ import { SUPPLY, parseBtc, parseWhole, wholeText, wholeToBtc } from "./units";
 const go = vi.fn();
 const scrolled: string[] = [];
 const show = () => render(<Learn go={go} />);
-const loaded = () => screen.findByText(/^Since June, a month of your life costs/);
+const loaded = () => screen.findByText(/^Since June 2026, a month of your life costs/);
 
 beforeEach(() => {
   current = reading;

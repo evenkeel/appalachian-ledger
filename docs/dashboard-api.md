@@ -122,6 +122,34 @@ Nothing here creates a posting except the three write actions that say so.
 - `stack.rates` and `stack.history` cover only months since the first entry, so both are empty on a new ledger.
 - `price.usd_per_btc` has at least two decimals and is never rounded.
 
+## History over years
+
+The dashboard reading carries six months of the stack. The screens that show the long view read two more endpoints. Both only read.
+
+`GET /api/stack/history`
+
+```jsonc
+{
+  "today": "2026-11-23",
+  "status": "ready",                        // "needs_bitcoin" when no bitcoin account exists
+  // One row for every month from the first entry's month through this month, oldest first. Empty on a new ledger.
+  "months": [{
+    "month": "2021-11",
+    "held": "167985",                       // bitcoin held at the end of the month; the current month is through today
+    "buys": 2,                              // stacked transfers in the month
+    "bought": "167985",                     // bitcoin those buys brought in
+    "paid_usd": "100.00",                   // dollars they cost
+    "stack_rate": "4.6"                     // as defined above; null when the month's income is zero or cannot be valued
+  }]
+}
+```
+
+- The last six rows carry the same `held` and `stack_rate` as `stack.history` and `stack.rates` in `GET /api/dashboard`.
+- It is read in one pass over the ledger and a fixed number of queries, so it costs about the same for five years as for five months.
+- `held` follows what was posted, so selling lowers it; `buys`, `bought` and `paid_usd` count stacked transfers only and are not reduced by a sale.
+
+`GET /api/spending-history?start=YYYY-MM-DD&end=YYYY-MM-DD&interval=month|year` sums expenses by month or by calendar year, each expense valued in bitcoin at its purchase-date price (`periods[].usd`, `periods[].bitcoin`, and `missing_bitcoin`, the number of expenses in the period with no saved price). Pass `summary=true` to leave out the list of entries when only the sums are drawn; the sums are the same. `category_id` and `account_id` narrow it. The panels ask for every full month once and choose their own span from that.
+
 ## Writes
 
 | Endpoint | Does |

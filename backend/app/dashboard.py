@@ -33,7 +33,15 @@ from .models import (
     RecurringBill,
 )
 from .money import BASE, convert, original, rate_decimal, to_minor
-from .reports import EVERYDAY_KINDS, accounts_report, budget_overview, flow, month_days, month_sequence
+from .reports import (
+    EVERYDAY_KINDS,
+    accounts_report,
+    add_nullable,
+    budget_overview,
+    flow,
+    month_days,
+    month_sequence,
+)
 from .schemas import StrictModel, TransactionInput
 
 router = APIRouter(prefix="/api", dependencies=[Depends(authenticate)])
@@ -553,11 +561,11 @@ def bills_section(db, today, rate):
     }
 
 
-def buys_by_month(db, today):
+def buys_by_month(db, today, entries=None):
     """Dollars exchanged for bitcoin between the owner's own asset accounts, by month."""
     accounts = {acc.id: acc for acc in db.scalars(select(Account))}
     months = {}
-    for entry in ledger.active_transactions(db, None, today):
+    for entry in ledger.active_transactions(db, None, today) if entries is None else entries:
         if entry.kind != "transfer" or not entry.destination_id:
             continue
         source, destination = accounts[entry.account_id], accounts[entry.destination_id]
@@ -573,12 +581,16 @@ def buys_by_month(db, today):
     return months
 
 
-def stack_rate(db, month, today, buys):
-    first, last = month_days(month)
-    income = flow(db, first, min(last, today), "USD")["income"]
+def rate_of(income, buys, month):
+    """Stacked dollars as a share of a month's dollar income; None when the income is zero or unknown."""
     if income is None or Decimal(income) <= 0:
         return None
     return percent(Decimal(buys.get(month, {"usd": 0})["usd"]) / 100, income)
+
+
+def stack_rate(db, month, today, buys):
+    first, last = month_days(month)
+    return rate_of(flow(db, first, min(last, today), "USD")["income"], buys, month)
 
 
 def milestone(held):
@@ -600,11 +612,16 @@ def streak_months(buys, today):
     return count
 
 
-def stack(db, today, first_entry):
-    month = today.strftime("%Y-%m")
-    rows = [
+def bitcoin_accounts(db, today):
+    """The accounts whose balances are the bitcoin held, by the rule in `reports.ownership`."""
+    return [
         row for row in accounts_report(db, str(today), "BITCOIN", historical=True) if row["holding_type"] == "bitcoin"
     ]
+
+
+def stack(db, today, first_entry):
+    month = today.strftime("%Y-%m")
+    rows = bitcoin_accounts(db, today)
     ids = [row["id"] for row in rows]
     ready = any(not row["archived"] for row in rows)
 
@@ -633,6 +650,75 @@ def stack(db, today, first_entry):
         "milestone": milestone(held) if ready else None,
         "streak_months": streak_months(buys, today),
         "best_month": {"month": best, "bitcoin": str(buys[best]["bitcoin"])} if best else None,
+    }
+
+
+def income_by_month(db, entries):
+    """Dollar income by month, converted as `flow` does; None for a month with a missing conversion."""
+    months = {}
+    for entry in entries:
+        if entry.kind != "income":
+            continue
+        currency = db.get(Account, entry.account_id).currency
+        # Dollars need no rate, so only bitcoin income looks one up.
+        rate = None if currency == "USD" else ledger.reporting_rate(db, entry)["value"]
+        months.setdefault(entry.date[:7], []).append(convert(entry.amount_minor, currency, "USD", rate))
+    return {month: add_nullable(values) for month, values in months.items()}
+
+
+def posted_by_month(db, ids, today):
+    """Net bitcoin posted to the given accounts in each month: one grouped query, not a balance per month."""
+    if not ids:
+        return {}
+    month = func.substr(JournalEntry.date, 1, 7)
+    stmt = (
+        select(month, func.sum(Posting.amount_minor))
+        .join(JournalEntry)
+        .where(Posting.account_id.in_(ids), JournalEntry.status == "posted", JournalEntry.date <= str(today))
+        .group_by(month)
+    )
+    return {key: int(total or 0) for key, total in db.execute(stmt)}
+
+
+def stack_history(db, today=None):
+    """Every month since the first entry: bitcoin held at its end, what was bought and paid, and the stack rate.
+
+    The same figures as the dashboard's six-month `stack.history` and `stack.rates`, read in one
+    pass over the ledger so that years of history cost no more than one month does.
+    """
+    today = today or date.today()
+    with ledger.bulk_read(db):
+        first_entry = db.scalar(
+            select(func.min(JournalEntry.date)).where(JournalEntry.status == "posted", JournalEntry.date <= str(today))
+        )
+        rows = bitcoin_accounts(db, today)
+        months = []
+        if first_entry:
+            entries = ledger.active_transactions(db, None, today)
+            buys = buys_by_month(db, today, entries)
+            income = income_by_month(db, entries)
+            posted = posted_by_month(db, [row["id"] for row in rows], today)
+            start = int(first_entry[:4]) * 12 + int(first_entry[5:7]) - 1
+            # Anything posted before the first month shown cannot exist, so the running total starts at zero.
+            held = 0
+            for index in range(start, today.year * 12 + today.month):
+                key = month_key(index)
+                held += posted.get(key, 0)
+                bought = buys.get(key, {"count": 0, "usd": 0, "bitcoin": 0})
+                months.append(
+                    {
+                        "month": key,
+                        "held": str(held),
+                        "buys": bought["count"],
+                        "bought": str(bought["bitcoin"]),
+                        "paid_usd": original(bought["usd"], "USD"),
+                        "stack_rate": rate_of(income.get(key), buys, key),
+                    }
+                )
+    return {
+        "today": str(today),
+        "status": "ready" if any(not row["archived"] for row in rows) else "needs_bitcoin",
+        "months": months,
     }
 
 
@@ -750,7 +836,11 @@ def setup(db, has_account, has_bitcoin):
 
 
 def build(db, today=None):
-    today = today or date.today()
+    with ledger.bulk_read(db):
+        return read_all(db, today or date.today())
+
+
+def read_all(db, today):
     first_entry = db.scalar(
         select(func.min(JournalEntry.date)).where(JournalEntry.status == "posted", JournalEntry.date <= str(today))
     )
@@ -777,6 +867,11 @@ def build(db, today=None):
 @router.get("/dashboard")
 def read_dashboard(db=Depends(get_db, scope="function")):
     return build(db, date.today())
+
+
+@router.get("/stack/history")
+def read_stack_history(db=Depends(get_db, scope="function")):
+    return stack_history(db, date.today())
 
 
 # ---------- Paycheck schedules ----------

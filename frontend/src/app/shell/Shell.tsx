@@ -6,6 +6,7 @@ import { btc } from "../lib/format";
 import { Lockup, Tile } from "../design/Logo";
 import type { Route } from "../lib/router";
 import { useSession } from "../lib/session";
+import { DEMO } from "../../demo/mode";
 
 const NAV: { route: Route; label: string }[] = [
   { route: "dashboard", label: "Dashboard" },
@@ -28,18 +29,27 @@ export interface PriceReading {
   source: string;
   day: string;
   stale: boolean;
+  observed_at?: string | null;
+}
+
+/** "Nov 23, 6:10 PM": when a saved quote was taken, in the reader's own time. */
+export function quoteTime(observed: string) {
+  return new Date(observed).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
 export function Shell({
   route,
   go,
   price,
+  priceChosen,
   alerts,
   children,
 }: {
   route: Route;
   go: (route: Route) => void;
   price: PriceReading | null | undefined;
+  /** A price source is chosen; with no price showing, it has simply not answered yet. */
+  priceChosen?: boolean;
   alerts?: ReactNode;
   children: ReactNode;
 }) {
@@ -72,10 +82,12 @@ export function Shell({
           {NAV.map(link)}
           <div className="grow" />
           {link({ route: "settings", label: "Settings" })}
-          <button className="nav" onClick={() => void signOut()} title={`Lock (${username})`}>
-            {NavIcon.lock}
-            <span>Lock</span>
-          </button>
+          {!DEMO && (
+            <button className="nav" onClick={() => void signOut()} title={`Lock (${username})`}>
+              {NavIcon.lock}
+              <span>Lock</span>
+            </button>
+          )}
         </nav>
         <div className="main">
           <header className="glare">
@@ -83,7 +95,11 @@ export function Shell({
               <Tile size={32} />
             </div>
             <Lockup className="lockup" width={176} />
-            {demo && <span className="tag">Fictional demo</span>}
+            {demo && !DEMO && (
+              <span className="tag" title="The person and his money are made up. The bitcoin prices are real Coinbase daily closes.">
+                Fictional person · real bitcoin prices
+              </span>
+            )}
             <span className="grow" />
             {price ? (
               <div
@@ -93,14 +109,15 @@ export function Shell({
                 <span className="num q btc">{btc(price.bitcoin_per_usd)}</span>
                 <span className="per">per $1</span>
                 <span className="prov">
-                  {price.source} · {price.day}
+                  {/* The demo's price is one real quote from the day it was built, so it carries its time. */}
+                  {price.source} · {DEMO && price.observed_at ? quoteTime(price.observed_at) : price.day}
                   {price.stale ? " · stale" : ""}
                 </span>
               </div>
             ) : price === null ? (
               <button className="price" onClick={() => go("settings")}>
-                <span className="q dim">No price source</span>
-                <span className="prov">Choose one in settings</span>
+                <span className="q dim">{priceChosen ? "No current price" : "No price source"}</span>
+                <span className="prov">{priceChosen ? "Waiting for the price source" : "Choose one in settings"}</span>
               </button>
             ) : null}
             <div className="lens" role="group" aria-label="Price analysis in">
@@ -166,16 +183,18 @@ export function Shell({
               {theme === "night" ? NavIcon.sun : NavIcon.moon}
               <span>{theme === "night" ? "Day theme" : "Night theme"}</span>
             </button>
-            <button
-              className="nav"
-              onClick={() => {
-                setMore(false);
-                void signOut();
-              }}
-            >
-              {NavIcon.lock}
-              <span>Lock</span>
-            </button>
+            {!DEMO && (
+              <button
+                className="nav"
+                onClick={() => {
+                  setMore(false);
+                  void signOut();
+                }}
+              >
+                {NavIcon.lock}
+                <span>Lock</span>
+              </button>
+            )}
           </div>
         </Sheet>
       )}

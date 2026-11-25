@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { api } from "../../lib/api";
 import { LevelIcon } from "../design/icons";
-import { btc, cents, coordinate, fromCents, longMonth, monthName, plural, shortDate, usd, usdWhole } from "../lib/format";
+import { btc, cents, coordinate, fromCents, longMonth, monthName, monthYear, plural, shortDate, usd, usdWhole } from "../lib/format";
 import type { Route } from "../lib/router";
 import type { Lens } from "../lib/session";
 import { BillsLane, CashAheadChart, PaceChart, StackRateBars, StackSpark, StackTape, isCardPayment, shift } from "./charts";
@@ -415,7 +415,7 @@ export function StackPanel({ className, data, flag, go }: { className?: string; 
           {stack.streak_months > 0 && <span className="badge">{stack.streak_months}-month streak</span>}{" "}
           {stack.best_month && (
             <>
-              Best month <b className="num btc">{btc(stack.best_month.bitcoin)}</b> in {longMonth(stack.best_month.month)}
+              Best month <b className="num btc">{btc(stack.best_month.bitcoin)}</b> in {monthYear(stack.best_month.month)}
             </>
           )}
         </div>

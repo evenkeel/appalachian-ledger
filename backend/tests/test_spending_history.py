@@ -23,6 +23,10 @@ def test_history_sums_individual_rates_years_categories_and_hypothetical_value(o
     assert annual["periods"][0]["period"] == "2026"
     assert annual["totals"] == data["totals"]
     assert owner.get("/api/export/journal").json() == before
+    # A summary carries the same sums and leaves the entries out.
+    brief = history(owner, summary="true").json()
+    assert brief["transactions"] == [] and brief["transactions_truncated"] is False
+    assert brief["totals"] == data["totals"] and brief["periods"] == data["periods"]
     assert history(owner, category_id=999).json()["totals"]["count"] == 0
     assert history(owner, account_id=999).json()["totals"]["usd"] == "0"
 

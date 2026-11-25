@@ -336,13 +336,15 @@ def transactions(
 ):
     rows = ledger.active_transactions(db, start, end)
     reviewed = insights.reviewed_ids(db)
-    return [
-        ledger.transaction_dict(db, e, reporting=True) | {"review_reasons": insights.review_reasons(db, e, reviewed)}
-        for e in rows
-        if (not q or q.casefold() in (e.description + " " + e.notes).casefold())
-        and (not kind or e.kind == kind)
-        and (not account_id or account_id in (e.account_id, e.destination_id))
-    ]
+    with ledger.bulk_read(db):
+        return [
+            ledger.transaction_dict(db, e, reporting=True)
+            | {"review_reasons": insights.review_reasons(db, e, reviewed)}
+            for e in rows
+            if (not q or q.casefold() in (e.description + " " + e.notes).casefold())
+            and (not kind or e.kind == kind)
+            and (not account_id or account_id in (e.account_id, e.destination_id))
+        ]
 
 
 @app.post("/api/transactions")
@@ -834,11 +836,22 @@ def audit_events(user=Depends(authenticate), db=Depends(get_db, scope="function"
 
 
 @app.post("/api/demo")
-def demo(user=Depends(authenticate), db=Depends(get_db, scope="function")):
+def demo(
+    months: int | None = Query(None, ge=1, le=120),
+    user=Depends(authenticate),
+    db=Depends(get_db, scope="function"),
+):
     if os.getenv("DEMO_ENABLED", "false").lower() != "true":
         raise HTTPException(403, "Demo is disabled; set DEMO_ENABLED=true")
-    seed_demo(db, user)
-    return {"ok": True, "fictional": True}
+    life = seed_demo(db, user, months=months)
+    # The person is made up. The bitcoin prices are real Coinbase daily closes.
+    return {
+        "ok": True,
+        "fictional": True,
+        "prices": "Coinbase daily close",
+        "from": str(life.start),
+        "entries": len(life.events),
+    }
 
 
 @app.get("/api/node/status")

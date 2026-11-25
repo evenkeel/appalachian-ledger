@@ -5,9 +5,12 @@ import { StackTape } from "../dashboard/charts";
 import { CostOfLivingPanel, useSpendingData } from "../dashboard/history";
 import { Panel } from "../dashboard/panels";
 import type { DashboardData } from "../dashboard/types";
-import { btc, coordinate, fromCents, longMonth, plural, shortDate, usd } from "../lib/format";
+import { RangeControl, useRange } from "../design/timeline";
+import type { Range } from "../design/timeline";
+import { btc, coordinate, fromCents, longMonth, monthYear, plural, shortDate, usd } from "../lib/format";
 import type { Route } from "../lib/router";
 import { HeldChart, RateChart } from "./charts";
+import type { StackMonth } from "./charts";
 import { buysFrom, totals } from "./price";
 import type { Buy } from "./price";
 import "./stack.css";
@@ -32,6 +35,7 @@ export function Stack({ go }: { go: (route: Route, sub?: string) => void }) {
   const [accounts, setAccounts] = useState<Account[] | null>(null);
   const [transfers, setTransfers] = useState<Transaction[] | null>(null);
   const [status, setStatus] = useState<PriceStatus | null>(null);
+  const [long, setLong] = useState<StackMonth[] | null>(null);
   const [error, setError] = useState("");
   // Parts that failed on their own; the rest of the screen still shows.
   const [gaps, setGaps] = useState<Record<string, string>>({});
@@ -56,10 +60,18 @@ export function Stack({ go }: { go: (route: Route, sub?: string) => void }) {
     void part<Account[]>("Wallets", "/accounts", setAccounts);
     void part<Transaction[]>("Buys", "/transactions?kind=transfer", setTransfers);
     void part<PriceStatus>("Price status", "/prices/status", setStatus);
+    void part<{ months: StackMonth[] }>("Stack history", "/stack/history", (history) => setLong(history.months));
   }, []);
   useEffect(load, [load]);
   const spending = useSpendingData(data);
   const buys = useMemo(() => (transfers ? buysFrom(transfers) : null), [transfers]);
+  // Every month on record once it has loaded; until then, and if it cannot load, the six months the dashboard reading carries.
+  const months = useMemo<StackMonth[]>(
+    () => (long?.length ? long : (data?.stack.history ?? []).map((point, index) => ({ month: point.month, held: point.held, stack_rate: data!.stack.rates[index]?.rate ?? null }))),
+    [long, data],
+  );
+  // One span for both charts, so the months held and the stack rate are always read over the same years.
+  const range = useRange(months.length);
 
   if (!data)
     return (
@@ -121,8 +133,8 @@ export function Stack({ go }: { go: (route: Route, sub?: string) => void }) {
         </p>
       )}
       <div className="grid2">
-        <HeldPanel className="c5" data={data} />
-        <RatePanel className="c7" stack={data.stack} month={data.month} />
+        <HeldPanel className="c5" data={data} months={months} range={range} />
+        <RatePanel className="c7" stack={data.stack} month={data.month} months={months} range={range} />
         <WalletsPanel className="c5" wallets={wallets} failed={"Wallets" in gaps} held={data.stack.held} go={go} />
         <BuysPanel className="c7" buys={buys} failed={"Buys" in gaps} data={data} go={go} />
         <CostOfLivingPanel className="c7" data={data} periods={spending.periods} onWhy={() => go("learn", "cost-of-living")} />
@@ -132,12 +144,18 @@ export function Stack({ go }: { go: (route: Route, sub?: string) => void }) {
   );
 }
 
-function HeldPanel({ className, data }: { className: string; data: DashboardData }) {
+function HeldPanel({ className, data, months, range }: { className: string; data: DashboardData; months: StackMonth[]; range: Range }) {
+  const [at, setAt] = useState<number | null>(null);
   const stack = data.stack;
   const up = !stack.gained.startsWith("-");
   const span = coordinate(stack.milestone.next) - coordinate(stack.milestone.previous);
   const progress = span > 0 ? ((coordinate(stack.held) - coordinate(stack.milestone.previous)) / span) * 100 : 0;
   const toGo = (BigInt(stack.milestone.next) - BigInt(stack.held)).toString();
+  const shown = months.slice(range.start, range.end);
+  const read = shown[at === null ? shown.length - 1 : Math.min(at, shown.length - 1)];
+  // Over the months shown: what the stack grew by, from the month before the first one where there is one.
+  const from = range.start > 0 ? months[range.start - 1] : shown[0];
+  const grew = shown.length ? BigInt(shown[shown.length - 1].held) - BigInt(from.held) : 0n;
   return (
     <Panel className={className} name="Held" plain="all your bitcoin">
       <div className="split">
@@ -159,7 +177,7 @@ function HeldPanel({ className, data }: { className: string; data: DashboardData
             )}
             {stack.best_month && (
               <>
-                Best month <b className="num btc">{btc(stack.best_month.bitcoin)}</b> in {longMonth(stack.best_month.month)}
+                Best month <b className="num btc">{btc(stack.best_month.bitcoin)}</b> in {monthYear(stack.best_month.month)}
               </>
             )}
           </div>
@@ -176,8 +194,34 @@ function HeldPanel({ className, data }: { className: string; data: DashboardData
           <i style={{ width: `${Math.max(0, Math.min(100, progress)).toFixed(1)}%`, background: "var(--btc)" }} />
         </div>
       </div>
-      {stack.history.length >= 2 ? (
-        <HeldChart history={stack.history} />
+      {shown.length >= 2 ? (
+        <>
+          <RangeControl label="Bitcoin held" range={range} months={months.map((point) => point.month)} />
+          <HeldChart months={shown} latest={data.month} at={at} onAt={setAt} />
+          <div className="tl-read" aria-hidden="true">
+            <span>
+              {monthYear(read.month)}
+              {read.month === data.month ? " so far" : ""}
+            </span>
+            <span>
+              held <b className="btc">{btc(read.held)}</b>
+            </span>
+            {read.bought !== undefined && (
+              <span>
+                {read.buys ? (
+                  <>
+                    bought <b className="btc">{btc(read.bought)}</b> for <b>{usd(read.paid_usd)}</b>
+                  </>
+                ) : (
+                  "no buys"
+                )}
+              </span>
+            )}
+          </div>
+          <div className="hint">
+            {grew >= 0n ? "Up" : "Down"} {btc((grew < 0n ? -grew : grew).toString())} over the months shown. Each point is what you held at the end of that month.
+          </div>
+        </>
       ) : (
         <div className="hint">The month-by-month line starts once a second month is on record.</div>
       )}
@@ -185,13 +229,18 @@ function HeldPanel({ className, data }: { className: string; data: DashboardData
   );
 }
 
-function RatePanel({ className, stack, month }: { className: string; stack: Stack; month: string }) {
-  const known = stack.rates.filter((point) => point.rate !== null);
-  const earlier = known.filter((point) => point.month !== month);
+function RatePanel({ className, stack, month, months, range }: { className: string; stack: Stack; month: string; months: StackMonth[]; range: Range }) {
+  const [at, setAt] = useState<number | null>(null);
+  const rated = (points: StackMonth[]) => points.filter((point) => point.stack_rate !== null);
+  const earlier = rated(months).filter((point) => point.month !== month);
   const now = stack.stack_rate;
   const last = earlier.length ? earlier[earlier.length - 1] : null;
-  const best = earlier.length ? Math.max(...earlier.map((point) => Number(point.rate))) : null;
-  const average = known.length ? known.reduce((sum, point) => sum + Number(point.rate), 0) / known.length : null;
+  // The first month to reach the highest rate, so a tie does not move the record to a later month.
+  const best = earlier.reduce<StackMonth | null>((top, point) => (top === null || Number(point.stack_rate) > Number(top.stack_rate) ? point : top), null);
+  const shown = months.slice(range.start, range.end);
+  const known = rated(shown);
+  const average = known.length ? known.reduce((sum, point) => sum + Number(point.stack_rate), 0) / known.length : null;
+  const read = shown[at === null ? shown.length - 1 : Math.min(at, shown.length - 1)];
   return (
     <Panel className={className} name="Stack rate" plain="your score · share of income stacked · higher is better">
       <div className="stk-rate">
@@ -204,7 +253,7 @@ function RatePanel({ className, stack, month }: { className: string; stack: Stac
             <div>
               <span>vs {longMonth(last.month)}</span>
               <b>
-                {Number(now) >= Number(last.rate) ? "▲" : "▼"} {Math.abs(Number(now) - Number(last.rate)).toFixed(1)} pts
+                {Number(now) >= Number(last.stack_rate) ? "▲" : "▼"} {Math.abs(Number(now) - Number(last.stack_rate)).toFixed(1)} pts
               </b>
             </div>
           )}
@@ -217,18 +266,34 @@ function RatePanel({ className, stack, month }: { className: string; stack: Stac
           {best !== null && (
             <div>
               <span>Best earlier month</span>
-              <b>{best.toFixed(1)}%</b>
+              <b>{Number(best.stack_rate).toFixed(1)}%</b>
+              <small>{monthYear(best.month)}</small>
             </div>
           )}
         </dl>
       </div>
       {known.length ? (
-        <RateChart rates={stack.rates} />
+        <>
+          <RangeControl label="Stack rate" range={range} months={months.map((point) => point.month)} />
+          <RateChart months={shown} latest={month} at={at} onAt={setAt} />
+          <div className="tl-read" aria-hidden="true">
+            <span>
+              {monthYear(read.month)}
+              {read.month === month ? " so far" : ""}
+            </span>
+            <span>{read.stack_rate === null ? "no income recorded, so no rate" : <><b className="btc">{read.stack_rate}%</b> of income stacked</>}</span>
+            {read.bought !== undefined && read.buys ? (
+              <span>
+                bought <b className="btc">{btc(read.bought)}</b> for <b>{usd(read.paid_usd)}</b>
+              </span>
+            ) : null}
+          </div>
+        </>
       ) : (
         <div className="hint">The chart starts with the first month that has income. Record a paycheck and a bitcoin buy and the first bar appears.</div>
       )}
       <div className="sub">
-        {best !== null && now !== null && Number(now) > best ? (
+        {best !== null && now !== null && Number(now) > Number(best.stack_rate) ? (
           <>
             <span className="btc" style={{ fontWeight: 700 }}>
               Best yet.

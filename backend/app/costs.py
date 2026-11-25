@@ -8,9 +8,14 @@ from .money import convert
 
 
 def capture(db, day=None, entry_id=None):
-    saved = set(db.scalars(select(ExpenseCost.entry_id)))
     count = 0
-    entries = [db.get(JournalEntry, entry_id)] if entry_id is not None else ledger.active_transactions(db)
+    if entry_id is not None:
+        # One entry: look only at its own record, however long the history is.
+        entries = [db.get(JournalEntry, entry_id)]
+        saved = {entry_id} if db.get(ExpenseCost, entry_id) else set()
+    else:
+        entries = ledger.active_transactions(db)
+        saved = set(db.scalars(select(ExpenseCost.entry_id)))
     for entry in entries:
         if entry.kind != "expense" or entry.id in saved or (day and entry.date != str(day)):
             continue
@@ -137,7 +142,7 @@ def history(db, bill_id=None, category_id=None, search=""):
 
 
 def snapshot_dict(db, entry_id):
-    cost = db.get(ExpenseCost, entry_id)
+    cost = ledger.cost_for(db, entry_id)
     if cost is None:
         return None
     return {name: getattr(cost, name) for name in ("usd", "bitcoin", "usd_per_btc", "source", "method", "observed_at")}

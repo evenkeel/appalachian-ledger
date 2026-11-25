@@ -1,11 +1,14 @@
 /* Panels that need history: Cost of living, Spending bridge and Money flow.
    All sums stay in integers or decimal strings; numbers are for coordinates only. */
 import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { api } from "../../lib/api";
 import { analyzeSpending } from "../../lib/spendingAnalysis";
 import type { SpendingAnalysis } from "../../lib/spendingAnalysis";
 import type { Category, Report, Transaction } from "../../lib/types";
-import { btc, cents, fromCents, longMonth, monthName, plural, usd } from "../lib/format";
+import { Scrub, axisLabels, monthsBetween, RangeControl, useRange } from "../design/timeline";
+import type { Span } from "../design/timeline";
+import { btc, cents, fromCents, longMonth, monthName, monthYear, plural, shortMonthYear, usd } from "../lib/format";
 import type { Lens } from "../lib/session";
 import { measureText, useFontsReady } from "../lib/measureText";
 import { useSize } from "../lib/useSize";
@@ -31,7 +34,7 @@ export interface SpendingData {
   reload: () => void;
 }
 
-const lastDay = (month: string) => {
+export const lastDay = (month: string) => {
   const [year, number] = month.split("-").map(Number);
   return `${month}-${String(new Date(year, number, 0).getDate()).padStart(2, "0")}`;
 };
@@ -52,8 +55,6 @@ export function useSpendingData(data: DashboardData | null): SpendingData {
     const previous = shift(month, -1);
     // The first full month is the one the ledger started in only if it started on the 1st.
     const start = first && (first.endsWith("-01") ? first.slice(0, 7) : shift(first.slice(0, 7), 1));
-    const earliest = shift(month, -12);
-    const from = start && start > earliest ? start : earliest;
     (async () => {
       try {
         const [rows, cats, monthReport] = await Promise.all([
@@ -65,8 +66,9 @@ export function useSpendingData(data: DashboardData | null): SpendingData {
         setTransactions(rows);
         setCategories(cats);
         setReport(monthReport);
-        if (start && from <= previous) {
-          const history = await api<{ periods: Period[] }>(`/spending-history?start=${from}-01&end=${lastDay(previous)}&interval=month`);
+        if (start && start <= previous) {
+          // Every full month on record, as sums only: the panel chooses its own span from these.
+          const history = await api<{ periods: Period[] }>(`/spending-history?start=${start}-01&end=${lastDay(previous)}&interval=month&summary=true`);
           if (alive) setPeriods(history.periods);
         } else setPeriods([]);
         setError("");
@@ -83,114 +85,243 @@ export function useSpendingData(data: DashboardData | null): SpendingData {
 
 const signed = (percent: number) => `${percent >= 0 ? "+" : "−"}${Math.abs(percent).toFixed(1)}%`;
 
-/** The same monthly cost of living, indexed to the first full month, in both units. */
-export function CostOfLivingPanel({ className, data, periods, onWhy }: { className?: string; data: DashboardData; periods: Period[]; onWhy: () => void }) {
-  const usable = periods.filter((p) => p.usd !== null && cents(p.usd) > 0n);
-  const base = usable.find((p) => p.bitcoin !== null && p.missing_bitcoin === 0);
-  const priced = usable.filter((p) => p.bitcoin !== null && p.missing_bitcoin === 0);
-  if (usable.length < 2 || !base || priced.length < 2)
+/** Gridlines for an index drawn on a proportional scale, as index values (100 is the start). The steps
+    widen with the range, so a calm year gets tens of percent and a full cycle gets doublings and halvings. */
+export function indexTicks(lo: number, hi: number, y: (value: number) => number, gap = 24) {
+  const ratio = hi / lo;
+  const changes =
+    ratio >= 4
+      ? [-93.75, -87.5, -75, -50, 100, 300, 700, 1500, 3100]
+      : ratio >= 2
+        ? [-75, -50, -25, 50, 100, 200, 300, 500]
+        : ratio >= 1.4
+          ? [-40, -20, 25, 50, 75, 100]
+          : ratio >= 1.15
+            ? [-30, -20, -10, 10, 20, 30, 40, 50]
+            : [-10, -5, 5, 10, 15];
+  const kept = [100];
+  // Nearest the start first, so a crowded chart keeps the lines that are easiest to read against.
+  for (const value of changes.map((change) => 100 + change).sort((a, b) => Math.abs(Math.log(a / 100)) - Math.abs(Math.log(b / 100))))
+    if (value >= lo && value <= hi && kept.every((other) => Math.abs(y(other) - y(value)) >= gap)) kept.push(value);
+  return kept.sort((a, b) => a - b);
+}
+const tickText = (value: number) => (value === 100 ? "0%" : `${value > 100 ? "+" : "−"}${Number(Math.abs(value - 100).toFixed(2))}%`);
+
+/** The same monthly cost of living, indexed to the first full month of the span shown, in both units. */
+export function CostOfLivingPanel({
+  className,
+  data,
+  periods,
+  onWhy,
+  span,
+}: {
+  className?: string;
+  data: DashboardData;
+  periods: Period[];
+  onWhy: () => void;
+  /** The span to open on, where the history can fill it. Without one: everything, up to five years. */
+  span?: Span;
+}) {
+  // One entry per calendar month, so that a year is the same width wherever it falls. A month with no row spent nothing.
+  const calendar = useMemo(() => {
+    if (!periods.length) return [];
+    const known = new Map(periods.map((period) => [period.period, period]));
+    return monthsBetween(periods[0].period, periods[periods.length - 1].period).map((month) => known.get(month) ?? { period: month, usd: "0.00", bitcoin: "0", missing_bitcoin: 0 });
+  }, [periods]);
+  const range = useRange(calendar.length, span);
+  const [at, setAt] = useState<number | null>(null);
+  const name = "Cost of living",
+    plain = "the same life, priced two ways";
+  const spent = (p: Period) => p.usd !== null && cents(p.usd) > 0n;
+  const priced = (p: Period) => spent(p) && p.bitcoin !== null && p.missing_bitcoin === 0;
+  if (calendar.filter(spent).length < 2 || calendar.filter(priced).length < 2)
     return (
       <Collecting
         className={className}
-        name="Cost of living"
-        plain="the same life, priced two ways"
+        name={name}
+        plain={plain}
         have={data.days_of_history}
         need={60}
         note={
-          usable.length >= 2
+          calendar.filter(spent).length >= 2
             ? "Two full months are recorded, but their expenses have no saved bitcoin prices yet. Choose a price source to price them."
             : "Needs two full months and a price source."
         }
       />
     );
-  const months = usable.slice(usable.indexOf(base));
-  const last = months[months.length - 1];
-  const lastPriced = priced[priced.length - 1];
-  const dollars = (Number(last.usd) / Number(base.usd) - 1) * 100;
-  const bitcoin = (Number(lastPriced.bitcoin) / Number(base.bitcoin) - 1) * 100;
-  const partial = months.filter((p) => p.bitcoin === null || p.missing_bitcoin > 0).length;
+  const control = <RangeControl label={name} range={range} months={calendar.map((p) => p.period)} />;
+  const shown = calendar.slice(range.start, range.end);
+  // The span starts at its first month that is priced in both units; every month after it is compared with that one.
+  const base = shown.find(priced);
+  const months = base ? shown.slice(shown.indexOf(base)) : [];
+  const last = [...months].reverse().find(spent),
+    lastPriced = [...months].reverse().find(priced);
+  if (!base || !last || !lastPriced || last === base || lastPriced === base)
+    return (
+      <Panel className={className} name={name} plain={plain} link={{ label: "Why", onClick: onWhy }}>
+        {control}
+        <div className="sub">These months do not have two with spending and saved bitcoin prices, so there is nothing to compare. Choose a longer span.</div>
+      </Panel>
+    );
+  const n = months.length;
+  const indexUsd = months.map((p) => (spent(p) ? (Number(p.usd) / Number(base.usd)) * 100 : null));
+  const indexBtc = months.map((p) => (priced(p) ? (Number(p.bitcoin) / Number(base.bitcoin)) * 100 : null));
+  const dollars = indexUsd[months.indexOf(last)]! - 100;
+  const bitcoin = indexBtc[months.indexOf(lastPriced)]! - 100;
+  const partial = months.filter((p) => spent(p) && !priced(p)).length;
+  const active = at === null ? null : months[Math.min(at, n - 1)];
+  const since = shortMonthYear(base.period);
+  const change = (values: (number | null)[], month: Period) => {
+    const value = values[months.indexOf(month)];
+    return value === null ? null : `${signed(value - 100)} since ${since}`;
+  };
+  const reading = (index: number) => {
+    const p = months[index];
+    return `${monthYear(p.period)}: ${spent(p) ? `${usd(p.usd)} in dollars` : "nothing spent"}${spent(p) ? `, ${priced(p) ? `${btc(p.bitcoin)} in bitcoin` : "no saved bitcoin price"}` : ""}`;
+  };
+  const inDollars = active ?? last,
+    inBitcoin = active ?? lastPriced;
+  const all = [...indexUsd, ...indexBtc].filter((v): v is number => v !== null);
+  const low = Math.min(...all),
+    high = Math.max(...all);
+  const pad = { l: 42, r: 60, t: 14, b: 20 };
   return (
-    <Panel className={className} name="Cost of living" plain="the same life, priced two ways" link={{ label: "Why", onClick: onWhy }}>
+    <Panel className={className} name={name} plain={plain} link={{ label: "Why", onClick: onWhy }}>
       <div className="lead">
-        Since {longMonth(base.period)}, a month of your life costs <b className="num">{signed(dollars)}</b> in dollars and{" "}
-        <b className="num btc">{signed(bitcoin)}</b> in bitcoin.
+        {range.later ? (
+          <>
+            From {monthYear(base.period)} to {monthYear(last.period)}, the cost of a month of your life changed
+          </>
+        ) : (
+          <>Since {monthYear(base.period)}, a month of your life costs</>
+        )}{" "}
+        <b className="num">{signed(dollars)}</b> in dollars and <b className="num btc">{signed(bitcoin)}</b> in bitcoin.
       </div>
-      <Frame
-        style={{ flex: 1, minHeight: 132 }}
-        label={`Monthly cost of living indexed to ${longMonth(base.period)}: dollars ${signed(dollars)}, bitcoin ${signed(bitcoin)}.`}
+      {control}
+      <Scrub
+        label={`Cost of living by month, ${monthYear(base.period)} to ${monthYear(last.period)}. Arrow keys read each month.`}
+        count={n}
+        at={at === null ? null : Math.min(at, n - 1)}
+        onAt={setAt}
+        text={reading}
+        left={pad.l}
+        right={pad.r}
+        style={{ flex: 1, minHeight: 190 }}
       >
-        {(W, H) => {
-          const pad = { l: 6, r: 96, t: 12, b: 18 },
-            n = months.length;
-          const indexUsd = months.map((p) => (Number(p.usd) / Number(base.usd)) * 100);
-          const indexBtc = months.map((p) => (p.bitcoin !== null && p.missing_bitcoin === 0 ? (Number(p.bitcoin) / Number(base.bitcoin)) * 100 : null));
-          const all = [...indexUsd, ...indexBtc.filter((v): v is number => v !== null), 100];
-          const lo = Math.min(...all) - 4,
-            hi = Math.max(...all) + 4;
-          const x = (i: number) => pad.l + (i / (n - 1)) * (W - pad.l - pad.r);
-          const y = (v: number) => pad.t + (1 - (v - lo) / (hi - lo)) * (H - pad.t - pad.b);
-          const line = (values: (number | null)[]) => {
-            let pen = false;
-            return values
-              .map((v, i) => {
-                if (v === null) {
-                  pen = false;
-                  return "";
-                }
-                const segment = `${pen ? "L" : "M"}${x(i)},${y(v)}`;
-                pen = true;
-                return segment;
-              })
-              .join("");
-          };
-          const endBtc = indexBtc.map((v, i) => [v, i] as const).filter(([v]) => v !== null).pop()!;
-          return (
-            <>
-              <line x1={pad.l} x2={W - pad.r} y1={y(100)} y2={y(100)} stroke="var(--bezel)" strokeDasharray="3 4" />
-              <text x={pad.l} y={y(100) - 4}>
-                {longMonth(base.period)} = 100
-              </text>
-              <path d={line(indexUsd)} fill="none" stroke="var(--usd)" strokeWidth="2" />
-              <path d={line(indexBtc)} fill="none" stroke="var(--btc)" strokeWidth="2.4" />
-              {months.map((p, i) => (
-                <g key={p.period}>
-                  <circle cx={x(i)} cy={y(indexUsd[i])} r="3" fill="var(--usd)">
-                    <title>{`${longMonth(p.period)} in dollars: ${usd(p.usd)}`}</title>
-                  </circle>
-                  {indexBtc[i] !== null && (
-                    <circle cx={x(i)} cy={y(indexBtc[i]!)} r="3" fill="var(--btc)">
-                      <title>{`${longMonth(p.period)} in bitcoin: ${btc(p.bitcoin)}`}</title>
-                    </circle>
-                  )}
-                  {(n <= 7 || i === 0 || i === n - 1) && (
-                    <text x={x(i)} y={H - 4} textAnchor={i === 0 ? "start" : i === n - 1 ? "end" : "middle"}>
-                      {monthName(p.period)}
+        <Frame
+          style={{ flex: 1, minHeight: 190 }}
+          label={`Monthly cost of living from ${monthYear(base.period)} to ${monthYear(last.period)}, compared with ${monthYear(base.period)}: dollars ${signed(dollars)}, bitcoin ${signed(bitcoin)}.`}
+        >
+          {(W, H) => {
+            // A proportional scale: doubling and halving are the same distance from the start, so a fall reads as large as a rise.
+            const room = Math.max(1.05, (high / low) ** 0.07);
+            const bottom = Math.log(low / room),
+              top = Math.log(high * room);
+            const x = (i: number) => pad.l + (n > 1 ? i / (n - 1) : 0) * (W - pad.l - pad.r);
+            const y = (v: number) => pad.t + (1 - (Math.log(v) - bottom) / (top - bottom)) * (H - pad.t - pad.b);
+            const line = (values: (number | null)[]) => {
+              let pen = false;
+              return values
+                .map((v, i) => {
+                  if (v === null) {
+                    pen = false;
+                    return "";
+                  }
+                  const segment = `${pen ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`;
+                  pen = true;
+                  return segment;
+                })
+                .join("");
+            };
+            // With a dot on every month a long span turns to beads; then only a month with no neighbour needs one to be seen.
+            const dots = (values: (number | null)[]) => values.map((v, i) => v !== null && (n <= 13 || ((values[i - 1] ?? null) === null && (values[i + 1] ?? null) === null)));
+            const usdDots = dots(indexUsd),
+              btcDots = dots(indexBtc);
+            const labels = axisLabels(
+              months.map((p) => p.period),
+              x,
+              { right: W - 4 },
+            );
+            const ends = [
+              { key: "usd", name: "Dollars", text: signed(dollars), index: months.indexOf(last), value: dollars + 100, fill: "var(--usd)", weight: 400 },
+              { key: "btc", name: "Bitcoin", text: signed(bitcoin), index: months.indexOf(lastPriced), value: bitcoin + 100, fill: "var(--btc)", weight: 700 },
+            ].map((end) => ({ ...end, at: y(end.value) }));
+            // Two-line labels need 28px each; when the lines end close together the labels part evenly around them.
+            const [upper, lower] = [...ends].sort((a, b) => a.at - b.at);
+            const short = 28 - (lower.at - upper.at);
+            if (short > 0) {
+              upper.at -= short / 2;
+              lower.at += short / 2;
+            }
+            const floor = H - pad.b - 12;
+            if (lower.at > floor) {
+              upper.at -= lower.at - floor;
+              lower.at = floor;
+            }
+            if (upper.at < pad.t) {
+              lower.at += pad.t - upper.at;
+              upper.at = pad.t;
+            }
+            const mark = at === null ? null : Math.min(at, n - 1);
+            return (
+              <>
+                {indexTicks(low, high, y).map((value) => (
+                  <g key={value}>
+                    <line x1={pad.l} x2={W - pad.r} y1={y(value)} y2={y(value)} stroke={value === 100 ? "var(--bezel)" : "var(--hairline)"} strokeDasharray={value === 100 ? "3 4" : undefined} />
+                    <text x={pad.l - 6} y={y(value) + 3.5} textAnchor="end" className={value === 100 ? "lbl" : undefined}>
+                      {tickText(value)}
                     </text>
-                  )}
-                </g>
-              ))}
-              <text x={W - pad.r + 8} y={y(indexUsd[n - 1]) + 4} style={{ fill: "var(--usd)", fontSize: 11 }}>
-                Dollars {signed(dollars)}
-              </text>
-              <text x={x(endBtc[1]) + 8} y={y(endBtc[0]!) + 4} style={{ fill: "var(--btc)", fontSize: 11, fontWeight: 700 }}>
-                Bitcoin {signed(bitcoin)}
-              </text>
-            </>
-          );
-        }}
-      </Frame>
+                  </g>
+                ))}
+                {months.map((p, i) => p.period.endsWith("-01") && i > 0 && <line key={p.period} x1={x(i)} x2={x(i)} y1={pad.t - 6} y2={H - pad.b + 12} stroke="var(--hairline)" />)}
+                {labels.map((label) => (
+                  <text key={label.index} x={label.x} y={H - 4} textAnchor={label.anchor} className={label.year ? "lbl" : undefined}>
+                    {label.text}
+                  </text>
+                ))}
+                <path d={line(indexUsd)} fill="none" stroke="var(--usd)" strokeWidth="2" strokeLinejoin="round" />
+                <path d={line(indexBtc)} fill="none" stroke="var(--btc)" strokeWidth="2.4" strokeLinejoin="round" />
+                {months.map((p, i) => (
+                  <g key={p.period}>
+                    {usdDots[i] && <circle cx={x(i)} cy={y(indexUsd[i]!)} r="3" fill="var(--usd)" />}
+                    {btcDots[i] && <circle cx={x(i)} cy={y(indexBtc[i]!)} r="3" fill="var(--btc)" />}
+                  </g>
+                ))}
+                {ends.map((end) => (
+                  <text key={end.key} x={x(end.index) + 8} y={end.at} style={{ fill: end.fill, fontSize: 11, fontWeight: end.weight }}>
+                    <tspan x={x(end.index) + 8}>{end.name}</tspan>
+                    <tspan x={x(end.index) + 8} dy="12">
+                      {end.text}
+                    </tspan>
+                  </text>
+                ))}
+                {mark !== null && (
+                  <g>
+                    <line x1={x(mark)} x2={x(mark)} y1={pad.t - 6} y2={H - pad.b} stroke="var(--ink-2)" />
+                    {indexUsd[mark] !== null && <circle cx={x(mark)} cy={y(indexUsd[mark]!)} r="4" fill="var(--usd)" stroke="var(--panel)" strokeWidth="1.5" />}
+                    {indexBtc[mark] !== null && <circle cx={x(mark)} cy={y(indexBtc[mark]!)} r="4" fill="var(--btc)" stroke="var(--panel)" strokeWidth="1.5" />}
+                  </g>
+                )}
+              </>
+            );
+          }}
+        </Frame>
+      </Scrub>
       <div className="kv">
         <div>
-          <span>{longMonth(last.period)} in dollars</span>
-          <b>{usd(last.usd)}</b>
+          <span>{monthYear(inDollars.period)} in dollars</span>
+          <b>{spent(inDollars) ? usd(inDollars.usd) : "Nothing spent"}</b>
+          <small>{change(indexUsd, inDollars) ?? "—"}</small>
         </div>
         <div>
-          <span>{longMonth(lastPriced.period)} in bitcoin</span>
-          <b className="btc">{btc(lastPriced.bitcoin)}</b>
+          <span>{monthYear(inBitcoin.period)} in bitcoin</span>
+          <b className="btc">{priced(inBitcoin) ? btc(inBitcoin.bitcoin) : spent(inBitcoin) ? <span className="tag miss">no price saved</span> : "—"}</b>
+          <small>{change(indexBtc, inBitcoin) ?? (spent(inBitcoin) ? "left out of the bitcoin line" : "—")}</small>
         </div>
       </div>
       <div className="hint">
         Full months only. Each expense is priced in bitcoin on the day it was paid. It can go the other way; this shows what happened.
+        {high / low >= 2 && " The scale is proportional: +100% and −50% sit the same distance from the start."}
         {partial > 0 && ` ${plural(partial, "month")} left out of the bitcoin line: some expenses have no saved price.`}
       </div>
     </Panel>
@@ -349,6 +480,9 @@ export function MoneyFlowPanel({
   lens,
   onDrill,
   onExplore,
+  month = data.month,
+  control,
+  loading,
 }: {
   className?: string;
   data: DashboardData;
@@ -357,19 +491,40 @@ export function MoneyFlowPanel({
   lens: Lens;
   onDrill: (categoryKey: string) => void;
   onExplore?: () => void;
+  /** The month `report` is for, where the screen lets it be chosen. Then it is always named with its year. */
+  month?: string;
+  /** The control that chooses the month, shown under the heading in every state. */
+  control?: ReactNode;
+  loading?: boolean;
 }) {
+  const current = month === data.month;
+  const named = control ? monthYear(month) : longMonth(month);
   const name = "Money flow",
-    plain = `${longMonth(data.month)}'s income and where it went · month so far`;
+    plain = `${named}'s income and where it went${current ? " · month so far" : ""}`;
   const flow = report?.dual?.[lens];
   const money = lens === "USD" ? usd : btc;
   const positive = (rows: { name: string; value: string | null }[] = []) => rows.filter((row): row is { name: string; value: string } => row.value !== null && Number(row.value) > 0);
   const sources = positive(flow?.income_categories),
     spending = positive(flow?.categories).sort((a, b) => Number(b.value) - Number(a.value));
   const left = (flow?.income_categories?.length ?? 0) + (flow?.categories.length ?? 0) - sources.length - spending.length;
+  if (loading)
+    return (
+      <Panel className={className} name={name} plain={plain}>
+        {control}
+        <div className="meter" aria-busy="true">
+          <i style={{ width: "100%", opacity: 0.25 }} />
+        </div>
+      </Panel>
+    );
   if (!flow || !sources.length)
     return (
-      <Panel className={className} name={name} plain={plain} inop>
-        <div className="sub">Record this month's income and one expense, and this shows where the income went: bitcoin stacked first, then spending, then what is still in checking.</div>
+      <Panel className={className} name={name} plain={plain} inop={current}>
+        {control}
+        <div className="sub">
+          {current
+            ? "Record this month's income and one expense, and this shows where the income went: bitcoin stacked first, then spending, then what is still in checking."
+            : `No income was recorded in ${named}, so there is no flow to draw.`}
+        </div>
       </Panel>
     );
   const stacked = report!.stacked;
@@ -387,19 +542,22 @@ export function MoneyFlowPanel({
   const out = dests.reduce((sum, d) => sum + units(d.value), 0n);
   const rest = income - out;
   const restText = lens === "USD" ? fromCents(rest < 0n ? -rest : rest) : (rest < 0n ? -rest : rest).toString();
-  if (rest > 0n) dests.push({ key: "rest", name: "Still in checking", value: restText, kind: "rest" });
+  // A month that is over cannot say where its dollars are today, only that they were not spent or stacked then.
+  if (rest > 0n) dests.push({ key: "rest", name: current ? "Still in checking" : "Stayed in checking", value: restText, kind: "rest" });
   // Largest income first; money drawn from cash on hand goes last.
   const origins = [...sources].sort((a, b) => Number(b.value) - Number(a.value));
   if (rest < 0n) origins.push({ name: "From cash on hand", value: restText });
   return (
     <Panel className={className} name={name} plain={plain} link={onExplore && { label: "Explore", onClick: onExplore }}>
+      {control}
       <FlowChart
-        label={`Where ${longMonth(data.month)}'s income went: ${dests.map((d) => `${d.name} ${d.label ?? money(d.value)}`).join(", ")}.`}
+        label={`Where ${named}'s income went: ${dests.map((d) => `${d.name} ${d.label ?? money(d.value)}`).join(", ")}.`}
         origins={origins}
         dests={dests}
         money={money}
         size={(value) => Number(units(value))}
         onDrill={onDrill}
+        restNote={current ? "Not assigned yet: dollars waiting, not savings." : "Dollars that were not spent or stacked that month: waiting, not savings."}
       />
       {(left > 0 || (lens === "BITCOIN" && Number(stacked?.other_usd ?? "0") > 0)) && (
         <div className="hint">
@@ -445,6 +603,7 @@ function FlowChart({
   money,
   size,
   onDrill,
+  restNote,
 }: {
   label: string;
   origins: { name: string; value: string }[];
@@ -452,6 +611,7 @@ function FlowChart({
   money: (value: string) => string;
   size: (value: string) => number;
   onDrill: (categoryKey: string) => void;
+  restNote: string;
 }) {
   const [ref, measured] = useSize<HTMLDivElement>();
   useFontsReady();
@@ -506,7 +666,7 @@ function FlowChart({
                   }
                 }}
               >
-                <title>{`${d.name} ${d.label ?? money(d.value)}${d.kind === "rest" ? ". Not assigned yet: dollars waiting, not savings." : ""}`}</title>
+                <title>{`${d.name} ${d.label ?? money(d.value)}${d.kind === "rest" ? `. ${restNote}` : ""}`}</title>
                 <path d={ribbon(layout.hubX + layout.node, at.hubY, at.hubY + at.height, layout.destX, at.y, at.y + at.height)} fill={fill} opacity={opacity} />
                 <rect x={layout.destX} y={at.y} width={layout.node} height={at.height} rx="2" fill={fill} />
                 <FlowLabel placed={at} fill={(kind) => (d.kind === "stack" ? "var(--btc)" : kind === "name" && d.kind !== "rest" ? "var(--ink-2)" : "var(--ink-3)")} />

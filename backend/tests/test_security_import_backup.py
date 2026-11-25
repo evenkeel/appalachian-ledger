@@ -101,16 +101,25 @@ def test_export_neutralizes_spreadsheet_formulas(owner):
     assert any(row["kind"] == "opening" for row in journal)
 
 
-def test_demo_is_functional_offline(owner):
-    result = owner.post("/api/demo")
+def test_demo_is_functional_offline(owner, monkeypatch):
+    import httpx
+
+    def no_network(*args, **kwargs):
+        raise AssertionError("Loading the demo must not use the network")
+
+    monkeypatch.setattr(httpx, "Client", no_network)
+    result = owner.post("/api/demo?months=6")
     assert result.status_code == 200, result.text
-    assert len(owner.get("/api/accounts").json()) == 8
-    assert len(owner.get("/api/transactions").json()) >= 50
+    assert result.json()["prices"] == "Coinbase daily close"
+    assert len(owner.get("/api/accounts").json()) == 4
+    assert len(owner.get("/api/transactions").json()) >= 300
     report = owner.get("/api/reports").json()
-    assert report["net_worth"] is not None
-    assert report["rate"]["source"] == "Fictional demo rate"
+    # With no network there is no current quote, and none is made up.
+    assert report["rate"] is None
     assert len(report["history"]) == 6
     assert owner.get("/api/auth/me").json()["demo"] is True
+    settings = owner.get("/api/settings").json()["preferences"]
+    assert settings["rate_source"] == "coinbase" and settings["automatic_prices"] is True
     assert owner.post("/api/demo").status_code == 422
 
 

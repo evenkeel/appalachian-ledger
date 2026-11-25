@@ -1,0 +1,63 @@
+<!-- title: How it thinks about money · Appalachian Bitcoin -->
+<!-- description: Dollars are for spending and bitcoin is for saving: how Appalachian Bitcoin counts your money, and why it shows what it shows. -->
+<!-- path: how-it-thinks-about-money -->
+<h1>How it thinks about money</h1>
+<p class="lede">Every tool for tracking money has opinions built into it. These are this one&rsquo;s, in plain words, so you can decide whether they suit you. The same explanations are inside the app, under Learn.</p>
+
+<h2>Dollars are for spending. Bitcoin is for saving.</h2>
+<p>A dollar is good at one job: paying for what you need this month. Everyone takes it, and what it buys barely changes from one week to the next.</p>
+<p>It is poor at a second job: holding value for years. Over long stretches, prices in dollars rise, so a dollar kept for ten years buys less at the end than it did at the start. That loss is quiet, and it never shows up on a bank statement.</p>
+<p>Bitcoin is built the other way round. There will never be more than 21 million BTC, and nobody can make more. Its price in dollars swings hard, sometimes for years, which makes it a poor place for next month&rsquo;s rent. Held for the long run, it is the money this app treats as saving.</p>
+<p>So the app does not have a place for dollar savings. Dollars are counted as what you can spend: <i>dollars in checking</i>. What you keep, you keep in bitcoin.</p>
+<p class="small">This is how the app is organised. It is not advice about your situation. Bitcoin can lose value, and money you will need soon belongs in dollars.</p>
+
+<h2>The same life, priced two ways</h2>
+<p>Your life costs something every month: rent, food, power, the phone. The app adds that up twice. Once in dollars, the way your bank shows it. Once in bitcoin, using the price on the day you paid for each thing.</p>
+<p>Then it compares each month with the first full month you recorded. If the same kind of month takes more dollars than it did back then, the dollar line rises. If it takes less bitcoin, the bitcoin line falls.</p>
+<p>Nothing in that picture is a forecast. It is your own spending, priced at what bitcoin actually cost on each day. In some months, and some years, the bitcoin line rises too. The app shows that just as plainly.</p>
+<figure class="narrow">
+  <img src="../img/cost-of-living.png" width="1200" height="1130" alt="Cost of living over five years in the demo: a month's spending in dollars and the same spending in bitcoin, both compared with the first month." loading="lazy">
+  <figcaption><b>Fig. 1</b> <span>From the demo: a made-up person&rsquo;s five years, with real bitcoin prices.</span></figcaption>
+</figure>
+
+<h2>Stack rate</h2>
+<p>People who buy bitcoin regularly call it stacking. Your stack rate is the share of a month&rsquo;s income that you turned into bitcoin.</p>
+<p>If $5,000 of income landed and you bought $600 of bitcoin, your stack rate that month is 12%.</p>
+<p>It counts only what you bought. Bitcoin you already held does not move it, and neither does the price going up or down. That keeps it a measure of what you did, not of what the market did.</p>
+
+<h2>What to do with a bill</h2>
+<p>Bills are paid with the dollars in your checking account. Before each paycheck lands, the app shows whether checking covers everything that is due, including the credit card.</p>
+<dl class="terms">
+  <dt>Pay</dt>
+  <dd>Records this month&rsquo;s payment. The bill comes back the next time it is due.</dd>
+  <dt>Destroy</dt>
+  <dd>For a bill you have cancelled for good, like a subscription you no longer want. It stops coming back, and the app shows what that frees every month and every year. (You still have to cancel with the company. The app cannot do that for you.)</dd>
+  <dt>Pay off</dt>
+  <dd>For a debt. It pays the whole balance from checking and the bill goes with it.</dd>
+</dl>
+<p>A bill you charge to a card still counts. Nothing leaves checking that day, but the card has to be paid from checking later, so the forecast takes it out on the card&rsquo;s due day. Dollars that are already spoken for never look free.</p>
+
+<h2>₿125,000, not 0.00125 BTC</h2>
+<p>The app counts bitcoin in whole units, written with the ₿ sign. ₿1 is the smallest amount of bitcoin there is.</p>
+<p>The older way of writing amounts uses a unit one hundred million times larger, labelled BTC. 1 BTC is ₿100,000,000. Both describe the same bitcoin.</p>
+<table>
+  <thead><tr><th class="num">Whole bitcoin</th><th class="num">Written as BTC</th><th>What it is</th></tr></thead>
+  <tbody>
+    <tr><td class="num">₿1</td><td class="num">0.00000001 BTC</td><td>The smallest unit</td></tr>
+    <tr><td class="num">₿125,000</td><td class="num">0.00125000 BTC</td><td>A typical small buy</td></tr>
+    <tr><td class="num">₿100,000,000</td><td class="num">1.00000000 BTC</td><td>One BTC</td></tr>
+  </tbody>
+</table>
+<p>Whole numbers are easier to read and compare than a row of zeros after a decimal point. A coffee at ₿4,200 is easier to hold in your head than 0.000042 BTC. You will still see BTC in one place, prices, because dollars per BTC is how the price is usually quoted.</p>
+
+<h2>How things get a bitcoin price</h2>
+<p>Each expense is priced in bitcoin using the price on the day you paid, never today&rsquo;s price. The app can fetch that daily price for you from Coinbase, or you can type prices in yourself.</p>
+<p>If there is no price for a day, the bitcoin amount is shown as missing. The app never guesses one and never borrows a price from another day. Once an expense has its price, it keeps it: later prices do not rewrite your history.</p>
+
+<h2>Yours, on your machine</h2>
+<p>The ledger lives on your own computer. There is no cloud account, and the app does not report anything about you. More on the <a href="../privacy/">privacy page</a>.</p>
+
+<div class="actions">
+  <a class="btn primary" href="../demo/">Try the demo</a>
+  <a class="btn" href="../download/">Download</a>
+</div>
