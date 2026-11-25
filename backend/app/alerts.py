@@ -239,6 +239,36 @@ def evaluate(reading, facts, thresholds=None):
                 action={"label": "Move money in", "route": "accounts"},
             )
         )
+    leans = cash.get("leans_on_estimate")
+    if t.cash.on and leans and not cash["short"]:
+        # Covered only if income that varies (tips, side work) comes in as expected.
+        found.append(
+            alert(
+                "cash",
+                "caution",
+                leans["amount"],
+                "Checking is covered only if your varying income comes in",
+                f"The forecast counts on income that varies. Without it, checking runs short on "
+                f"{short_date(leans['date'])}.",
+                panel="cash",
+                facts=[
+                    fact("In checking", cash["start"]),
+                    fact("Varying income counted on", leans["income"]),
+                    fact("Short without it", leans["amount"]),
+                ],
+                rows=[
+                    row(event["name"], f"about, {short_date(event['date'])}", event["amount"])
+                    for event in cash["events"]
+                    if event["kind"] == "paycheck" and event.get("estimate")
+                ],
+                advice={
+                    "text": f"Keep {{value}} aside in case it comes in low before {short_date(leans['date'])}.",
+                    "value": leans["amount"],
+                    "unit": "USD",
+                },
+                action={"label": "See the bills", "route": "bills"},
+            )
+        )
 
     # Card due: a calm reminder that becomes a caution in the last days.
     due = []

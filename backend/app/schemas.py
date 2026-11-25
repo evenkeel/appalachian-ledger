@@ -161,6 +161,50 @@ class PayeeRulePreference(StrictModel):
     account_id: int | None = None
 
 
+class RetirementSettings(StrictModel):
+    """The owner's choices for the retirement screen. Anything left as None comes from the ledger's record."""
+
+    birth_date: date | None = None
+    growth_pct: str | None = "15"
+    last_age: int = Field(default=95, ge=50, le=115, strict=True)
+    cost_rise_pct: str = "3"
+    tax_pct: str = "10"
+    other_income_usd: str = "0"
+    other_income_age: int = Field(default=67, ge=18, le=115, strict=True)
+    monthly_spending_usd: str | None = None
+    monthly_purchase_usd: str | None = None
+    use_record: bool = True
+    measure_from: int | None = Field(default=None, ge=1970, le=2200)
+    freed_to_bitcoin: bool = True
+    # Percent of today's spending in a category that continues in retirement, and one-off costs to leave out.
+    category_shares: dict[int, int] = Field(default_factory=dict, max_length=500)
+    left_out_entries: list[int] = Field(default_factory=list, max_length=500)
+
+    @field_validator("growth_pct", "cost_rise_pct", "tax_pct")
+    @classmethod
+    def rates(cls, value, info):
+        if value is None:
+            return value
+        low, high = {"growth_pct": (-20, 100), "cost_rise_pct": (-5, 25), "tax_pct": (0, 60)}[info.field_name]
+        if len(value) > 20 or not low <= decimal(value) <= high:
+            raise ValueError(f"Enter a percentage from {low} to {high}")
+        return value
+
+    @field_validator("other_income_usd", "monthly_spending_usd", "monthly_purchase_usd")
+    @classmethod
+    def dollars(cls, value):
+        if value is not None and (len(value) > 40 or not 0 <= to_minor(value, "USD") <= 10**12):
+            raise ValueError("Enter dollars and cents, zero or more")
+        return value
+
+    @field_validator("category_shares")
+    @classmethod
+    def shares(cls, value):
+        if any(not 0 <= share <= 300 for share in value.values()):
+            raise ValueError("A category can continue at 0 to 300 percent")
+        return value
+
+
 class Preferences(StrictModel):
     denomination: Literal["BITCOIN", "BTC", "USD"] = "USD"
     theme: Literal["dark", "light"] = "dark"
@@ -170,6 +214,7 @@ class Preferences(StrictModel):
     card_orders: dict[CardScope, list[str]] = Field(default_factory=dict)
     category_payment_defaults: dict[int, int] = Field(default_factory=dict)
     payee_rules: list[PayeeRulePreference] = Field(default_factory=list)
+    retirement: RetirementSettings | None = None
 
 
 class PaymentDefaultsInput(StrictModel):
@@ -229,7 +274,7 @@ class PortfolioInput(StrictModel):
 
 class RecurringBillInput(StrictModel):
     transaction: TransactionInput
-    frequency: Literal["once", "weekly", "monthly", "quarterly", "semiannual", "yearly"] = "monthly"
+    frequency: Literal["once", "weekly", "biweekly", "monthly", "quarterly", "semiannual", "yearly"] = "monthly"
     record_now: bool = False
 
     @model_validator(mode="after")

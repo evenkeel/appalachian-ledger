@@ -80,6 +80,7 @@ def test_empty_ledger_returns_the_documented_shape(owner):
         "due_before_paycheck": "0.00",
         "low": {"date": today.isoformat(), "balance": "0.00"},
         "short": None,
+        "leans_on_estimate": None,
         "covered_days": None,
         "cards": [],
         "other_bills": 0,
@@ -352,9 +353,10 @@ def test_cash_ahead_walks_bills_and_paychecks_in_order(owner):
         "amount": "500.00",
         "balance_after": "990.00",
         "schedule_id": pay["id"],
+        "estimate": False,
     }
     assert [e["overdue"] for e in ahead["events"] if e["kind"] == "bill"] == [True] + [False] * 7
-    assert ahead["next_paycheck"] == {"date": "2026-03-15", "name": "Salary", "amount": "500.00"}
+    assert ahead["next_paycheck"] == {"date": "2026-03-15", "name": "Salary", "amount": "500.00", "estimate": False}
     assert ahead["due_before_paycheck"] == "510.00"
     assert ahead["low"] == {"date": "2026-03-15", "balance": "490.00"}
     assert ahead["short"] is None
@@ -407,7 +409,7 @@ def test_cash_ahead_states_and_accounts_outside_everyday_cash(owner):
     paycheck(owner, checking, "40.00", "2026-04-20")
     ahead = reading()["cash_ahead"]
     # The next paycheck is reported even when it falls beyond the thirty days shown.
-    assert ahead["next_paycheck"] == {"date": "2026-04-20", "name": "Salary", "amount": "40.00"}
+    assert ahead["next_paycheck"] == {"date": "2026-04-20", "name": "Salary", "amount": "40.00", "estimate": False}
     assert ahead["events"] == []
 
 
@@ -472,7 +474,12 @@ def test_semimonthly_and_biweekly_paychecks_are_projected(owner):
         ("2026-02-28", "Twice a month", "3410.00"),
         ("2026-03-10", "Pension", "3465.00"),
     ]
-    assert ahead["next_paycheck"] == {"date": "2026-02-13", "name": "Every other Friday", "amount": "700.00"}
+    assert ahead["next_paycheck"] == {
+        "date": "2026-02-13",
+        "name": "Every other Friday",
+        "amount": "700.00",
+        "estimate": False,
+    }
     assert ahead["status"] == "needs_bills" and ahead["low"] == {"date": "2026-02-10", "balance": "10.00"}
 
 
@@ -756,7 +763,12 @@ def test_income_schedule_crud_and_validation(owner):
     assert owner.put(f"/api/income-schedules/{created['id']}", json=good | {"amount": "0"}).status_code == 422
     assert owner.put("/api/income-schedules/9999", json=good).status_code == 404
     assert [row["name"] for row in owner.get("/api/income-schedules").json()] == ["Wages"]
-    assert reading()["cash_ahead"]["next_paycheck"] == {"date": "2026-03-20", "name": "Wages", "amount": "1500.50"}
+    assert reading()["cash_ahead"]["next_paycheck"] == {
+        "date": "2026-03-20",
+        "name": "Wages",
+        "amount": "1500.50",
+        "estimate": False,
+    }
     assert owner.delete(f"/api/income-schedules/{created['id']}").status_code == 200
     assert owner.get("/api/income-schedules").json() == []
     assert reading()["setup"]["has_paycheck"] is False and reading()["cash_ahead"]["next_paycheck"] is None
@@ -1145,3 +1157,96 @@ def test_backup_and_restore_keep_schedules_card_terms_and_bill_links(owner):
     assert data["cash_ahead"]["next_paycheck"]["date"] == "2026-03-15"
     assert data["bills"]["items"][0]["pays_account_id"] == card and data["bills"]["items"][0]["payoff"] == "120.00"
     assert data["bills"]["destroyed"] == {"count": 1, "monthly_freed": "12.00"}
+
+
+# ---------- Income that varies, cash, and two-week bills ----------
+
+
+def test_income_that_varies_is_drawn_as_an_estimate_and_the_forecast_says_when_it_leans_on_it(owner):
+    checking = new_account(owner, amount="300")
+    bill(owner, checking, "Rent", "400.00", "2026-03-20")
+    tips = post(
+        owner,
+        "/income-schedules",
+        {
+            "account_id": checking,
+            "name": "Tips",
+            "amount": "150",
+            "frequency": "weekly",
+            "next_date": "2026-03-13",
+            "varies": True,
+        },
+    )
+    assert tips["varies"] is True
+    ahead = reading()["cash_ahead"]
+    paid = [e for e in ahead["events"] if e["kind"] == "paycheck"]
+    assert [e["date"] for e in paid] == ["2026-03-13", "2026-03-20", "2026-03-27", "2026-04-03"]
+    assert all(e["estimate"] for e in paid)
+    assert ahead["next_paycheck"] == {"date": "2026-03-13", "name": "Tips", "amount": "150.00", "estimate": True}
+    # With the tips the rent is covered; without them checking is $100 short on rent day.
+    assert ahead["short"] is None
+    assert ahead["leans_on_estimate"] == {"income": "600.00", "date": "2026-03-20", "amount": "100.00"}
+
+    # A fixed paycheck is a promise, so the same forecast leans on nothing.
+    owner.put(
+        f"/api/income-schedules/{tips['id']}",
+        json={
+            "account_id": checking,
+            "name": "Tips",
+            "amount": "150",
+            "frequency": "weekly",
+            "next_date": "2026-03-13",
+        },
+        headers=owner.headers,
+    ).raise_for_status()
+    ahead = reading()["cash_ahead"]
+    assert ahead["leans_on_estimate"] is None and ahead["next_paycheck"]["estimate"] is False
+
+
+def test_a_shortfall_is_reported_as_a_shortfall_not_as_leaning_on_an_estimate(owner):
+    checking = new_account(owner, amount="100")
+    bill(owner, checking, "Rent", "400.00", "2026-03-12")
+    post(
+        owner,
+        "/income-schedules",
+        {
+            "account_id": checking,
+            "name": "Tips",
+            "amount": "150",
+            "frequency": "weekly",
+            "next_date": "2026-03-13",
+            "varies": True,
+        },
+    )
+    ahead = reading()["cash_ahead"]
+    assert ahead["short"] == {"date": "2026-03-12", "amount": "300.00"}
+    assert ahead["leans_on_estimate"] is None
+
+
+def test_a_cash_only_owner_gets_the_forecast_and_can_be_paid_in_cash(owner):
+    wallet = new_account(owner, "Cash on hand", amount="200", kind="cash")
+    bill(owner, wallet, "Childcare", "120.00", "2026-03-12", "biweekly")
+    paycheck(owner, wallet, "90", "2026-03-14", "weekly", "Babysitting")
+    data = reading()
+    ahead = data["cash_ahead"]
+    assert data["setup"]["has_account"] and ahead["status"] == "ready" and ahead["start"] == "200.00"
+    assert [(e["kind"], e["date"]) for e in ahead["events"] if e["name"] == "Childcare"] == [
+        ("bill", "2026-03-12"),
+        ("bill", "2026-03-26"),
+        ("bill", "2026-04-09"),
+    ]
+    childcare = data["bills"]["items"][0]
+    # 26 payments a year, spread over 12 months.
+    assert childcare["frequency"] == "biweekly" and childcare["monthly_amount"] == "260.00"
+
+
+def test_a_two_week_bill_advances_fourteen_days_when_paid(owner):
+    checking = new_account(owner, amount="500")
+    made = bill(owner, checking, "Childcare", "120.00", "2026-03-06", "biweekly")
+    post(
+        owner,
+        f"/recurring-bills/{made['id']}/record",
+        {"due_date": "2026-03-06", "date": "2026-03-06", "amount": "120.00"},
+    )
+    with SessionLocal() as db:
+        assert db.get(RecurringBill, made["id"]).next_due == "2026-03-20"

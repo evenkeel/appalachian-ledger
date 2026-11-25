@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { Accounts } from "./accounts/Accounts";
 import { Activity } from "./activity/Activity";
@@ -6,7 +6,7 @@ import { Bills } from "./bills/Bills";
 import { AlertDrawer, AlertsButton, useAlerts } from "./dashboard/Alerts";
 import { Dashboard } from "./dashboard/Dashboard";
 import type { DashboardData } from "./dashboard/types";
-import { StackedLockup } from "./design/Logo";
+import { Lockup } from "./design/Logo";
 import { Learn } from "./learn/Learn";
 import { useRoute } from "./lib/router";
 import { Retirement } from "./retirement/Retirement";
@@ -17,6 +17,9 @@ import type { PriceReading } from "./shell/Shell";
 import { SignIn } from "./shell/SignIn";
 import { Spending } from "./spending/Spending";
 import { Stack } from "./stack/Stack";
+
+// The charting code is only fetched when the Markets screen is opened.
+const Markets = lazy(() => import("./markets/Markets").then((module) => ({ default: module.Markets })));
 
 function Screens() {
   const { phase, error, retry } = useSession();
@@ -48,14 +51,14 @@ function Screens() {
   if (phase === "booting")
     return (
       <main className="gate" aria-busy="true">
-        <StackedLockup />
+        <Lockup />
         <p className="sub">Connecting to your ledger…</p>
       </main>
     );
   if (phase === "offline")
     return (
       <main className="gate">
-        <StackedLockup />
+        <Lockup />
         <section className="inst gate-form" role="alert">
           <h1>Can't reach your ledger</h1>
           <p className="sub">{error || "The local server did not answer."} Nothing is shown from memory.</p>
@@ -111,6 +114,17 @@ function Screens() {
           <Retirement go={go} />
         ) : route === "stack" ? (
           <Stack go={go} />
+        ) : route === "markets" ? (
+          <Suspense
+            fallback={
+              <div className="page" aria-busy="true">
+                <h1>Markets</h1>
+                <p className="sub">Loading charts…</p>
+              </div>
+            }
+          >
+            <Markets />
+          </Suspense>
         ) : route === "settings" ? (
           <Settings go={go} onChanged={changed} />
         ) : (

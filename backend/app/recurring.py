@@ -19,8 +19,8 @@ def advance(bill):
     if bill.frequency == "once":
         return None
     due = date.fromisoformat(bill.next_due)
-    if bill.frequency == "weekly":
-        return str(due + timedelta(days=7))
+    if bill.frequency in ("weekly", "biweekly"):
+        return str(due + timedelta(days=7 if bill.frequency == "weekly" else 14))
     if bill.frequency == "yearly":
         year, month = due.year + 1, bill.anchor_month
     else:

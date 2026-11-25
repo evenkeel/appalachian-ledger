@@ -124,13 +124,29 @@ describe("bills", () => {
 
   it("removes a planned paycheck only after a second press", async () => {
     await show();
-    const panel = within(screen.getByLabelText(/^Paychecks/));
+    const panel = within(screen.getByLabelText(/^Income you expect/));
     expect(panel.getByText("twice a month · into Everyday checking")).toBeInTheDocument();
     expect(panel.getByText("next Dec 1")).toBeInTheDocument();
     fireEvent.click(panel.getByRole("button", { name: "Remove Salary" }));
     expect(writes()).toHaveLength(0);
     fireEvent.click(panel.getByRole("button", { name: "Remove it" }));
     await waitFor(() => expect(writes()).toEqual([{ path: "/income-schedules/1", method: "DELETE", body: undefined }]));
+  });
+
+  it("adds income whose amount varies", async () => {
+    await show();
+    fireEvent.click(within(screen.getByLabelText(/^Income you expect/)).getByRole("button", { name: "Add income" }));
+    const sheet = within(screen.getByRole("dialog"));
+    expect(sheet.getByRole("heading", { name: "Add income you expect" })).toBeInTheDocument();
+    set("Name", "Tips");
+    fireEvent.click(sheet.getByLabelText(/The amount varies/));
+    set("Typical amount", "150");
+    set("How often", "weekly");
+    set("Next time you expect it", "2026-11-27");
+    fireEvent.click(sheet.getByRole("button", { name: "Save income" }));
+    await waitFor(() =>
+      expect(writes()).toEqual([{ path: "/income-schedules", method: "POST", body: { varies: true, account_id: 3, name: "Tips", amount: "150", frequency: "weekly", next_date: "2026-11-27" } }]),
+    );
   });
 
   it("on an empty ledger, asks for an account first and draws nothing", async () => {

@@ -121,29 +121,8 @@ button {
   z-index: 20;
 }
 .lockup {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-.wordmark {
-  font-size: 13px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  line-height: 1;
-  /* Optical: caps sit on the ridge baseline of the mark. */
-  padding-top: 1px;
-}
-.wordmark b {
-  font-weight: 700;
-}
-.crumb {
-  color: var(--ink-3);
-  font-size: var(--t-small);
-  padding-left: 12px;
-  border-left: 1px solid var(--bezel);
-  white-space: nowrap;
+  flex: none;
+  display: block;
 }
 .glare .grow {
   flex: 1;
@@ -1043,7 +1022,10 @@ table.log {
   .lamps {
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
-  .crumb {
+}
+/* Too tight for the logo: the icon at the top of the rail stands in. */
+@media (max-width: 900px) {
+  .glare .lockup {
     display: none;
   }
 }
@@ -1058,7 +1040,6 @@ table.log {
     padding: 8px 12px;
     gap: 8px;
   }
-  .wordmark,
   .price .prov,
   .add span,
   .add kbd,

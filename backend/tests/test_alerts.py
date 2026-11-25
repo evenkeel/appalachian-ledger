@@ -462,3 +462,13 @@ def test_the_fictional_demo_raises_no_money_alarm(owner):
         ids = {item["id"]: item["level"] for item in alerts.read(db)["active"]}
     assert not {"overdue", "cash", "util", "pace"} & set(ids), ids
     assert all(level != "warning" for level in ids.values())
+
+
+def test_a_forecast_that_leans_on_varying_income_lights_a_caution_not_a_warning():
+    leaning = reading(cash_ahead__leans_on_estimate={"income": "600.00", "date": "2026-11-28", "amount": "100.00"})
+    light = lit(leaning)["cash"]
+    assert light["level"] == "caution" and light["magnitude"] == "100.00" and light["panel"] == "cash"
+    assert light["title"] == "Checking is covered only if your varying income comes in"
+    assert light["why"].endswith("Without it, checking runs short on Nov 28.")
+    assert light["facts"][-1] == {"label": "Short without it", "value": "100.00", "unit": "USD"}
+    assert light["advice"]["value"] == "100.00"

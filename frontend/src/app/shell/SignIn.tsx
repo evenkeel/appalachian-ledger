@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { StackedLockup } from "../design/Logo";
+import { Lockup } from "../design/Logo";
 import { useSession } from "../lib/session";
 
 /** First-run setup and sign-in. Nothing from the ledger is shown until this succeeds. */
@@ -29,7 +29,7 @@ export function SignIn() {
 
   return (
     <main className="gate">
-      <StackedLockup />
+      <Lockup />
       <form className="inst gate-form" onSubmit={submit} aria-labelledby="gate-title">
         <h1 id="gate-title">{creating ? "Create your owner account" : "Unlock your ledger"}</h1>
         <p className="sub">

@@ -237,9 +237,9 @@ def bills_due(db, today, end, rate):
             else:
                 total += to_minor(usd, "USD")
             count += 1
-            if bill.frequency != "weekly":
+            if bill.frequency not in ("weekly", "biweekly"):
                 break
-            due += timedelta(days=7)
+            due += timedelta(days=7 if bill.frequency == "weekly" else 14)
     return total, count, complete
 
 

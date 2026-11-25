@@ -67,7 +67,7 @@ Nine destinations instead of eleven, all with plain names.
 | **Learn** | The teaching space; contextual "Why" links land here | new |
 | **Settings** | Alert thresholds, backup, security, categories, export | Settings |
 
-Shell: a 76 px icon-and-label rail on desktop; a five-slot tab bar on phones (Dashboard, Activity, **+**, Bills, Stack; the rest under More). The top bar holds the logo, the price with its source, the `$ / ₿` switch, the alerts button, and Add entry (`N`).
+Shell: a 76 px icon-and-label rail on desktop; a five-slot tab bar on phones (Dashboard, Activity, **+**, Bills, Stack; the rest under More). The top bar holds the logo (and not the screen's name: the rail already marks where you are, and the owner did not want "Dashboard" written at the top), the price with its source, the `$ / ₿` switch, the alerts button, and Add entry (`N`).
 
 The `$ / ₿` switch changes how analysis is priced (pace, bridge, money flow, history). It never changes operational dollar readings: checking and bills are always dollars.
 
@@ -195,14 +195,14 @@ Giving the hypothetical its own colour makes the rule "a forecast never creates 
 
 **Approved by the owner.** Two earlier drawings were wrong: first a flattened copy of the old artwork, then three steep peaks. The approved drawing is what the logo is: **three gentle rolling hills, layered like rows of Appalachian ridges, two blues and one orange for bitcoin.**
 
-- Long and low, 4:1, as the original artwork was. Each ridge is one smooth curve with soft slopes and no points.
-- Light blue is the furthest ridge, orange sits in the middle, dark blue is the nearest and trails off to the right.
+- Long and low, about 8:1 (a 220 x 28 grid). Each ridge is one smooth curve with soft slopes and no points.
+- Dark blue is the nearest ridge and runs the whole width, with two low swells. Light blue is the furthest and rises behind the left swell; orange peeks over the right swell and trails off to the right edge. The owner asked for this arrangement on 2026-11-21, replacing one where each ridge tapered to the baseline on its own.
+- The mark is a block with a flat base and square ends, so it sits on a wordmark of the same width.
 - Flat colour only. No outlines or gaps between layers.
-- **Horizontal** (header): the mark at full width beside the wordmark, in tracked capitals, "APPALACHIAN" regular and "BITCOIN" bold.
-- **Stacked** (sign-in, splash): the wordmark is set to exactly the mark's width, so both edges align.
-- **App icon and favicon**: the same three ridges running edge to edge across an ivory rounded tile, with the dark ridge filling the bottom; checked down to 16 px.
+- **One lockup, everywhere**: the mark sits on the name, "Appalachian Bitcoin" in a bold serif (Georgia, then Times New Roman), set to exactly the mark's width so both edges align. The header shows it 176 px wide and the sign-in and splash screens 240 px. The owner left this choice to the designer on 2026-11-21; the serif was chosen because it matches the artwork they sent and keeps the name from reading as one more panel label. It replaced tracked capitals in the interface font and a separate mark-beside-name header version.
+- At 900 px wide or less the header has no room for the lockup, and the icon at the top of the rail stands in.
+- **App icon and favicon**: its own drawing, not a crop of the mark. Three low, wide, rounded hills (the owner found a first, taller drawing too pointy) big enough to read at 16 px, in the logo's order (light blue behind on the left, orange peeking on the right, the blue ridge across the front) on a deep navy tile (`#12222B`) so all three colours show on light and dark tab bars. The owner rejected the earlier ivory tile on 2026-11-21, where the hills were a thin band.
 - On the dark theme only the dark-blue ridge is lifted a step (`#3F6A80`) so it does not sink into the background.
-- A serif wordmark, closer to today's, is on the System screen for comparison.
 
 In the build the wordmark becomes outlined paths, and `mark.svg`, `mountains.svg`, `MountainMark.tsx`, `icon-192.png`, `icon-512.png` and the manifest are regenerated from one source.
 

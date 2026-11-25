@@ -45,6 +45,7 @@ HISTORY_MONTHS = 6
 MONTHLY_SHARE = {
     "once": (0, 1),
     "weekly": (52, 12),
+    "biweekly": (26, 12),
     "monthly": (1, 1),
     "quarterly": (1, 3),
     "semiannual": (1, 6),
@@ -286,6 +287,7 @@ def cash_ahead(db, today):
         "due_before_paycheck": "0.00",
         "low": {"date": str(today), "balance": "0.00"},
         "short": None,
+        "leans_on_estimate": None,
         "covered_days": None,
         "cards": [],
         "other_bills": 0,
@@ -404,7 +406,7 @@ def cash_ahead(db, today):
         # Every frequency repeats within a month, so two months always reach the next one.
         horizon = max(end + timedelta(days=HORIZON_DAYS), date.fromisoformat(schedule.next_date))
         for day in paycheck_dates(schedule, today, horizon):
-            upcoming.append((day, schedule.id, schedule.name, amount))
+            upcoming.append((day, schedule.id, schedule.name, amount, bool(schedule.varies)))
             if day > end:
                 break
             events.append(
@@ -418,6 +420,8 @@ def cash_ahead(db, today):
                         "amount": original(amount, "USD"),
                         "balance_after": None,
                         "schedule_id": schedule.id,
+                        # A typical amount, not a fixed one.
+                        "estimate": bool(schedule.varies),
                     },
                 )
             )
@@ -427,7 +431,16 @@ def cash_ahead(db, today):
     running, due_before = start, 0
     low = (start, today)
     deepest, short_on = min(start, 0), today if start < 0 else None
+    # The same run with no varying income arriving, to see whether the forecast leans on it.
+    firm, firm_deepest, firm_short_on, estimated = start, min(start, 0), today if start < 0 else None, 0
     for (day, order, _, _), change, row in events:
+        if row.get("estimate"):
+            estimated += change
+        else:
+            firm += change
+            if firm < 0:
+                firm_short_on = firm_short_on or day
+                firm_deepest = min(firm_deepest, firm)
         running += change
         row["balance_after"] = original(running, "USD")
         if order == 0 and day <= cutoff:
@@ -440,12 +453,25 @@ def cash_ahead(db, today):
     result.update(
         start=original(start, "USD"),
         events=[row for _, _, row in events],
-        next_paycheck={"date": str(following[0]), "name": following[2], "amount": original(following[3], "USD")}
+        next_paycheck={
+            "date": str(following[0]),
+            "name": following[2],
+            "amount": original(following[3], "USD"),
+            "estimate": following[4],
+        }
         if following
         else None,
         due_before_paycheck=original(due_before, "USD"),
         low={"date": str(low[1]), "balance": original(low[0], "USD")},
         short={"date": str(short_on), "amount": original(-deepest, "USD")} if short_on else None,
+        # Covered only if income that varies arrives as expected: what the shortfall is without it.
+        leans_on_estimate={
+            "income": original(estimated, "USD"),
+            "date": str(firm_short_on),
+            "amount": original(-firm_deepest, "USD"),
+        }
+        if firm_short_on and not short_on
+        else None,
         covered_days=covered_days(outflows, start, today),
         other_bills=len(all_bills) - len(bills) - on_cards,
     )
@@ -762,12 +788,14 @@ class IncomeScheduleInput(StrictModel):
     amount: str = Field(min_length=1, max_length=40)
     frequency: Literal["weekly", "biweekly", "semimonthly", "monthly"]
     next_date: date
+    # The amount is a typical one, not a fixed one.
+    varies: bool = False
 
     @field_validator("name")
     @classmethod
     def name_not_blank(cls, value):
         if not value.strip():
-            raise ValueError("Give the paycheck a name")
+            raise ValueError("Give the income a name")
         return value.strip()
 
 
@@ -784,6 +812,7 @@ def schedule_dict(db, schedule, today=None):
         "amount": schedule.amount,
         "frequency": schedule.frequency,
         "next_date": schedule.next_date,
+        "varies": bool(schedule.varies),
         "next_occurrence": next((str(day) for day in paycheck_dates(schedule, today, reach)), None),
     }
 
@@ -791,15 +820,16 @@ def schedule_dict(db, schedule, today=None):
 def apply_schedule(db, schedule, data):
     acc = ledger.account(db, data.account_id)
     if acc.role != "asset":
-        raise ValueError("Choose the account the paycheck lands in")
+        raise ValueError("Choose the account the income lands in")
     amount = to_minor(data.amount, acc.currency)
     if amount <= 0:
-        raise ValueError("Paycheck amount must be positive")
+        raise ValueError("The income amount must be positive")
     if data.next_date.year < 1970:
         raise ValueError("Choose a pay date from 1970 onward")
     schedule.account_id, schedule.name = acc.id, data.name
     schedule.amount, schedule.frequency = original(amount, acc.currency), data.frequency
     schedule.next_date, schedule.anchor_day = str(data.next_date), data.next_date.day
+    schedule.varies = data.varies
     db.add(schedule)
     db.flush()
     return schedule

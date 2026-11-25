@@ -73,7 +73,7 @@ function when(bill: Bill) {
   return `in ${plural(bill.days_until, "day")}`;
 }
 
-/** Every bill, the paychecks that land in checking, and the bills destroyed for good. */
+/** Every bill, the income expected in checking, and the bills destroyed for good. */
 export function Bills({ go, onChanged }: { go: (route: Route) => void; onChanged?: () => void }) {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [error, setError] = useState("");
@@ -157,7 +157,7 @@ export function Bills({ go, onChanged }: { go: (route: Route) => void; onChanged
       <div className="page">
         <h1>Bills</h1>
         <Panel name="Bills" plain="what is due" inop className="narrow">
-          <div className="sub">Add your checking account first. Bills are paid from it.</div>
+          <div className="sub">Add your checking or cash account first. Bills are paid from it.</div>
           <div>
             <button className="btn sm primary" onClick={() => go("accounts")}>
               Add an account
@@ -285,7 +285,7 @@ export function Bills({ go, onChanged }: { go: (route: Route) => void; onChanged
           </div>
         </Panel>
 
-        <Panel className="c5" name="Paychecks" plain="money coming into checking">
+        <Panel className="c5" name="Income you expect" plain="money coming into checking">
           {paychecks.length ? (
             <ul className="bl two">
               {paychecks.map((item) => (
@@ -294,10 +294,14 @@ export function Bills({ go, onChanged }: { go: (route: Route) => void; onChanged
                     <b>{item.name}</b>
                     <small>
                       {EVERY[item.frequency] ?? item.frequency} · into {item.account}
+                      {item.varies ? " · amount varies" : ""}
                     </small>
                   </div>
                   <div className="bl-amt num">
-                    <span>{usd(item.amount)}</span>
+                    <span>
+                      {item.varies ? "about " : ""}
+                      {usd(item.amount)}
+                    </span>
                     {item.next_occurrence && <small>next {shortDate(item.next_occurrence)}</small>}
                   </div>
                   <div className="bl-acts">
@@ -331,12 +335,12 @@ export function Bills({ go, onChanged }: { go: (route: Route) => void; onChanged
               ))}
             </ul>
           ) : (
-            <div className="sub">No paycheck set. Add one and the checking forecast shows whether checking covers your bills until payday.</div>
+            <div className="sub">Nothing set. Add a paycheck, tips or side work and the checking forecast shows whether checking covers your bills until the money lands.</div>
           )}
-          <div className="hint">A planned paycheck never records income by itself. Record the real one in Transactions when it lands.</div>
+          <div className="hint">Expected income never records itself. Record the real amount in Transactions when it lands.</div>
           <div>
             <button className="btn sm" onClick={() => setPaycheck("new")}>
-              Add a paycheck
+              Add income
             </button>
           </div>
         </Panel>
@@ -409,7 +413,7 @@ export function Bills({ go, onChanged }: { go: (route: Route) => void; onChanged
           onClose={() => setPaycheck(null)}
           onDone={() => {
             setPaycheck(null);
-            setNotice("Paycheck saved.");
+            setNotice("Income saved.");
             changed();
           }}
         />
@@ -542,6 +546,7 @@ function BillForm({ data, bill, onClose, onDone }: { data: DashboardData; bill?:
             <select name="frequency" defaultValue={bill?.frequency ?? "monthly"}>
               <option value="monthly">Every month</option>
               <option value="weekly">Every week</option>
+              <option value="biweekly">Every two weeks</option>
               <option value="quarterly">Every 3 months</option>
               <option value="semiannual">Every 6 months</option>
               <option value="yearly">Every year</option>

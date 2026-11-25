@@ -143,6 +143,175 @@
   gap: var(--s1) var(--s4);
 }
 
+/* The retirement age */
+.ret-page.ret-age .grid2 {
+  align-items: stretch;
+}
+.ret-age .ret-fields {
+  align-items: end;
+}
+.ret-savebar {
+  min-height: 32px;
+}
+.ret-state {
+  padding: 2px 10px;
+  border-radius: 99px;
+  font-size: var(--t-small);
+}
+.ret-state.funded {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+.ret-big {
+  margin: 8px 0;
+  font-size: clamp(42px, 6vw, 62px);
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.ret-big em {
+  font-style: normal;
+  font-weight: 400;
+  font-size: 0.42em;
+  letter-spacing: 0;
+  color: var(--ink-2);
+  vertical-align: 0.3em;
+}
+.ret-runway {
+  font-size: clamp(36px, 4.6vw, 54px);
+}
+.ret-ages {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--hairline);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px 12px;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+.ret-ages b {
+  font-size: var(--t-title);
+}
+.ret-rate {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 12px;
+  align-items: center;
+  margin-top: auto;
+  padding-top: var(--s3);
+  border-top: 1px solid var(--hairline);
+}
+.ret-rate label {
+  font-size: var(--t-lead);
+}
+.ret-rate small {
+  grid-column: 1 / -1;
+}
+.ret-rate span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--t-title);
+  color: var(--ink-2);
+}
+.ret-rate input {
+  width: 104px;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 7px;
+  border: 1px solid var(--bezel);
+  background: var(--well);
+  color: var(--ink);
+  font: 700 22px var(--font-num);
+  text-align: right;
+}
+.ret-rate input[aria-invalid="true"] {
+  border-color: var(--warn);
+}
+.ret-cross .ret-mark {
+  font-size: 12px;
+  font-weight: 700;
+  fill: var(--ink);
+  paint-order: stroke;
+  stroke: var(--panel);
+  stroke-width: 4px;
+}
+.ret-zone-not {
+  fill: var(--well);
+  stroke: var(--hairline);
+}
+.ret-zone-safe {
+  fill: var(--ok);
+  fill-opacity: 0.16;
+  stroke: var(--hairline);
+}
+.ret-between {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s2);
+  margin-bottom: 4px;
+}
+.ret-lever,
+.ret-shares label {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  gap: var(--s2);
+  align-items: center;
+  min-height: 36px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--hairline);
+  font-size: var(--t-small);
+  cursor: pointer;
+}
+.ret-shares label {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.ret-shares input.num {
+  width: 64px;
+  min-height: 30px;
+  margin-right: 3px;
+  padding: 0 6px;
+  border-radius: 6px;
+  border: 1px solid var(--bezel);
+  background: var(--well);
+  color: var(--ink);
+  text-align: right;
+}
+.ret-lever b {
+  font-weight: 700;
+}
+.ret-lever small {
+  grid-column: 2 / -1;
+  color: var(--ink-2);
+  text-align: right;
+}
+.ret-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s3);
+  align-items: end;
+}
+.ret-controls .field {
+  width: 170px;
+}
+.ret-start {
+  align-self: flex-start;
+}
+.ret-how summary {
+  cursor: pointer;
+  color: var(--ink-2);
+}
+.ret-how ul {
+  display: grid;
+  gap: 4px;
+  max-width: 90ch;
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--ink-2);
+  font-size: var(--t-small);
+}
+
 @media (max-width: 720px) {
   .ret-plan,
   .ret-pair {
@@ -156,5 +325,12 @@
   }
   .ret-presets .btn {
     min-height: 36px;
+  }
+}
+
+/* Three panels across need room for their rows; below that they stack. */
+@media (max-width: 1080px) {
+  .ret-age .grid2 > * {
+    grid-column: 1 / -1;
   }
 }

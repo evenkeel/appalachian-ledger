@@ -1,14 +1,17 @@
 /* Panels that need history: Cost of living, Spending bridge and Money flow.
    All sums stay in integers or decimal strings; numbers are for coordinates only. */
 import { useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
 import { api } from "../../lib/api";
 import { analyzeSpending } from "../../lib/spendingAnalysis";
 import type { SpendingAnalysis } from "../../lib/spendingAnalysis";
 import type { Category, Report, Transaction } from "../../lib/types";
 import { btc, cents, fromCents, longMonth, monthName, plural, usd } from "../lib/format";
 import type { Lens } from "../lib/session";
-import { Frame, shift } from "./charts";
+import { measureText, useFontsReady } from "../lib/measureText";
+import { useSize } from "../lib/useSize";
+import { Frame, NO_LAYOUT, shift } from "./charts";
+import { PART_GAP, layoutFlow } from "./flowLayout";
+import type { FlowPlaced } from "./flowLayout";
 import { Collecting, Panel } from "./panels";
 import type { DashboardData } from "./types";
 
@@ -385,66 +388,110 @@ export function MoneyFlowPanel({
   const rest = income - out;
   const restText = lens === "USD" ? fromCents(rest < 0n ? -rest : rest) : (rest < 0n ? -rest : rest).toString();
   if (rest > 0n) dests.push({ key: "rest", name: "Still in checking", value: restText, kind: "rest" });
-  const height = Math.max(250, 12 + dests.length * 19 + 96);
+  // Largest income first; money drawn from cash on hand goes last.
+  const origins = [...sources].sort((a, b) => Number(b.value) - Number(a.value));
+  if (rest < 0n) origins.push({ name: "From cash on hand", value: restText });
   return (
     <Panel className={className} name={name} plain={plain} link={onExplore && { label: "Explore", onClick: onExplore }}>
-      <Frame height={height} label={`Where ${longMonth(data.month)}'s income went: ${dests.map((d) => `${d.name} ${d.label ?? money(d.value)}`).join(", ")}.`}>
-        {(W, H) => {
-          const narrow = W < 520,
-            L = narrow ? 86 : 150,
-            R = narrow ? 124 : 210,
-            node = 8,
-            gap = 4,
-            top = 6,
-            minSlot = 15;
-          const total = Number(income) > Number(out) ? Number(income) : Number(out);
-          const usable = H - top * 2 - gap * (dests.length - 1);
-          let k = usable / total;
-          for (let i = 0; i < 24; i++) k *= usable / dests.reduce((sum, d) => sum + Math.max(Number(units(d.value)) * k, minSlot), 0);
-          const xs = L,
-            xh = L + (W - L - R) * 0.42,
-            xd = W - R - node;
-          const ribbon = (x0: number, a0: number, a1: number, x1: number, b0: number, b1: number) => {
-            const mid = (x0 + x1) / 2;
-            return `M${x0},${a0}C${mid},${a0} ${mid},${b0} ${x1},${b0}L${x1},${b1}C${mid},${b1} ${mid},${a1} ${x0},${a1}Z`;
-          };
-          const hubTop = (H - total * k) / 2;
-          const nodes: ReactNode[] = [];
-          let ys = hubTop,
-            yh = hubTop;
-          const fromCash = rest < 0n ? [{ name: "From cash on hand", value: restText }] : [];
-          for (const source of [...sources, ...fromCash]) {
-            const h = Number(units(source.value)) * k;
-            nodes.push(
-              <g key={`s-${source.name}`}>
-                <path d={ribbon(xs + node, ys, ys + h, xh, yh, yh + h)} fill="var(--usd)" opacity=".13" />
-                <rect x={xs} y={ys} width={node} height={h} rx="2" fill="var(--usd)">
-                  <title>{`${source.name} ${money(source.value)}`}</title>
-                </rect>
-                <text className="lbl" x={xs - 8} y={ys + h / 2 - 2} textAnchor="end" style={{ fontFamily: "var(--font-ui)", fontSize: 12 }}>
-                  {source.name}
-                </text>
-                <text x={xs - 8} y={ys + h / 2 + 11} textAnchor="end">
-                  {money(source.value)}
-                </text>
-              </g>,
+      <FlowChart
+        label={`Where ${longMonth(data.month)}'s income went: ${dests.map((d) => `${d.name} ${d.label ?? money(d.value)}`).join(", ")}.`}
+        origins={origins}
+        dests={dests}
+        money={money}
+        size={(value) => Number(units(value))}
+        onDrill={onDrill}
+      />
+      {(left > 0 || (lens === "BITCOIN" && Number(stacked?.other_usd ?? "0") > 0)) && (
+        <div className="hint">
+          {left > 0 && `${plural(left, "category")} left out because a conversion is unavailable. `}
+          {lens === "BITCOIN" && Number(stacked?.other_usd ?? "0") > 0 && "Moves to other dollar accounts are shown in the dollar view only; they are not converted at a guessed price."}
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+const ribbon = (x0: number, a0: number, a1: number, x1: number, b0: number, b1: number) => {
+  const mid = (x0 + x1) / 2;
+  return `M${x0},${a0}C${mid},${a0} ${mid},${b0} ${x1},${b0}L${x1},${b1}C${mid},${b1} ${mid},${a1} ${x0},${a1}Z`;
+};
+
+/** Label rows as SVG text. Positions and sizes come from the layout; this only adds colour. */
+function FlowLabel({ placed, fill }: { placed: FlowPlaced; fill: (kind: "name" | "value") => string }) {
+  return (
+    <>
+      {placed.rows.map((row, index) => (
+        <text key={index} x={placed.x} y={row.y} textAnchor={placed.anchor}>
+          {row.parts.map((part, at) => (
+            <tspan
+              key={part.kind}
+              dx={at ? PART_GAP : undefined}
+              style={{ fontFamily: part.kind === "name" ? "var(--font-ui)" : "var(--font-num)", fontSize: part.size, fontWeight: part.weight, fill: fill(part.kind) }}
+            >
+              {part.text}
+            </tspan>
+          ))}
+        </text>
+      ))}
+    </>
+  );
+}
+
+/** The flow drawing. It measures its own width so that it can choose its height and label columns before drawing. */
+function FlowChart({
+  label,
+  origins,
+  dests,
+  money,
+  size,
+  onDrill,
+}: {
+  label: string;
+  origins: { name: string; value: string }[];
+  dests: Stream[];
+  money: (value: string) => string;
+  size: (value: string) => number;
+  onDrill: (categoryKey: string) => void;
+}) {
+  const [ref, measured] = useSize<HTMLDivElement>();
+  useFontsReady();
+  const width = measured.width || (NO_LAYOUT ? 600 : 0);
+  const layout =
+    width > 0
+      ? layoutFlow({
+          width,
+          measure: measureText,
+          sources: origins.map((o) => ({ name: o.name, value: money(o.value), size: size(o.value), valueSize: 10 })),
+          dests: dests.map((d) => ({
+            name: d.name,
+            value: d.label ?? money(d.value),
+            size: size(d.value),
+            ...(d.kind === "stack" ? { nameSize: 12.5, nameWeight: 700, valueSize: 11, roomy: true } : d.kind === "rest" ? { nameSize: 11.5 } : {}),
+          })),
+        })
+      : null;
+  return (
+    <div ref={ref} className="chart" style={{ height: layout?.height ?? 250 }}>
+      {layout && (
+        <svg viewBox={`0 0 ${layout.width} ${layout.height}`} role="img" aria-label={label} preserveAspectRatio="none">
+          {origins.map((origin, index) => {
+            const at = layout.sources[index];
+            return (
+              <g key={`s-${origin.name}`}>
+                <title>{`${origin.name} ${money(origin.value)}`}</title>
+                <path d={ribbon(layout.sourceX + layout.node, at.y, at.y + at.height, layout.hubX, at.hubY, at.hubY + at.height)} fill="var(--usd)" opacity=".13" />
+                <rect x={layout.sourceX} y={at.y} width={layout.node} height={at.height} rx="2" fill="var(--usd)" />
+                <FlowLabel placed={at} fill={(kind) => (kind === "name" ? "var(--ink-2)" : "var(--ink-3)")} />
+              </g>
             );
-            ys += h;
-            yh += h;
-          }
-          nodes.push(<rect key="hub" x={xh} y={hubTop} width={node} height={total * k} rx="2" fill="var(--ink-3)" />);
-          let ya = hubTop,
-            yd = top;
-          for (const d of dests) {
-            const h = Math.max(Number(units(d.value)) * k, 1.5),
-              slot = Math.max(h, minSlot),
-              y0 = yd + (slot - h) / 2;
+          })}
+          <rect x={layout.hubX} y={layout.hub.y} width={layout.node} height={layout.hub.height} rx="2" fill="var(--ink-3)" />
+          {dests.map((d, index) => {
+            const at = layout.dests[index];
             const fill = d.kind === "stack" ? "var(--btc)" : d.kind === "rest" ? "var(--ink-3)" : "var(--usd)";
             const opacity = d.kind === "stack" ? 0.6 : d.kind === "rest" ? 0.1 : 0.2;
-            const ty = yd + slot / 2 + 4,
-              oneLine = h < 22;
             const drill = d.drill ? () => onDrill(d.drill!) : undefined;
-            nodes.push(
+            return (
               <g
                 key={d.key}
                 role={drill ? "button" : undefined}
@@ -459,41 +506,15 @@ export function MoneyFlowPanel({
                   }
                 }}
               >
-                <path d={ribbon(xh + node, ya, ya + h, xd, y0, y0 + h)} fill={fill} opacity={opacity} />
-                <rect x={xd} y={y0} width={node} height={h} rx="2" fill={fill}>
-                  <title>{`${d.name} ${d.label ?? money(d.value)}${d.kind === "rest" ? ". Not assigned yet: dollars waiting, not savings." : ""}`}</title>
-                </rect>
-                {d.kind === "stack" ? (
-                  <>
-                    <text x={xd + node + 8} y={oneLine ? ty : ty - 7} style={{ fill: "var(--btc)", fontFamily: "var(--font-ui)", fontSize: 12.5, fontWeight: 700 }}>
-                      Bitcoin stacked
-                    </text>
-                    <text x={xd + node + 8} y={oneLine ? ty : ty + 7} dx={oneLine ? 104 : 0} style={{ fill: "var(--btc)", fontSize: 11 }}>
-                      {d.label}
-                    </text>
-                  </>
-                ) : (
-                  <text className="lbl" x={xd + node + 8} y={ty} style={{ fontFamily: "var(--font-ui)", fontSize: d.kind === "rest" ? 11.5 : 12, fill: d.kind === "rest" ? "var(--ink-3)" : undefined }}>
-                    {d.name}{" "}
-                    <tspan style={{ fontFamily: "var(--font-num)", fontSize: 10.5, fill: "var(--ink-3)" }} dx="4">
-                      {money(d.value)}
-                    </tspan>
-                  </text>
-                )}
-              </g>,
+                <title>{`${d.name} ${d.label ?? money(d.value)}${d.kind === "rest" ? ". Not assigned yet: dollars waiting, not savings." : ""}`}</title>
+                <path d={ribbon(layout.hubX + layout.node, at.hubY, at.hubY + at.height, layout.destX, at.y, at.y + at.height)} fill={fill} opacity={opacity} />
+                <rect x={layout.destX} y={at.y} width={layout.node} height={at.height} rx="2" fill={fill} />
+                <FlowLabel placed={at} fill={(kind) => (d.kind === "stack" ? "var(--btc)" : kind === "name" && d.kind !== "rest" ? "var(--ink-2)" : "var(--ink-3)")} />
+              </g>
             );
-            ya += h;
-            yd += slot + gap;
-          }
-          return <>{nodes}</>;
-        }}
-      </Frame>
-      {(left > 0 || (lens === "BITCOIN" && Number(stacked?.other_usd ?? "0") > 0)) && (
-        <div className="hint">
-          {left > 0 && `${plural(left, "category")} left out because a conversion is unavailable. `}
-          {lens === "BITCOIN" && Number(stacked?.other_usd ?? "0") > 0 && "Moves to other dollar accounts are shown in the dollar view only; they are not converted at a guessed price."}
-        </div>
+          })}
+        </svg>
       )}
-    </Panel>
+    </div>
   );
 }
