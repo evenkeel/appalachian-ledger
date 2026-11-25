@@ -31,10 +31,17 @@ function demo() {
     recent_from: "2026-09-01",
     quote: { usd_per_btc: "61147.96", observed_at: "2026-11-23T23:47:17+00:00" },
     lazy: { "/rates": "rates" },
+    retirement: {
+      '[{"growth_pct":"20"},[]]': "0",
+      '[{},["bill-9","buy"]]': "1",
+      '[{"cost_rise_pct":"6.0"},[]]': "2",
+      '[{"growth_pct":null},[]]': "3",
+    },
     responses: {
       "/auth/me": { username: "demo", csrf: "demo", demo: true, preferences: { theme: "light", denomination: "USD", rate_source: "coinbase" } },
       "/settings": { preferences: { theme: "light", denomination: "USD", rate_source: "coinbase" }, demo: true },
       "/alerts": { lights: [], active: [{ id: "backup", level: "caution", acknowledged: false }, { id: "price", level: "advisory", acknowledged: false }] },
+      "/planning/retirement": { settings: { growth_pct: "15", cost_rise_pct: "3", left_out_entries: [] }, ledger: { bitcoin: "5" }, runway: { months: 3 } },
       "/categories": [{ id: 4, name: "Dining" }],
       "/accounts": [{ id: 1, name: "Everyday checking" }],
     },
@@ -46,6 +53,10 @@ function demo() {
     transfers: [entry(2, "2026-10-02", "transfer", "Bitcoin buy", 1, 3)],
     "reports/2026-10": { month: "2026-10" },
     "activity/1": [{ id: 3 }],
+    "retirement/0": { runway: { months: 4 } },
+    "retirement/1": { runway: { months: 5 } },
+    "retirement/2": { runway: { months: 2 } },
+    "retirement/3": { runway: null },
     "spending/2026": {
       "2026-11": { transactions: [expense(3, "2026-11-20", "Dining", "33.10")], current_reference: { price_usd: "61147.96" } },
       "2026-10": { transactions: [expense(2, "2026-10-09", "Rent", "1245.00")], current_reference: null },
@@ -135,5 +146,22 @@ describe("the demo's clock", () => {
     } finally {
       globalThis.Date = RealDate;
     }
+  });
+
+  it("answers the retirement changes the server was asked, and says when one was not", async () => {
+    const { server, load } = demo();
+    const settings = { growth_pct: "15", cost_rise_pct: "3", left_out_entries: [] as number[] };
+    const draft = (changes: object, trying: string[] = []) =>
+      server.request("/planning/retirement/draft", "POST", { settings: { ...settings, ...changes }, trying }) as Promise<Record<string, unknown>>;
+    expect(await draft({ growth_pct: "20.0" })).toEqual({ settings: { ...settings, growth_pct: "20.0" }, ledger: { bitcoin: "5" }, runway: { months: 4 } });
+    expect(await draft({}, ["buy", "bill-9"])).toMatchObject({ runway: { months: 5 } });
+    expect(await draft({ cost_rise_pct: "6.0" })).toMatchObject({ runway: { months: 2 } });
+    expect(await draft({ growth_pct: null })).toMatchObject({ runway: null });
+    load.mockClear();
+    expect(await draft({ growth_pct: "15.0" })).toMatchObject({ runway: { months: 3 } });
+    expect(load).not.toHaveBeenCalled();
+    await expect(draft({ growth_pct: "21" })).rejects.toThrow("one change at a time");
+    await expect(draft({ growth_pct: "20" }, ["buy"])).rejects.toThrow("one change at a time");
+    await expect(server.request("/planning/retirement", "PUT", settings)).rejects.toThrow(NOT_SAVED);
   });
 });

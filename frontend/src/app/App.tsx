@@ -121,14 +121,7 @@ function Screens() {
         ) : route === "learn" ? (
           <Learn go={go} />
         ) : route === "retirement" ? (
-          DEMO ? (
-            <NotInDemo title="Retirement">
-              Retirement planning works out each projection in the app on your own computer, so it is not part of the
-              browser demo.
-            </NotInDemo>
-          ) : (
-            <Retirement go={go} />
-          )
+          <Retirement go={go} />
         ) : route === "stack" ? (
           <Stack go={go} />
         ) : route === "markets" && DEMO ? (

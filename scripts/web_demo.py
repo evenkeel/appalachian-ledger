@@ -206,6 +206,44 @@ def main() -> int:
         for account in responses["/accounts"]:
             save(f"activity/{account['id']}", ask(f"/accounts/{account['id']}/activity"))
 
+        # Retirement is worked out by the server, so the demo keeps its answers to the changes a visitor
+        # is likely to try. Each is named by what differs from the saved choices (see demo/retirement.ts).
+        (data / "retirement").mkdir()
+        shown = ask("/planning/retirement")
+        responses["/planning/retirement"] = shown
+        base, retirement = shown["settings"], {}
+
+        def keep(changes, trying=()):
+            answer = ask(
+                "/planning/retirement/draft", "POST", json={"settings": base | changes, "trying": sorted(trying)}
+            )
+            # What no change here moves is left out and filled in from the opening answer.
+            parts = {name: value for name, value in answer.items() if value != shown[name] and name != "settings"}
+            name = str(len(retirement))
+            save(f"retirement/{name}", parts)
+            retirement[json.dumps([dict(sorted(changes.items())), sorted(trying)], separators=(",", ":"))] = name
+
+        levers = [lever["id"] for lever in shown["answer"]["levers"]]
+        for rate in range(0, 41):
+            if str(rate) != base["growth_pct"]:
+                keep({"growth_pct": str(rate)})
+        keep({"growth_pct": None})
+        for picked in range(1, 2 ** len(levers)):
+            keep({}, [lever for i, lever in enumerate(levers) if picked >> i & 1])
+        for lever in levers:
+            keep({"freed_to_bitcoin": False}, [lever])
+        keep({"freed_to_bitcoin": False})
+        keep({"use_record": False})
+        keep({"cost_rise_pct": shown["money_supply_pct"]})
+        keep({"cost_rise_pct": shown["money_supply_pct"], "use_record": False})
+        for row in shown["ledger"]["years"][:-1]:
+            keep({"measure_from": row["year"]})
+        for tax in range(0, 31, 5):
+            if str(tax) != base["tax_pct"]:
+                keep({"tax_pct": str(tax)})
+        for row in shown["ledger"]["one_offs"]:
+            keep({"left_out_entries": [row["id"]]})
+
         # The server's own answers for longer spans. The front-end tests add the saved months up
         # and must arrive at exactly these, or the demo build fails.
         year_ago = months[max(len(months) - 13, 0)]
@@ -241,6 +279,7 @@ def main() -> int:
                     "retrieved_at": prices.retrieved_at,
                 },
                 "lazy": lazy,
+                "retirement": retirement,
                 "responses": responses,
             },
         )

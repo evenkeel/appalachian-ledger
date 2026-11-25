@@ -105,5 +105,7 @@ header is one real Coinbase quote, shown with the time it was taken.
 Nothing is saved. Switching theme, switching between dollars and bitcoin, and marking alerts
 seen work until the page is reloaded. Anything that would change the ledger (adding an entry,
 paying a bill) is declined with a sentence saying so, because making those work would mean
-rebuilding the ledger's arithmetic in the browser. Markets and Retirement need the app's own
-server and say so.
+rebuilding the ledger's arithmetic in the browser. Markets needs the app's own server and says so.
+Retirement answers the changes a visitor is likely to try (the growth rate in whole percents from 0
+to 40, every mix of the Make it sooner boxes, and the main choices one at a time) from the server's
+saved answers, and says so for anything else. Its detailed planner is left out.

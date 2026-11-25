@@ -12,6 +12,8 @@ import type { StandIn } from "../lib/api";
 import { composeSpending, monthsBetween } from "./compose";
 import type { MonthAnswer } from "./compose";
 import { NOT_SAVED } from "./mode";
+import { keptAnswer, NOT_KEPT } from "./retirement";
+import type { Asked } from "./retirement";
 
 export interface Core {
   /** When the answers were saved, and the day the demo ledger calls today. */
@@ -24,6 +26,8 @@ export interface Core {
   quote: { usd_per_btc: string; observed_at: string } | null;
   /** Larger answers kept out of the first load: path to file name. */
   lazy: Record<string, string>;
+  /** Retirement questions the server answered: what was changed, to the file with its answer. */
+  retirement?: Record<string, string>;
   responses: Record<string, unknown>;
 }
 
@@ -101,6 +105,14 @@ export function createServer(core: Core, load: (file: string) => Promise<unknown
     throw new Error("The demo does not include this view. It works in the app on your own computer.");
   }
 
+  async function retirement(asked: Asked) {
+    const opening = responses["/planning/retirement"] as { settings: Record<string, unknown> };
+    const name = keptAnswer(opening.settings, core.retirement ?? {}, asked);
+    if (name === undefined) throw new Error(NOT_KEPT);
+    const parts = name === null ? {} : await file<object>(`retirement/${name}`);
+    return { ...opening, ...parts, settings: asked.settings };
+  }
+
   function change(path: string, method: string, body: unknown) {
     const settings = responses["/settings"] as { preferences: Record<string, unknown> };
     const me = responses["/auth/me"] as { preferences: Record<string, unknown> };
@@ -136,6 +148,7 @@ export function createServer(core: Core, load: (file: string) => Promise<unknown
     async request(path, method, body) {
       // A beat of delay keeps loading states honest without making anyone wait.
       await Promise.resolve();
+      if (path === "/planning/retirement/draft" && method === "POST") return clone(await retirement(body as Asked));
       return clone(method === "GET" ? await read(path) : change(path, method, body));
     },
     async download() {

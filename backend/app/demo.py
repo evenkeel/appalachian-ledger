@@ -67,7 +67,11 @@ def seed_demo(db, user, today=None, prices=None, months=None):
             )
         day += timedelta(days=1)
     # The ledger prices entries from the owner's chosen source, so choose it before the first entry.
-    user.preferences = json.dumps(json.loads(user.preferences) | {"rate_source": "coinbase", "automatic_prices": True})
+    # He turned 25 this month, so the Retirement screen opens on an answer.
+    retirement = {"birth_date": f"{life.today.year - 25}-{life.today.month:02d}-01"}
+    user.preferences = json.dumps(
+        json.loads(user.preferences) | {"rate_source": "coinbase", "automatic_prices": True, "retirement": retirement}
+    )
     db.flush()
 
     categories = {category.name: category for category in db.scalars(select(Category))}
