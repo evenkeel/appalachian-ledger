@@ -1,8 +1,51 @@
-# Retirement scenarios and extended spending history
+# Retirement
+
+## Your retirement age
+
+**Retirement** answers one question: how long can your bitcoin pay for your life? That is your **runway**: the years of expenses you have, with your stack growing at the rate you think bitcoin grows (15% a year until you change it), less your expenses as they rise. It needs no birth date.
+
+With a birth date it also gives your retirement age: the first age your runway reaches the rest of your life (to 95 by default). The screen also shows runway by age, when you reach 1, 2, 5, 10 and 20 years, what it was a year ago, what would make the age sooner, and how much runway you would have if the price and your costs never moved.
+
+Further down is one extra check: how long the stack would last if bitcoin crashed right after you stopped. It has the price fall by half and never make it up, or repeat what it really did after December 2017, April 2021, November 2021 or October 2025.
+
+`backend/app/retirement.py` is the arithmetic: no database, no network, Decimal throughout. `backend/app/retirement_plan.py` reads the ledger and builds the screen. Nothing here posts to the journal.
+
+### What comes from the ledger
+
+- **Stack:** balances of bitcoin accounts that are not closed, at the current price. Dollars in checking, homes and other assets are not counted.
+- **Spending:** the last 12 complete calendar months of expenses. This month is left out because it is unfinished. With fewer months it is marked as an early estimate and averages what there is, adding yearly, half-yearly and quarterly bills that have not been paid yet. With no complete month it uses active bills. You can enter your own figure instead.
+- **What continues:** each category can continue at 0 to 300% of today's amount. One-off costs can be left out of the figure and the yearly totals; they stay in the ledger. Bills, and anything bought four or more times in the year, are not offered as one-offs.
+- **Bitcoin bought:** the average over up to 12 complete months, or your own figure. It rises with the standard cost rise.
+- **Debts:** one with a bill is paid month by month from the stack once you stop, until it is gone. One with no bill is paid off from the stack the day you stop. Loan principal is not in spending, so nothing is counted twice. Interest is not added.
+
+### Costs from here
+
+Yearly totals are back-to-back 12-month blocks ending with the last complete month. With two or more complete years, your own yearly change in dollar costs is a straight-line fit through their logarithms. It is projected only as many years ahead as it has behind it, then the standard rise takes over (3% until you change it). You can choose the year to measure from, or turn it off. Your trend is measured in dollars on purpose: a cost in bitcoin moves with bitcoin's price even when you spend exactly the same.
+
+The second preset, 6.0%, is how fast US dollars (M2) grew a year from October 2016 to October 2026: 13,124.5 to 23,532.8 billion. Source: Federal Reserve Bank of St. Louis, FRED series M2SL.
+
+### Conventions
+
+- Month 0 is today. Each month the price and costs rise first, then bitcoin is bought while working or sold once stopped. Yearly rates compound monthly.
+- The stack needed at a month is the sum over later months of (cost and debt payments less other income, not below zero) / (1 - tax) / price, plus debts nothing is paying off. Your retirement age is the first month the stack covers it.
+- Runway ends the first month the stack cannot pay in full. Without a birth date it looks 100 years ahead and counts no other income. The year-ago figure uses that day's stack, price and debts, and the year of spending before it.
+- The replays use Coinbase BTC-USD daily closes nearest the 15th of each month, August 2015 to November 2026, in `backend/app/bitcoin_history.py`. After November 2026 your own rate takes over. Nothing is fetched.
+- Bitcoin shown as held rounds down and bitcoin needed rounds up.
+- Tax is one flat share of each sale. Other income is in today's dollars and rises with the standard rise. Drops are modelled only by the halving and the replays. The future can be worse than any of them.
+
+### API and storage
+
+- `GET /api/planning/retirement`: the saved choices, what the ledger records, and the answer.
+- `POST /api/planning/retirement/draft`: the answer for changed choices, saving nothing.
+- `PUT /api/planning/retirement`: save the choices.
+
+Choices are kept in the owner's preferences, so there is no new table or migration, and saving other settings does not reset them. The audit trail records that they changed, not the birth date or amounts. Code from before this change does not know the new preference and refuses to open Settings on a ledger where it has been saved.
+
+# Detailed planner: scenarios and extended spending history
 
 ## Use
 
-Choose **Retirement** in the sidebar. Enter a starting price and position manually, or select **Use ledger balances**. Every input remains editable. There is no account-connection requirement. The suggested ages are editable draft values; appreciation, other-asset returns and spending changes start at 0%.
+Choose **Retirement** in the sidebar, then **Open the detailed planner** at the bottom. Enter a starting price and position manually, or select **Use ledger balances**. Every input remains editable. There is no account-connection requirement. The suggested ages are editable draft values; appreciation, other-asset returns and spending changes start at 0%.
 
 Ledger prefill is explicit. It uses today's recorded non-archived accounts and the latest usable selected-provider quote or dated manual reference. Missing conversions remain null and are not substituted with zero. Only available fields are copied. Other assets can include property or vehicles: review and exclude assets unavailable for retirement. The price source/date is displayed. Contributions are never inferred from income. The previous completed month's recorded expenses can be copied separately, with a warning that records may be incomplete or atypical.
 

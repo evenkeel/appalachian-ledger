@@ -1,839 +1,756 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { api } from "../../lib/api";
-import { emptyPlan } from "../../lib/planning";
-import type { Comparison, ForecastInput, ForecastResult, ProjectionPoint, Scenario, StartingPosition } from "../../lib/planning";
 import { Panel } from "../dashboard/panels";
-import { TwoStep } from "../dashboard/Sheets";
-import { LevelIcon } from "../design/icons";
-import { btc, coordinate, longMonth, plural, usd } from "../lib/format";
+import { btc, coordinate, longMonth, shortDate, usd, usdWhole } from "../lib/format";
 import type { Route } from "../lib/router";
-import { useSession } from "../lib/session";
+import { leverRunway, leverText, percent, readField, runwayText, span } from "./answer";
+import type { AfterSeries, Answer, RetirementSettings, RetirementView, Stop } from "./answer";
+import { CrossingChart, RunwayChart, YearBars } from "./answerCharts";
 import { Legend, LineChart } from "./charts";
-import type { Line, Marker } from "./charts";
-import { monthYear, prepare, today, wholeAge } from "./plan";
-import type { Field } from "./plan";
+import { monthYear } from "./plan";
+import { Planner } from "./Planner";
 import "./retirement.css";
 
-type Lens = "USD" | "BITCOIN";
-type TextField = Exclude<Field, "as_of" | "current_age" | "retirement_age" | "planning_age" | "spending_model">;
-
-const PRESETS = ["0", "1", "5", "10", "15", "25", "50", "100"];
-const FROM_LEDGER = ["bitcoin", "cash_usd", "other_assets_usd", "liabilities_usd", "price_usd"] as const;
-/** Comparison lines differ by dashes and a number at the line's end, not by colour alone. */
-const COMPARE = [
-  { color: "var(--plan)", dash: undefined },
-  { color: "var(--usd)", dash: "7 4" },
-  { color: "var(--ink-3)", dash: "2 4" },
-  { color: "var(--plan)", dash: "12 4 2 4" },
+type Go = (route: Route, sub?: string) => void;
+type TextField = "growth_pct" | "cost_rise_pct" | "tax_pct" | "other_income_usd" | "other_income_age" | "last_age" | "monthly_spending_usd" | "monthly_purchase_usd";
+const TEXT: TextField[] = ["growth_pct", "cost_rise_pct", "tax_pct", "other_income_usd", "other_income_age", "last_age", "monthly_spending_usd", "monthly_purchase_usd"];
+const CROSS = [
+  { name: "Your stack", color: "var(--btc)" },
+  { name: "Stack you need", color: "var(--plan)" },
 ];
-const days = (iso: string) => Date.parse(`${iso}T12:00:00`) / 86_400_000;
-const yearOf = (dayNumber: number) => String(new Date(dayNumber * 86_400_000).getFullYear());
-const inLens = (point: ProjectionPoint, lens: Lens) => (lens === "USD" ? usd(point.portfolio_usd) : btc(point.portfolio_bitcoin));
+const RUNWAY = [
+  { name: "Your runway", color: "var(--btc)" },
+  { name: "The rest of your life", color: "var(--ink-3)" },
+];
+const monthOf = (key: string) => `${longMonth(key)} ${key.slice(0, 4)}`;
+const typedFrom = (settings: RetirementSettings) =>
+  Object.fromEntries(TEXT.map((field) => [field, settings[field] === null ? "" : String(settings[field])])) as Record<TextField, string>;
 
-/** A what-if for retirement, built from assumptions the owner chooses. It reads the ledger and never writes to it. */
-export function Retirement({ go }: { go: (route: Route, sub?: string) => void }) {
-  const { lens } = useSession();
-  const [inputs, setInputs] = useState<ForecastInput>(() => emptyPlan(today()));
-  // Becomes true the moment the owner changes anything, so the ledger's figures never overwrite their own.
-  const touched = useRef(false);
-  const [position, setPosition] = useState<StartingPosition | null>(null);
-  // null = not known yet; the planner still works if this cannot be read.
-  const [accounts, setAccounts] = useState<number | null>(null);
-  const [byHand, setByHand] = useState(false);
-  const [scenarios, setScenarios] = useState<Scenario[]>([]);
-  const [revision, setRevision] = useState(0);
-  const [name, setName] = useState("My plan");
-  const [selected, setSelected] = useState<number | null>(null);
-  const [compared, setCompared] = useState<number[]>([]);
-  const [comparisons, setComparisons] = useState<Comparison[]>([]);
-  const [compareError, setCompareError] = useState("");
-  const [data, setData] = useState<{ key: string; result: ForecastResult } | null>(null);
-  const [projectionError, setProjectionError] = useState("");
-  const [error, setError] = useState("");
+/** When the owner's bitcoin can pay for their life. It reads the ledger and never writes to it. */
+export function Retirement({ go }: { go: Go }) {
+  const [planner, setPlanner] = useState(false);
+  if (planner) return <Planner go={go} onBack={() => setPlanner(false)} />;
+  return <RetirementAge go={go} onPlanner={() => setPlanner(true)} />;
+}
+
+function RetirementAge({ go, onPlanner }: { go: Go; onPlanner: () => void }) {
+  const [view, setView] = useState<RetirementView | null>(null);
+  const [settings, setSettings] = useState<RetirementSettings | null>(null);
+  const [typed, setTyped] = useState<Record<TextField, string> | null>(null);
+  const [errors, setErrors] = useState<Partial<Record<TextField, string>>>({});
+  const [trying, setTrying] = useState<string[]>([]);
+  const [saved, setSaved] = useState("");
+  const [problem, setProblem] = useState("");
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
-  const [earliest, setEarliest] = useState<{ key: string; age: number | null; date: string | null } | null>(null);
-  const [solving, setSolving] = useState(false);
-  const [table, setTable] = useState(false);
-  const alive = useRef(true);
-  useEffect(() => {
-    alive.current = true;
-    return () => {
-      alive.current = false;
-    };
-  }, []);
+  // The question the figures on screen answer; a newer question marks them as out of date.
+  const [answered, setAnswered] = useState("");
 
-  const { payload, errors } = useMemo(() => prepare(inputs), [inputs]);
-  const invalid = Object.keys(errors).length > 0;
-  const key = payload && !invalid ? JSON.stringify(payload) : "";
-  const currentKey = useRef(key);
-  currentKey.current = key;
-  // The last good projection stays on screen, marked as updating, only while a new one is on its way.
-  const fresh = data !== null && data.key === key;
-  const result = data && key && !projectionError ? data.result : null;
-
+  function adopt(next: RetirementView) {
+    setView(next);
+    setSettings(next.settings);
+    setTyped(typedFrom(next.settings));
+    setSaved(JSON.stringify(next.settings));
+    setErrors({});
+    setTrying([]);
+    setAnswered(JSON.stringify([next.settings, []]));
+  }
   useEffect(() => {
     let active = true;
-    api<StartingPosition>("/planning/starting-position")
-      .then((next) => {
-        if (!active) return;
-        setPosition(next);
-        // A new plan starts from what the ledger holds today; every figure can still be changed.
-        if (!touched.current) {
-          setInputs((before) => fromLedger(before, next));
-          setStatus("Started from your ledger balances. Check every figure before relying on it.");
-        }
-      })
-      .catch((e: Error) => active && setError(e.message));
-    api<unknown[]>("/accounts")
-      .then((rows) => active && setAccounts(rows.length))
-      .catch(() => active && setAccounts(null));
+    api<RetirementView>("/planning/retirement")
+      .then((next) => active && adopt(next))
+      .catch((e: Error) => active && setProblem(e.message));
     return () => {
       active = false;
     };
   }, []);
+
+  const invalid = Object.values(errors).some(Boolean);
+  const question = settings ? JSON.stringify([settings, trying]) : "";
+  const latest = useRef("");
+  latest.current = question;
   useEffect(() => {
-    let active = true;
-    api<Scenario[]>("/planning/scenarios")
-      .then((rows) => active && setScenarios(rows))
-      .catch((e: Error) => active && setError(e.message));
-    return () => {
-      active = false;
-    };
-  }, [revision]);
-  useEffect(() => {
-    let active = true;
-    setProjectionError("");
-    if (!key) return;
+    if (!settings || invalid || question === answered) return;
     const timer = window.setTimeout(() => {
-      api<ForecastResult>("/planning/project", "POST", JSON.parse(key))
-        .then((next) => active && setData({ key, result: next }))
-        .catch((e: Error) => active && setProjectionError(e.message));
+      api<RetirementView>("/planning/retirement/draft", "POST", { settings, trying })
+        .then((next) => {
+          if (latest.current !== question) return;
+          setView(next);
+          setAnswered(question);
+          setProblem("");
+        })
+        .catch((e: Error) => latest.current === question && setProblem(e.message));
     }, 300);
-    return () => {
-      active = false;
-      window.clearTimeout(timer);
-    };
-  }, [key]);
-  useEffect(() => {
-    let active = true;
-    setComparisons([]);
-    setCompareError("");
-    if (!compared.length) return;
-    api<Comparison[]>("/planning/compare", "POST", { ids: compared })
-      .then((rows) => active && setComparisons(rows))
-      .catch((e: Error) => active && setCompareError(e.message));
-    return () => {
-      active = false;
-    };
-  }, [compared, revision]);
+    return () => window.clearTimeout(timer);
+  }, [question, answered, invalid]);
 
-  const change = (field: Field, value: string | number) => {
-    touched.current = true;
-    setInputs((before) => ({ ...before, [field]: value }));
-  };
-  function useLedger() {
-    if (!position) return;
-    touched.current = true;
-    setInputs((before) => fromLedger(before, position));
-    setStatus("Copied what the ledger has. Anything it could not value was left as it was; check every figure.");
-  }
-  function startNew() {
-    touched.current = true;
-    setSelected(null);
-    setName("My plan");
-    setInputs(position ? fromLedger(emptyPlan(today()), position) : emptyPlan(today()));
-    setStatus("New plan started.");
-  }
-  function open(id: string) {
-    const row = scenarios.find((scenario) => scenario.id === Number(id));
-    touched.current = true;
-    if (!row) {
-      // "Unsaved draft" keeps the figures and only detaches them from the saved plan.
-      setSelected(null);
-      setStatus("");
-      return;
-    }
-    setSelected(row.id);
-    setName(row.name);
-    setInputs(row.assumptions);
-    setStatus(`Opened ${row.name} with its saved date and price. Today's price does not replace them.`);
-  }
-  async function save(copy = false) {
-    if (!payload) return;
-    setBusy(true);
-    setError("");
-    setStatus("");
-    const update = selected !== null && !copy;
-    try {
-      const row = await api<Scenario>(update ? `/planning/scenarios/${selected}` : "/planning/scenarios", update ? "PUT" : "POST", {
-        name: copy ? `${name.trim().slice(0, 74)} copy` : name.trim(),
-        assumptions: payload,
-      });
-      if (!alive.current) return;
-      setSelected(row.id);
-      setName(row.name);
-      setRevision((n) => n + 1);
-      setStatus(`Saved ${row.name} with its starting date and price.`);
-    } catch (e) {
-      if (alive.current) setError((e as Error).message);
-    } finally {
-      if (alive.current) setBusy(false);
-    }
-  }
-  async function remove() {
-    if (selected === null) return;
-    setBusy(true);
-    setError("");
-    try {
-      await api(`/planning/scenarios/${selected}`, "DELETE");
-      if (!alive.current) return;
-      setCompared((ids) => ids.filter((id) => id !== selected));
-      setSelected(null);
-      setRevision((n) => n + 1);
-      setStatus(`Deleted ${name}. The figures are still here as an unsaved draft.`);
-    } catch (e) {
-      if (alive.current) setError((e as Error).message);
-    } finally {
-      if (alive.current) setBusy(false);
-    }
-  }
-  async function solve() {
-    if (!payload || !key) return;
-    const asked = key;
-    setSolving(true);
-    setError("");
-    try {
-      const answer = await api<{ age: number | null; date: string | null }>("/planning/earliest-retirement", "POST", payload);
-      if (alive.current && currentKey.current === asked) setEarliest({ ...answer, key: asked });
-    } catch (e) {
-      if (alive.current && currentKey.current === asked) setError((e as Error).message);
-    } finally {
-      if (alive.current) setSolving(false);
-    }
-  }
-
-  const notices = (
-    <>
-      {error && (
-        <p className="gate-error" role="alert">
-          {error}
-        </p>
-      )}
-      <p className={status ? "ret-status" : "sr"} role="status">
-        {status}
-      </p>
-    </>
-  );
-
-  if (accounts === 0 && !byHand && scenarios.length === 0)
+  if (!view || !settings || !typed)
     return (
-      <div className="page ret-page">
+      <div className="page ret-page" aria-busy={!problem}>
         <h1>Retirement</h1>
-        {notices}
-        <Panel className="ret-narrow" name="Nothing to plan from yet" plain="add an account first" inop>
-          <div className="lead">A plan starts from what you hold today.</div>
-          <div className="sub">
-            Add your accounts and this screen fills in your bitcoin, cash, other assets and debts for you. Then you choose the assumptions and see how long the money lasts. It is a
-            what-if, not a prediction, and it never changes your ledger.
-          </div>
-          <div className="ret-row">
-            <button className="btn primary" onClick={() => go("accounts", "add")}>
-              Add an account
-            </button>
-            <button className="inst-link" onClick={() => setByHand(true)}>
-              Enter figures by hand instead →
-            </button>
-          </div>
-        </Panel>
+        {problem ? (
+          <p className="gate-error" role="alert">
+            {problem}
+          </p>
+        ) : (
+          <p className="sub">Reading your ledger…</p>
+        )}
       </div>
     );
 
-  const text = (field: TextField, label: string, options: { hint?: ReactNode; wide?: boolean; placeholder?: string } = {}) => (
-    <label key={field} className={`field${options.wide ? " ret-wide" : ""}`}>
+  const change = (part: Partial<RetirementSettings>) => {
+    setStatus("");
+    setSettings((before) => ({ ...before!, ...part }));
+  };
+  const type = (field: TextField, value: string) => {
+    setTyped((before) => ({ ...before!, [field]: value }));
+    const read = readField(field, value);
+    setErrors((before) => ({ ...before, [field]: "error" in read ? read.error : undefined }));
+    if (!("error" in read)) change({ [field]: read.value } as Partial<RetirementSettings>);
+  };
+  const undo = () => {
+    const before = JSON.parse(saved) as RetirementSettings;
+    setSettings(before);
+    setTyped(typedFrom(before));
+    setErrors({});
+    setTrying([]);
+    setStatus("");
+  };
+  async function save() {
+    setBusy(true);
+    setProblem("");
+    try {
+      adopt(await api<RetirementView>("/planning/retirement", "PUT", settings));
+      setStatus("Saved. Your ledger was not changed.");
+    } catch (e) {
+      setProblem((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  const changed = JSON.stringify(settings) !== saved;
+  const stale = question !== answered || invalid;
+  const facts = view.ledger,
+    answer = view.answer;
+
+  const field = (name: TextField, label: string, hint?: ReactNode) => (
+    <label key={name} className="field">
       <span>{label}</span>
       <input
         className="num"
         inputMode="decimal"
-        value={inputs[field]}
-        placeholder={options.placeholder}
-        aria-invalid={errors[field] ? true : undefined}
-        aria-describedby={errors[field] ? `ret-${field}-error` : undefined}
-        onChange={(event) => change(field, event.target.value)}
+        value={typed[name]}
+        placeholder={name === "monthly_spending_usd" ? facts.recorded_spending_usd : name === "monthly_purchase_usd" ? facts.recorded_purchase_usd : undefined}
+        aria-invalid={errors[name] ? true : undefined}
+        aria-describedby={errors[name] ? `age-${name}-error` : undefined}
+        onChange={(event) => type(name, event.target.value)}
       />
-      {errors[field] && (
-        <small id={`ret-${field}-error`} className="ret-error">
-          {errors[field]}
+      {errors[name] && (
+        <small id={`age-${name}-error`} className="ret-error">
+          {errors[name]}
         </small>
       )}
-      {options.hint && <small className="hint">{options.hint}</small>}
+      {hint && <small className="hint">{hint}</small>}
     </label>
   );
-  const age = (field: "current_age" | "retirement_age" | "planning_age", label: string) => (
-    <label key={field} className="field">
-      <span>{label}</span>
-      <input
-        className="num"
-        type="number"
-        min={0}
-        max={120}
-        step={1}
-        value={Number.isNaN(inputs[field]) ? "" : inputs[field]}
-        aria-invalid={errors[field] ? true : undefined}
-        aria-describedby={errors[field] ? `ret-${field}-error` : undefined}
-        onChange={(event) => change(field, event.target.value === "" ? Number.NaN : Number(event.target.value))}
-      />
-      {errors[field] && (
-        <small id={`ret-${field}-error`} className="ret-error">
-          {errors[field]}
-        </small>
-      )}
-    </label>
-  );
-  const canSave = !busy && fresh && result !== null && name.trim() !== "";
 
+  const birthDate = (
+    <label className="field ret-wide">
+      <span>Birth date</span>
+      <input type="date" value={settings.birth_date ?? ""} max={view.as_of} onChange={(event) => change({ birth_date: event.target.value || null })} />
+    </label>
+  );
   return (
-    <div className="page ret-page">
+    <div className="page ret-page ret-age">
       <h1>Retirement</h1>
       <p className="intro">
-        A what-if, built from assumptions you choose. It is not a prediction, and nothing here changes your ledger.{" "}
+        How long your bitcoin can pay for your life, and when that becomes the rest of it. Your ledger supplies the stack, the spending and the bitcoin you buy.{" "}
         <button className="inst-link" onClick={() => go("learn", "bitcoin-is-saving")}>
           How this ledger thinks about saving →
         </button>
       </p>
-      {notices}
-      <div className="grid2">
-        <Panel className="c12" name="Plan" plain={selected === null ? "unsaved draft" : "saved on this ledger"}>
-          <div className="ret-plan">
-            <label className="field">
-              <span>Saved plans</span>
-              <select value={selected ?? ""} onChange={(event) => open(event.target.value)}>
-                <option value="">Unsaved draft</option>
-                {scenarios.map((scenario) => (
-                  <option key={scenario.id} value={scenario.id}>
-                    {scenario.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
-              <span>Plan name</span>
-              <input value={name} maxLength={80} onChange={(event) => setName(event.target.value)} />
-            </label>
-            <div className="ret-row">
-              <button className="btn primary" disabled={!canSave} onClick={() => void save()}>
-                {selected === null ? "Save plan" : "Save changes"}
+      {problem && (
+        <p className="gate-error" role="alert">
+          {problem}
+        </p>
+      )}
+      <div className="ret-row ret-savebar">
+        {(changed || trying.length > 0 || invalid) && (
+          <>
+            {changed && (
+              <button className="btn primary" disabled={busy || invalid} onClick={() => void save()}>
+                Save my choices
               </button>
-              <button className="btn" disabled={!canSave} onClick={() => void save(true)}>
-                Save a copy
-              </button>
-              <button className="btn ghost" onClick={startNew}>
-                New
-              </button>
-              {selected !== null && <TwoStep key={selected} ask="Delete" confirm="Yes, delete it" disabled={busy} onConfirm={() => void remove()} />}
-            </div>
-          </div>
-          <div className="hint">A saved plan keeps its own starting date and bitcoin price, so it reads the same next year. Save a copy, change one assumption, and compare the two below.</div>
-        </Panel>
-
-        <Panel className="c5" name="Assumptions" plain="every one is yours to set">
-          <div className="ret-sub ret-first">You</div>
-          <div className="ret-fields">
-            <label className="field">
-              <span>Starting date</span>
-              <input
-                type="date"
-                value={inputs.as_of}
-                aria-invalid={errors.as_of ? true : undefined}
-                aria-describedby={errors.as_of ? "ret-as_of-error" : undefined}
-                onChange={(event) => change("as_of", event.target.value)}
-              />
-              {errors.as_of && (
-                <small id="ret-as_of-error" className="ret-error">
-                  {errors.as_of}
-                </small>
-              )}
-            </label>
-            {age("current_age", "Your age now")}
-            {age("retirement_age", "Retire at age")}
-            {age("planning_age", "Plan through age")}
-          </div>
-
-          <div className="ret-sub">
-            What you start with
-            <button className="inst-link" disabled={!position} onClick={useLedger}>
-              Use ledger balances →
-            </button>
-          </div>
-          {position && (
-            <div className="hint">
-              Ledger balances as of {position.as_of}. Bitcoin price: {position.price_usd === null ? "none saved, so enter one" : `${position.rate_source ?? "saved price"}${position.rate_day ? `, ${position.rate_day}` : ""}`}
-              . Closed accounts are left out.
-            </div>
-          )}
-          <div className="ret-fields">
-            {text("bitcoin", "Bitcoin you hold (₿)")}
-            {text("price_usd", "Bitcoin price ($ per BTC)", { placeholder: "Needed to calculate" })}
-            {text("cash_usd", "Cash ($)")}
-            {text("liabilities_usd", "Debts to settle ($)")}
-            {text("other_assets_usd", "Other assets ($)", {
-              wide: true,
-              hint: "Count only what you could spend in retirement. A home or vehicle value copied from the ledger may not belong here.",
-            })}
-          </div>
-
-          <div className="ret-sub">Each month until you retire</div>
-          <div className="ret-fields">
-            {text("monthly_purchase_usd", "Bitcoin bought ($)")}
-            {text("monthly_savings_usd", "Put into other assets ($)")}
-          </div>
-
-          <div className="ret-sub">Yearly assumptions</div>
-          <div className="ret-fields">
-            {text("appreciation_pct", "Bitcoin price change (%)")}
-            {text("other_return_pct", "Other assets return (%)")}
-          </div>
-          <div className="ret-presets" role="group" aria-label="Presets for the bitcoin price change">
-            {PRESETS.map((rate) => (
-              <button key={rate} className="btn sm ghost" aria-pressed={inputs.appreciation_pct === rate} onClick={() => change("appreciation_pct", rate)}>
-                {rate}%
-              </button>
-            ))}
-          </div>
-          <div className="hint">
-            The presets are for trying things out. They are not predictions, and nothing is assumed unless you set it. A negative rate works too. Cash earns nothing here.
-          </div>
-
-          <div className="ret-sub">Cost of living in retirement</div>
-          <div className="seg" role="group" aria-label="Cost of living is set in">
-            <button aria-pressed={inputs.spending_model === "USD"} onClick={() => change("spending_model", "USD")}>
-              In dollars
-            </button>
-            <button aria-pressed={inputs.spending_model === "BITCOIN"} onClick={() => change("spending_model", "BITCOIN")}>
-              In bitcoin
-            </button>
-          </div>
-          <div className="ret-fields">
-            {inputs.spending_model === "USD" ? (
-              <>
-                {text("monthly_spending_usd", "A month, today ($)")}
-                {text("usd_spending_change_pct", "Change a year (%)")}
-              </>
-            ) : (
-              <>
-                {text("monthly_spending_bitcoin", "A month, today (₿)")}
-                {text("bitcoin_cost_change_pct", "Change a year (%)")}
-              </>
             )}
-          </div>
-          {inputs.spending_model === "USD" && position && position.previous_month_entries > 0 && position.previous_month_spending_usd !== null && (
-            <div>
-              <button
-                className="btn sm"
-                onClick={() => {
-                  change("monthly_spending_usd", position.previous_month_spending_usd!);
-                  setStatus(`Copied what you recorded in ${longMonth(position.previous_month)}. One month may not be a complete or typical one.`);
-                }}
-              >
-                Use {longMonth(position.previous_month)}'s recorded spending, {usd(position.previous_month_spending_usd)}
-              </button>
-            </div>
-          )}
-          <div className="hint">
-            {inputs.spending_model === "USD"
-              ? "The dollar cost changes each year from the starting date, and is paid at the projected bitcoin price."
-              : "A negative change means the same life takes less bitcoin each year. It is separate from the price assumption, which is not applied to it a second time."}
-          </div>
-          <div className="ret-fields">
-            {text("monthly_retirement_income_usd", "Income a month ($)", { hint: "A fixed dollar income after you retire. Any extra builds up as cash." })}
-            {text("end_balance_usd", "To have left at the end ($)")}
-          </div>
-        </Panel>
-
-        <div className="c7 ret-col">
-          <Outlook
-            result={result}
-            fresh={fresh}
-            lens={lens}
-            needsPrice={payload === null}
-            invalid={invalid}
-            problem={projectionError}
-            solving={solving}
-            earliest={earliest && earliest.key === key ? earliest : null}
-            onSolve={() => void solve()}
-          />
-          {result && (
-            <>
-              <PortfolioPanel result={result} lens={lens} />
-              <HeldPanel result={result} />
-              <DetailPanel result={result} />
-              <Panel name="Year by year" plain="the figures behind the charts">
-                <div className="ret-row">
-                  <button className="btn sm" aria-expanded={table} onClick={() => setTable(!table)}>
-                    {table ? "Hide the table" : "Show the table"}
-                  </button>
-                  <span className="sub">
-                    {plural(result.history.length, "row")}, one for each year from age {result.assumptions.current_age} to {result.assumptions.planning_age}.
-                  </span>
-                </div>
-                {table && <YearTable result={result} />}
-                <div className="hint">
-                  How it is worked out: yearly rates compound monthly. Each month growth comes first, then what you add until you retire, then spending once you have retired. Debts are
-                  settled at the start. Spending is paid from cash, then other assets, then bitcoin. Bitcoin buys round down to whole units and the change stays as cash; bitcoin sold rounds
-                  up and the extra stays as cash. What cannot be paid is counted as unfunded; the plan never borrows. Ages assume your birthday is the starting date.
-                </div>
-              </Panel>
-            </>
-          )}
-        </div>
-
-        <Panel className="c12" name="Compare saved plans" plain="up to four, each with its own saved figures">
-          {scenarios.length ? (
-            <div className="ret-pick" role="group" aria-label="Plans to compare">
-              {scenarios.map((scenario) => (
-                <label key={scenario.id} className="check-line">
-                  <input
-                    type="checkbox"
-                    checked={compared.includes(scenario.id)}
-                    disabled={!compared.includes(scenario.id) && compared.length >= 4}
-                    onChange={(event) => setCompared((ids) => (event.target.checked ? [...ids, scenario.id] : ids.filter((id) => id !== scenario.id)))}
-                  />
-                  {scenario.name}
-                </label>
-              ))}
-            </div>
-          ) : (
-            <div className="sub">Nothing saved yet. Save a plan, change one assumption, save a copy, then tick both here.</div>
-          )}
-          {compareError && (
-            <p className="gate-error" role="alert">
-              {compareError}
-            </p>
-          )}
-          {comparisons.length > 0 && <Compare rows={comparisons} lens={lens} />}
-        </Panel>
-      </div>
-    </div>
-  );
-}
-
-/** A draft filled with what the ledger can value today. Anything it cannot value is left alone. */
-function fromLedger(inputs: ForecastInput, position: StartingPosition): ForecastInput {
-  const next = { ...inputs, as_of: position.as_of };
-  for (const field of FROM_LEDGER) if (position[field] !== null) next[field] = position[field]!;
-  return next;
-}
-
-function Outlook({
-  result,
-  fresh,
-  lens,
-  needsPrice,
-  invalid,
-  problem,
-  solving,
-  earliest,
-  onSolve,
-}: {
-  result: ForecastResult | null;
-  fresh: boolean;
-  lens: Lens;
-  needsPrice: boolean;
-  invalid: boolean;
-  problem: string;
-  solving: boolean;
-  earliest: { age: number | null; date: string | null } | null;
-  onSolve: () => void;
-}) {
-  if (!result)
-    return (
-      <Panel name="Outlook" plain="hypothetical" inop>
-        {problem && (
-          <p className="gate-error" role="alert">
-            {problem}
-          </p>
+            <button className="btn ghost" onClick={undo}>
+              Undo
+            </button>
+          </>
         )}
-        <div className="sub" role="status">
-          {invalid
-            ? "Fix the marked assumptions and the outlook is worked out again. Nothing is shown from the earlier figures."
-            : needsPrice
-              ? "Enter a bitcoin price, or use your ledger balances, and the outlook is worked out here. Nothing is drawn until then."
-              : problem
-                ? "Change the assumptions to work this plan out. Nothing is shown from the earlier figures."
-                : "Working it out…"}
-        </div>
-      </Panel>
-    );
-  const plan = result.assumptions;
-  const spending = lens === "USD" ? usd(result.retirement.annual_spending_usd) : btc(result.retirement.annual_spending_bitcoin);
-  const gap = result.target_surplus_usd.startsWith("-");
-  return (
-    <Panel name="Outlook" plain={`hypothetical · retire in ${result.retirement.date.slice(0, 4)} at age ${plan.retirement_age}`}>
-      <div className={fresh ? undefined : "ret-stale"} aria-busy={!fresh}>
-        <div className="lead ret-verdict">
-          {result.sustainable ? (
-            <>
-              <span className="ok">{LevelIcon.ok}</span> Funded through age {plan.planning_age} under these assumptions.
-            </>
-          ) : result.depletion_date ? (
-            <>
-              Runs short from age {wholeAge(result.depletion_age!)}, in {monthYear(result.depletion_date)}, under these assumptions.
-            </>
-          ) : (
-            <>Pays for every year, but ends below the amount you want left.</>
-          )}
-          {!fresh && <span className="tag">Updating</span>}
-        </div>
-        <div className="kv ret-kv">
-          <div>
-            <span>Bitcoin at retirement</span>
-            <b className="btc">{btc(result.retirement.bitcoin)}</b>
-          </div>
-          <div>
-            <span>Cost of living a year, at retirement</span>
-            <b className={lens === "BITCOIN" ? "btc" : undefined}>{spending}</b>
-          </div>
-          <div>
-            <span>Portfolio at age {plan.planning_age}</span>
-            <b className="ret-plan-ink">{inLens(result.end, lens)}</b>
-          </div>
-          <div>
-            <span>Bitcoin held at age {plan.planning_age}</span>
-            <b className="btc">{btc(result.end.bitcoin)}</b>
-          </div>
-          <div>
-            <span>Unfunded over the plan</span>
-            <b>{usd(result.shortfall_usd)}</b>
-          </div>
-          <div>
-            <span>{gap ? "Below your end amount by" : "Above your end amount by"}</span>
-            <b>{usd(result.target_surplus_usd.replace(/^-/, ""))}</b>
-          </div>
-        </div>
+        <span className="sub" role="status">
+          {status || (stale && !invalid ? "Working it out…" : "")}
+        </span>
       </div>
-      <div className="ret-row">
-        <button className="btn sm" disabled={solving || !fresh} onClick={onSolve}>
-          {solving ? "Checking each age…" : "Find the earliest funded retirement age"}
-        </button>
-        {earliest && (
-          <span className="sub" role="status">
-            {earliest.age === null
-              ? `No retirement age before ${plan.planning_age} is funded under these assumptions.`
-              : `Earliest funded age: ${earliest.age}, in ${monthYear(earliest.date!)}.`}
-          </span>
-        )}
-      </div>
-      <div className="hint">
-        Every rate here is constant and chosen by you. Real prices swing, and taxes, fees and limits on selling investments are not modelled. Treat this as a way to compare assumptions, not
-        as advice or a forecast of what will happen.
-      </div>
-    </Panel>
-  );
-}
 
-function markers(result: ForecastResult): Marker[] {
-  const plan = result.assumptions;
-  const list: Marker[] = [{ x: plan.retirement_age, label: `Retire at ${plan.retirement_age}`, color: "var(--ink-2)" }];
-  if (result.depletion_age) list.push({ x: coordinate(result.depletion_age), label: `Runs short at ${wholeAge(result.depletion_age)}`, color: "var(--warn)" });
-  return list;
-}
-const ageTick = (value: number) => String(Math.round(value));
-
-function PortfolioPanel({ result, lens }: { result: ForecastResult; lens: Lens }) {
-  const plan = result.assumptions;
-  const line: Line = {
-    name: "Projected portfolio",
-    color: "var(--plan)",
-    fill: "var(--plan-soft)",
-    points: result.history.map((row) => ({ x: coordinate(row.age), y: coordinate(lens === "USD" ? row.portfolio_usd : row.portfolio_bitcoin), title: `Age ${wholeAge(row.age)}: ${inLens(row, lens)}` })),
-  };
-  return (
-    <Panel name="Projected portfolio" plain={lens === "USD" ? "everything, in dollars" : "everything, valued in bitcoin at the projected price"}>
-      <LineChart
-        label={`Projected portfolio by age, from ${inLens(result.history[0], lens)} at age ${plan.current_age} to ${inLens(result.end, lens)} at age ${plan.planning_age}. Retirement at age ${plan.retirement_age}.${
-          result.depletion_age ? ` Runs short at age ${wholeAge(result.depletion_age)}.` : ""
-        }`}
-        lines={[line]}
-        unit={lens}
-        markers={markers(result)}
-        tick={ageTick}
-      />
-      <Legend lines={[line, { name: "Retirement", color: "var(--ink-2)", dash: "3 3" }, ...(result.depletion_age ? [{ name: "Runs short", color: "var(--warn)", dash: "3 3" }] : [])]} />
-    </Panel>
-  );
-}
-
-function HeldPanel({ result }: { result: ForecastResult }) {
-  const plan = result.assumptions;
-  const line: Line = {
-    name: "Projected bitcoin held",
-    color: "var(--btc)",
-    dash: "6 3",
-    fill: "var(--btc-soft)",
-    points: result.history.map((row) => ({ x: coordinate(row.age), y: coordinate(row.bitcoin), title: `Age ${wholeAge(row.age)}: ${btc(row.bitcoin)}` })),
-  };
-  return (
-    <Panel name="Bitcoin held" plain="projected, in whole bitcoin">
-      <LineChart
-        label={`Projected bitcoin held by age, from ${btc(result.history[0].bitcoin)} at age ${plan.current_age} to ${btc(result.end.bitcoin)} at age ${plan.planning_age}.`}
-        lines={[line]}
-        unit="BITCOIN"
-        markers={markers(result)}
-        tick={ageTick}
-        height={160}
-      />
-      <Legend lines={[line, { name: "Retirement", color: "var(--ink-2)", dash: "3 3" }]} />
-    </Panel>
-  );
-}
-
-function DetailPanel({ result }: { result: ForecastResult }) {
-  const plan = result.assumptions;
-  const price: Line = {
-    name: "Assumed price, $ per BTC",
-    color: "var(--plan)",
-    dash: "2 4",
-    points: result.history.map((row) => ({ x: coordinate(row.age), y: coordinate(row.price_usd), title: `Age ${wholeAge(row.age)}: ${usd(row.price_usd)} per BTC, assumed` })),
-  };
-  // Spending starts after retirement; earlier rows carry no figure worth drawing.
-  const spent = result.history.filter((row) => coordinate(row.age) >= plan.retirement_age);
-  const cost: Line = {
-    name: "Cost of living a year, in bitcoin",
-    color: "var(--btc)",
-    dash: "6 3",
-    points: spent.map((row) => ({ x: coordinate(row.age), y: coordinate(row.annual_spending_bitcoin), title: `Age ${wholeAge(row.age)}: ${btc(row.annual_spending_bitcoin)} a year` })),
-  };
-  return (
-    <Panel name="Price and cost of living" plain="what the assumptions imply">
-      <div className="ret-pair">
-        <div>
-          <LineChart
-            label={`Assumed bitcoin price by age, from ${usd(result.history[0].price_usd)} to ${usd(result.end.price_usd)} per BTC. This is your assumption, not a forecast.`}
-            lines={[price]}
-            unit="USD"
-            tick={ageTick}
-            height={140}
-          />
-          <Legend lines={[price]} />
-        </div>
-        <div>
-          {cost.points.length > 1 ? (
-            <>
-              <LineChart
-                label={`Yearly cost of living in bitcoin after retirement, from ${btc(spent[0].annual_spending_bitcoin)} at age ${wholeAge(spent[0].age)} to ${btc(result.end.annual_spending_bitcoin)} at age ${plan.planning_age}.`}
-                lines={[cost]}
-                unit="BITCOIN"
-                tick={ageTick}
-                height={140}
+      <div className="grid2">
+        <Panel className="c5" name="Runway" plain="if you stopped today">
+          <AnswerBlock view={view} stale={stale} birth={settings.birth_date === null ? birthDate : null} />
+          <div className="ret-rate">
+            <label htmlFor="ret-growth">Bitcoin grows each year by</label>
+            <span>
+              <input
+                id="ret-growth"
+                className="num"
+                inputMode="decimal"
+                autoComplete="off"
+                value={typed.growth_pct}
+                aria-invalid={errors.growth_pct ? true : undefined}
+                aria-describedby="ret-growth-hint"
+                onChange={(event) => type("growth_pct", event.target.value)}
               />
-              <Legend lines={[cost]} />
+              %
+            </span>
+            <small id="ret-growth-hint" className={errors.growth_pct ? "ret-error" : "hint"}>
+              {errors.growth_pct ??
+                (answer?.price_in.length
+                  ? `At that rate ${btc("100000000")} is worth ${answer.price_in.map((row, i) => `${i ? (i === answer.price_in.length - 1 ? " and " : ", ") : ""}${usdWhole(row.usd)} in ${row.years} years`).join("")}, in today's dollars. It is ${usdWhole(facts.price_usd)} now.`
+                  : "Your call. Nobody knows this number, so try a few.")}
+            </small>
+          </div>
+        </Panel>
+
+        <Panel className="c7" name="Runway by age" plain="if you keep buying until you stop">
+          {answer && view.runway?.points ? (
+            <div className={stale ? "ret-stale" : undefined}>
+              <Legend lines={RUNWAY} />
+              <RunwayChart points={view.runway.points} answer={answer} lastAge={view.settings.last_age} />
+            </div>
+          ) : (
+            <div className="sub">{WAITING[view.status]}</div>
+          )}
+        </Panel>
+
+
+        <Panel className="c4" name="Where you stand today" plain="with no forecast">
+          <TodayBlock view={view} />
+        </Panel>
+        <Panel className="c4" name="Make it sooner" plain="tick to try it">
+          {answer ? (
+            <>
+              <div>
+                {answer.levers.map((lever) => (
+                  <label key={lever.id} className="ret-lever">
+                    <input
+                      type="checkbox"
+                      checked={trying.includes(lever.id)}
+                      onChange={(event) => setTrying((ids) => (event.target.checked ? [...ids, lever.id] : ids.filter((id) => id !== lever.id)))}
+                    />
+                    <span>{lever.label}</span>
+                    <b className={(lever.months_sooner ?? 0) > 0 || lever.reaches_age !== null ? "ok" : undefined}>{leverText(lever)}</b>
+                    {leverRunway(lever) && <small>{leverRunway(lever)}</small>}
+                  </label>
+                ))}
+              </div>
+              <label className="check-line">
+                <input type="checkbox" checked={settings.freed_to_bitcoin} onChange={(event) => change({ freed_to_bitcoin: event.target.checked })} />
+                Put money freed from spending into bitcoin
+              </label>
+              <div className="hint">Trying one changes nothing in your ledger. {answer.state === "not_yet" ? "“Sooner” is how much earlier your runway reaches the rest of your life." : "Your runway already covers the rest of your life."}</div>
             </>
           ) : (
-            <div className="sub">The yearly cost of living in bitcoin is charted once the plan covers more than one year of retirement.</div>
+            <div className="sub">{WAITING[view.status]}</div>
           )}
-        </div>
-      </div>
-    </Panel>
-  );
-}
+        </Panel>
+        <Panel className="c4" name="Milestones" plain="when you get there">
+          <MilestoneBlock view={view} />
+        </Panel>
 
-function YearTable({ result }: { result: ForecastResult }) {
-  return (
-    <div className="ret-scroll">
-      <table className="log">
-        <thead>
-          <tr>
-            <th>Age</th>
-            <th className="r">Bitcoin held</th>
-            <th className="r">Other assets</th>
-            <th className="r">Cash</th>
-            <th className="r">Portfolio</th>
-            <th className="r">Withdrawn so far</th>
-            <th className="r">Unfunded</th>
-          </tr>
-        </thead>
-        <tbody>
-          {result.history.map((row) => (
-            <tr key={row.month}>
-              <td className="num">{wholeAge(row.age)}</td>
-              <td className="num r btc">{btc(row.bitcoin)}</td>
-              <td className="num r">{usd(row.other_assets_usd)}</td>
-              <td className="num r">{usd(row.cash_usd)}</td>
-              <td className="num r">{usd(row.portfolio_usd)}</td>
-              <td className="num r">{usd(row.withdrawals_usd)}</td>
-              <td className="num r">{usd(row.shortfall_usd)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+        <Panel className="c4" name="You" plain="filled in from your ledger">
+          <div className="ret-fields">
+            {settings.birth_date !== null && birthDate}
+            {field("last_age", "Money lasts to age")}
+            {field("tax_pct", "Tax on each sale (%)")}
+            {field("monthly_spending_usd", "Spending a month ($)")}
+            {field("monthly_purchase_usd", "Bitcoin bought a month ($)")}
+            {field("other_income_usd", "Other income a month ($)")}
+            {field("other_income_age", "Other income from age")}
+          </div>
+          <div className="hint">
+            {spendingNote(view)} Leave either blank to use your record.
+            {facts.purchase_months > 0 && ` Bitcoin bought is the average of ${span(facts.purchase_months)}.`} Other income is in today's dollars.
+          </div>
+          {facts.debts.length > 0 && (
+            <div className="hint">
+              Debts count too:{" "}
+              {facts.debts
+                .map((debt) => `${debt.name} ${usd(debt.owed_usd)}, ${coordinate(debt.monthly_usd) > 0 ? `paid at ${usd(debt.monthly_usd)} a month` : "paid off the day you stop"}`)
+                .join("; ")}
+              .
+            </div>
+          )}
+        </Panel>
+
+        <Panel className="c8" name="Your costs" plain="your own record, then a standard rise">
+          <CostsBlock view={view} settings={settings} change={change} rise={field("cost_rise_pct", "Standard rise a year (%)")} setRise={(value) => type("cost_rise_pct", value)} />
+        </Panel>
+
+        <Panel className="c5" name="Bitcoin's price" plain="at the rate you entered">
+          {answer ? (
+            <LineChart
+              label={`${btc("100000000")} in today's dollars, by age`}
+              unit="USD"
+              height={170}
+              tick={(age) => String(Math.round(age))}
+              lines={[
+                {
+                  name: "Price",
+                  color: "var(--plan)",
+                  points: answer.price_path
+                    .filter((_, i) => i <= 30)
+                    .map((row) => ({ x: coordinate(row.age), y: coordinate(row.usd), title: `Age ${Math.floor(coordinate(row.age))}: ${usd(row.usd)}` })),
+                },
+              ]}
+            />
+          ) : (
+            <div className="sub">{WAITING[view.status]}</div>
+          )}
+          <div className="sub">
+            The next 30 years of {btc("100000000")} in today's dollars, by your age. A stock investor plans with the S&amp;P 500's long-run average. This does the same with bitcoin, at the rate
+            you choose.
+          </div>
+          <table className="log">
+            <thead>
+              <tr>
+                <th>Bitcoin's record to {monthOf(view.bitcoin_record.through)}</th>
+                <th>A year</th>
+              </tr>
+            </thead>
+            <tbody>
+              {view.bitcoin_record.rows.map((row) => (
+                <tr key={row.years}>
+                  <td>Past {row.years} years</td>
+                  <td>{percent(row.pct)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Panel>
+        <Panel className="c7" name="After you stop" plain="bitcoin left, by age">
+          {answer?.after && answer.first ? <AfterBlock after={answer.after} stop={answer.first} /> : <div className="sub">Nothing to draw until there is a retirement age.</div>}
+        </Panel>
+
+        <Panel className="c7" name="When your stack covers your life" plain="the same answer, in bitcoin">
+          {answer ? (
+            <div className={stale ? "ret-stale" : undefined}>
+              <Legend lines={CROSS} />
+              <CrossingChart answer={answer} lastAge={view.settings.last_age} />
+            </div>
+          ) : (
+            <div className="sub">{WAITING[view.status]}</div>
+          )}
+        </Panel>
+        <Panel className="c5" name="If bitcoin crashes after you stop" plain="an extra check">
+          {answer?.first ? <CrashBlock answer={answer} last={view.settings.last_age} /> : <div className="sub">Nothing to check until there is a retirement age.</div>}
+        </Panel>
+
+        <Panel className="c12" name="Adjust the details" plain="what counts, and how it is worked out">
+          <Details view={view} settings={settings} change={change} />
+          <div className="ret-row">
+            <button className="btn sm" onClick={onPlanner}>
+              Open the detailed planner
+            </button>
+            <span className="sub">Set every assumption yourself, save plans and compare them side by side.</span>
+          </div>
+        </Panel>
+      </div>
     </div>
   );
 }
 
-function Compare({ rows, lens }: { rows: Comparison[]; lens: Lens }) {
-  const lines: Line[] = rows.map((row, index) => ({
-    name: `${index + 1}. ${row.name}`,
-    ...COMPARE[index % COMPARE.length],
-    points: row.result.history.map((point) => ({
-      x: days(point.date),
-      y: coordinate(lens === "USD" ? point.portfolio_usd : point.portfolio_bitcoin),
-      title: `${row.name}, ${monthYear(point.date)}: ${inLens(point, lens)}`,
-    })),
-  }));
+const WAITING: Record<RetirementView["status"], string> = {
+  ready: "",
+  needs_price: "Choose a bitcoin price source in Settings, or save a price, and this fills in.",
+  needs_spending: "Enter what you spend a month under You, or record a full month of expenses, and this fills in.",
+  needs_birth_date: "Enter your birth date and this fills in.",
+  needs_growth: "Enter how much you think bitcoin grows each year and this fills in.",
+};
+const STATE = { not_yet: "Not yet", funded: "Funded today" };
+
+function AnswerBlock({ view, stale, birth }: { view: RetirementView; stale: boolean; birth: ReactNode }) {
+  const { answer, runway } = view,
+    last = view.settings.last_age;
+  if (!runway)
+    return (
+      <>
+        <div className="ret-big">–</div>
+        <div className="sub">{WAITING[view.status]}</div>
+        {birth}
+      </>
+    );
+  const name = (stop: Stop) => (stop.month === 0 ? "Now" : String(stop.age));
+  const taxed = coordinate(view.settings.tax_pct) > 0;
+  const owes = view.ledger.debts.length > 0;
+  const counted = [taxed ? `${percent(view.settings.tax_pct)} tax on each sale` : "", owes ? "paying off what you owe" : ""].filter(Boolean).join(" and ");
+  return (
+    <div className={stale ? "ret-stale" : undefined} aria-busy={stale}>
+      {answer && <span className={`tag ret-state ${answer.state}`}>{STATE[answer.state]}</span>}
+      <div className="ret-big ret-runway" aria-live="polite">
+        {runwayText(runway.months)}
+      </div>
+      <div className="sub">
+        {runway.months === null ? "If you stopped today, your stack would pay for the rest of your life" : "How long your stack would pay for your life if you stopped today"}, growing{" "}
+        {percent(view.settings.growth_pct!)} a year less your expenses{counted && `, ${counted}`}.
+        {runway.before && ` A year ago it was ${runwayText(runway.before.months).toLowerCase()}, with ${btc("100000000")} at ${usdWhole(runway.before.price_usd)}.`}
+      </div>
+      {birth}
+      {birth && <div className="hint">With your birth date this also shows the age you can retire.</div>}
+      {answer && (
+        <div className="ret-ages">
+          <b>{answer.first ? name(answer.first) : "–"}</b>
+          <span className="sub">
+            {answer.first
+              ? `You can retire ${answer.first.month > 0 ? `in ${monthYear(answer.first.date)}, ${span(answer.first.month)} from now` : "now"}: your runway lasts the rest of your life, to ${last}.${
+                  answer.first.first_year_pct ? ` The first year takes ${percent(answer.first.first_year_pct)} of your stack.` : ""
+                }`
+              : `Your runway does not reach the rest of your life before ${last}. Try something under Make it sooner, or a different rate.`}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MilestoneBlock({ view }: { view: RetirementView }) {
+  const { answer, runway } = view;
+  if (!answer || !runway?.milestones) return <div className="sub">{WAITING[view.status]}</div>;
+  const age = (stop: { month: number; age: number } | null) => (!stop ? "–" : stop.month === 0 ? "Now" : `At ${stop.age}`);
   return (
     <>
-      <LineChart
-        label={`Projected portfolio for ${rows.map((row) => `${row.name}, ending at ${inLens(row.result.end, lens)}`).join("; ")}.`}
-        lines={lines}
-        unit={lens}
-        tick={yearOf}
-        numbered
-        height={220}
-      />
-      <Legend lines={lines} />
       <div className="ret-scroll">
         <table className="log">
           <thead>
             <tr>
-              <th>Plan</th>
-              <th>Starts</th>
-              <th className="r">Price change a year</th>
-              <th>Retires</th>
-              <th className="r">Bitcoin at retirement</th>
-              <th className="r">Cost of living a year</th>
-              <th className="r">Withdrawn in all</th>
-              <th className="r">Unfunded</th>
-              <th>First runs short</th>
-              <th className="r">Left at the end</th>
-              <th className="r">Against end amount</th>
+              <th>Runway</th>
+              <th>You get there</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map(({ id, name, result }, index) => (
-              <tr key={id}>
-                <td>
-                  {index + 1}. {name}
-                </td>
-                <td className="num">{result.assumptions.as_of}</td>
-                <td className="num r">{result.assumptions.appreciation_pct}%</td>
-                <td className="num">{monthYear(result.retirement.date)}</td>
-                <td className="num r btc">{btc(result.retirement.bitcoin)}</td>
-                <td className="num r">{usd(result.retirement.annual_spending_usd)}</td>
-                <td className="num r">{usd(result.end.withdrawals_usd)}</td>
-                <td className="num r">{usd(result.shortfall_usd)}</td>
-                <td className="num">{result.depletion_date ? monthYear(result.depletion_date) : "Never, in this plan"}</td>
-                <td className="num r">{usd(result.end.portfolio_usd)}</td>
-                <td className="num r">{usd(result.target_surplus_usd)}</td>
+            {runway.milestones.map((row) => (
+              <tr key={row.months}>
+                <td>{span(row.months)}</td>
+                <td>{age(row.stop)}</td>
+              </tr>
+            ))}
+            <tr>
+              <td>For life</td>
+              <td>{age(answer.first)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div className="hint">If you keep buying as you do now until the day you stop. Each age is when that much runway is in hand, so you could stop and live on it for that long.</div>
+    </>
+  );
+}
+
+function TodayBlock({ view }: { view: RetirementView }) {
+  const today = view.today;
+  if (!today) return <div className="sub">{WAITING[view.status]}</div>;
+  return (
+    <>
+      <div>
+        <div className="read">{runwayText(view.runway ? view.runway.flat_months : today.covered_months)}</div>
+        <div className="sub">of runway if bitcoin's price and your costs never moved.</div>
+      </div>
+      <div className="kv">
+        <div>
+          <span>A year of your life</span>
+          <b className="btc">{btc(today.year_bitcoin)}</b>
+          <small>{usd(today.year_usd)}</small>
+        </div>
+        <div>
+          <span>Your stack</span>
+          <b className="btc">{btc(view.ledger.bitcoin)}</b>
+          <small>{usd(today.worth_usd)}</small>
+        </div>
+      </div>
+      {today.year_share_pct && (
+        <div className="sub">
+          A year of your life costs <b>{percent(today.year_share_pct)}</b> of your stack.
+          {coordinate(today.year_share_pct) < 100 && " If its cost in bitcoin falls faster than that every year, your stack never runs out."}
+        </div>
+      )}
+      {today.funded_pct && (
+        <div>
+          <div className="sub ret-between">
+            <span>Of the stack needed to stop today</span>
+            <b>{percent(today.funded_pct)}</b>
+          </div>
+          <div className="meter" role="img" aria-label={`${percent(today.funded_pct)} of the stack needed to stop today`}>
+            <i style={{ width: `${Math.min(100, coordinate(today.funded_pct))}%`, background: "var(--btc)" }} />
+          </div>
+        </div>
+      )}
+      {view.answer && (
+        <div className="sub">
+          {today.hurdle_pct
+            ? `To stop today and last to ${view.settings.last_age}, bitcoin would have to grow ${percent(today.hurdle_pct)} every year.`
+            : "Stopping today is out of reach for now."}
+        </div>
+      )}
+    </>
+  );
+}
+
+function spendingNote(view: RetirementView) {
+  const { spending_basis: basis, spending_months: months, spending_missing: missing } = view.ledger;
+  const gap = missing ? ` ${missing} without a dollar price ${missing === 1 ? "is" : "are"} left out.` : "";
+  if (basis === "record") return `Spending is your last 12 full months.${gap}`;
+  if (basis === "early") return `Early estimate: spending is ${span(months)} of records, plus bills that have not come round yet.${gap}`;
+  if (basis === "bills") return "Early estimate: no full month is recorded yet, so spending is your bills.";
+  if (basis === "entered") return `Your record says ${usd(view.ledger.recorded_spending_usd)} a month.`;
+  return "No full month of spending is recorded yet.";
+}
+
+function CostsBlock({
+  view,
+  settings,
+  change,
+  rise,
+  setRise,
+}: {
+  view: RetirementView;
+  settings: RetirementSettings;
+  change: (part: Partial<RetirementSettings>) => void;
+  rise: ReactNode;
+  setRise: (value: string) => void;
+}) {
+  const { trend, years } = view.ledger;
+  const standard = percent(view.settings.cost_rise_pct);
+  const recorded = years.filter((row) => row.usd !== null);
+  const priced = years.filter((row) => row.bitcoin !== null);
+  const projected = view.answer?.projected_years ?? [];
+  const last = years.length ? years[years.length - 1].year : 0;
+  const moved = trend ? coordinate(trend.pct) : 0;
+  const bitcoinNow = priced[priced.length - 1],
+    bitcoinThen = priced[0];
+  return (
+    <>
+      <div className="sub">
+        {!trend ? (
+          `Two full years of records are needed before your own trend counts. Until then your costs rise ${standard} a year.`
+        ) : (
+          <>
+            Your costs {moved === 0 ? "held steady" : `${moved > 0 ? "rose" : "fell"} `}
+            {moved !== 0 && <b>{percent(trend.pct.replace("-", ""))}</b>}
+            {moved !== 0 && " a year"} from {trend.from} over {trend.years} years of records.{" "}
+            {view.settings.use_record ? `Using that for the next ${trend.years}, through ${last + trend.years}, then ${standard}.` : `Not used: costs rise ${standard} a year from today.`}
+            {view.settings.use_record && moved > coordinate(view.settings.cost_rise_pct) + 1 && <span className="ret-error"> Rising faster than the standard rate pushes your age back.</span>}
+          </>
+        )}
+      </div>
+      <div className="ret-controls">
+        <div className="seg" role="group" aria-label="Project my costs with">
+          <button aria-pressed={settings.use_record && !!trend} disabled={!trend} onClick={() => change({ use_record: true })}>
+            My own record
+          </button>
+          <button aria-pressed={!settings.use_record || !trend} onClick={() => change({ use_record: false })}>
+            The standard rise
+          </button>
+        </div>
+        {years.length > 1 && (
+          <label className="field">
+            <span>Measure my costs from</span>
+            <select value={settings.measure_from ?? ""} onChange={(event) => change({ measure_from: event.target.value ? Number(event.target.value) : null })}>
+              <option value="">All my records</option>
+              {years.slice(0, -1).map((row) => (
+                <option key={row.year} value={row.year}>
+                  {row.year}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {rise}
+        <div className="ret-presets">
+          <button className="btn sm ghost" aria-pressed={settings.cost_rise_pct === "3"} onClick={() => setRise("3")}>
+            3%
+          </button>
+          <button
+            className="btn sm ghost"
+            title="How fast US dollars (M2) grew, a year, October 2016 to October 2026. Source: Federal Reserve, FRED M2SL."
+            aria-pressed={settings.cost_rise_pct === view.money_supply_pct}
+            onClick={() => setRise(view.money_supply_pct)}
+          >
+            As fast as new dollars, {percent(view.money_supply_pct)}
+          </button>
+        </div>
+      </div>
+      <div className="ret-pair">
+        <div>
+          <div className="hint">In dollars: solid recorded, dashed projected</div>
+          {recorded.length + projected.length > 0 && (
+            <YearBars
+              label="Cost of a year in dollars"
+              unit="USD"
+              exact={usd}
+              rows={[...recorded.map((row) => ({ year: row.year, value: row.usd! })), ...projected.map((row) => ({ year: row.year, value: row.usd, planned: true }))]}
+            />
+          )}
+        </div>
+        <div>
+          <div className="hint">In bitcoin, at each purchase's own price</div>
+          {priced.length ? (
+            <YearBars label="Cost of a year in bitcoin" unit="BITCOIN" exact={btc} rows={priced.map((row) => ({ year: row.year, value: row.bitcoin! }))} />
+          ) : (
+            <div className="sub">Your first full year draws this chart. It shows your life getting cheaper or dearer in bitcoin.</div>
+          )}
+        </div>
+      </div>
+      {recorded.length > 0 && (
+        <div className="hint">
+          Each year runs 12 months to {longMonth(years[years.length - 1].end.slice(0, 7))}.
+          {priced.length > 1 && ` A year of your life cost ${btc(bitcoinThen.bitcoin)} in ${bitcoinThen.year} and ${btc(bitcoinNow.bitcoin)} in ${bitcoinNow.year}.`}
+        </div>
+      )}
+    </>
+  );
+}
+
+function AfterBlock({ after, stop }: { after: AfterSeries; stop: Stop }) {
+  const name = stop.month === 0 ? "If you stop now" : `If you stop at ${stop.age}`;
+  return (
+    <>
+      <LineChart
+        label={`Bitcoin left, by age. ${name}.`}
+        unit="BITCOIN"
+        lines={[{ name, color: "var(--btc)", points: after.points.map((p) => ({ x: coordinate(p.age), y: coordinate(p.bitcoin), title: `Age ${p.age}: ${btc(p.bitcoin)}` })) }]}
+        height={300}
+        tick={(age) => String(Math.round(age))}
+      />
+      <div className="sub">
+        {name} you have {btc(stop.bitcoin)}. The first month of life takes {btc(stop.first_month_bitcoin)}, tax included.
+      </div>
+    </>
+  );
+}
+
+function CrashBlock({ answer, last }: { answer: Answer; last: number }) {
+  const { first, safe } = answer;
+  const when = first!.month === 0 ? "now" : `at ${first!.age}`;
+  return (
+    <>
+      <div className="sub">
+        If you stopped {when} and bitcoin crashed right after, you would sell more bitcoin to pay the same bills, so the stack would not last as long.
+      </div>
+      <div className="ret-scroll">
+        <table className="log">
+          <thead>
+            <tr>
+              <th>If bitcoin</th>
+              <th>Your stack lasts</th>
+            </tr>
+          </thead>
+          <tbody>
+            {answer.crashes.map((row) => (
+              <tr key={row.month ?? "half"}>
+                <td>{row.month ? `repeats what it did after ${monthOf(row.month)}` : "falls by half and never makes it up"}</td>
+                <td>{row.runway_months === null ? `for life, to ${last}` : `${runwayText(row.runway_months).toLowerCase()}, to ${row.out_age}`}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <div className="hint">
-        Each line uses its own saved starting date, price, assumptions and length. The table is in dollars; in the chart, bitcoin values include cash and other assets converted at that plan's
-        projected price.
+      <div className="hint">{safe ? (safe.month === first!.month ? "It lasts for life through every one of these." : `Working until ${safe.age} instead would carry you through all of these.`) : `No age before ${last} carries you through all of these.`}</div>
+    </>
+  );
+}
+
+function Details({ view, settings, change }: { view: RetirementView; settings: RetirementSettings; change: (part: Partial<RetirementSettings>) => void }) {
+  const { categories, one_offs: oneOffs } = view.ledger;
+  const entered = settings.monthly_spending_usd !== null;
+  const path = view.answer?.price_path;
+  const far = path?.[path.length - 1];
+  // Rounded on purpose: 21 million BTC at the far-off price, against about $100 trillion of money in the world.
+  const times = far ? (coordinate(far.usd) * 21e6) / 100e12 : 0;
+  const share = (id: number, value: string) => {
+    const number = Number(value);
+    if (value === "" || !Number.isInteger(number) || number < 0 || number > 300) return;
+    const next = { ...settings.category_shares };
+    if (number === 100) delete next[id];
+    else next[id] = number;
+    change({ category_shares: next });
+  };
+  return (
+    <>
+      {entered && <div className="sub">You entered your own monthly spending, so the record below is not used for your age. Clear that field to use it.</div>}
+      <div className="ret-pair">
+        <div>
+          <b>What continues in retirement</b>
+          <div className="hint">100% means the same as today. Set 0 for something that ends, or more for something that grows, like health care.</div>
+          {categories.length ? (
+            <div className="ret-shares">
+              {categories.map((row) => (
+                <label key={row.id}>
+                  <span>
+                    {row.name} <small className="hint">{usd(row.monthly_usd)} a month</small>
+                  </span>
+                  <span>
+                    <input className="num" type="number" min={0} max={300} step={5} key={settings.category_shares[row.id] ?? 100} defaultValue={settings.category_shares[row.id] ?? 100} aria-label={`${row.name}, percent that continues`} onBlur={(event) => share(row.id, event.target.value)} />%
+                  </span>
+                </label>
+              ))}
+            </div>
+          ) : (
+            <div className="sub">Your spending categories appear here once a full month is recorded.</div>
+          )}
+        </div>
+        <div>
+          <b>Leave out one-off costs</b>
+          <div className="hint">Tick anything that will not happen again. It stays in your ledger. Bills and regular purchases are not listed.</div>
+          {oneOffs.length ? (
+            <div className="ret-shares">
+              {oneOffs.map((row) => (
+                <label key={row.id}>
+                  <span>
+                    <input
+                      type="checkbox"
+                      checked={settings.left_out_entries.includes(row.id)}
+                      onChange={(event) =>
+                        change({ left_out_entries: event.target.checked ? [...settings.left_out_entries, row.id] : settings.left_out_entries.filter((id) => id !== row.id) })
+                      }
+                    />{" "}
+                    {row.description} <small className="hint">{shortDate(row.date)}, {row.date.slice(0, 4)}</small>
+                  </span>
+                  <span className="num">{usd(row.usd)}</span>
+                </label>
+              ))}
+            </div>
+          ) : (
+            <div className="sub">Nothing unusual in the last 12 months.</div>
+          )}
+        </div>
       </div>
+      <details className="ret-how">
+        <summary>How it is worked out</summary>
+        <ul>
+          <li>Each future month: your cost of living, less other income, plus tax, divided by that month's bitcoin price. Added up from an age to the end, that is the stack needed at that age.</li>
+          <li>Runway is worked out month by month: the price and your costs rise, then enough bitcoin is sold to pay that month. It ends the first month the stack cannot pay in full. Your retirement age is the first month your runway reaches the rest of your life.</li>
+          <li>The crash check has the price fall by half that day and stay at half its path for good, or repeat what it really did after four past highs, before your own rate takes over. The future can still be worse.</li>
+          <li>Your dollar cost trend is used for as many years ahead as it has behind it, then the standard rise takes over. A bill you have cancelled already lowers today's spending, so it is not projected as more cuts to come.</li>
+          <li>Bitcoin you buy each month, and other income, rise with the standard rise. Dollars in checking, homes and other assets are not counted.</li>
+          <li>Debts with a bill are paid month by month until they are gone. Debts with none are paid off from the stack the day you stop. Interest is not added.</li>
+          <li>
+            Bitcoin grows at the one rate you enter, every year.
+            {far &&
+              ` By your age ${Math.floor(coordinate(far.age))} that makes ${btc("100000000")} worth ${usdWhole(far.usd)} in today's dollars, with all bitcoin worth about ${times >= 10 ? Math.round(times) : times.toFixed(1)} times the world's money today (taken as about $100 trillion; published estimates run from $98 trillion to $150 trillion). The far-off years count for less in your age than the near ones.`}
+          </li>
+          <li>Tax is one flat share of every sale. Real tax depends on what you paid and where you live.</li>
+          <li>Prices for the crash check are Coinbase daily closes nearest the 15th of each month, August 2015 to {monthOf(view.bitcoin_record.through)}, kept with the app.</li>
+          <li>This compares assumptions. It is not a prediction or advice, and nothing here changes your ledger.</li>
+        </ul>
+      </details>
     </>
   );
 }

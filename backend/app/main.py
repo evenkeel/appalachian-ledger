@@ -51,6 +51,7 @@ from .overview_metrics import debt_gauge, dominance_history
 from .account_activity import account_activity
 from .startup import ensure_schema
 from .planning import router as planning_router
+from .retirement_plan import router as retirement_router
 from .spending_history import router as spending_history_router
 from .dashboard import router as dashboard_router
 from .alerts import router as alerts_router
@@ -75,6 +76,7 @@ app = FastAPI(
     lifespan=lifespan, title="Appalachian Bitcoin", version="0.1.0", docs_url=None, redoc_url=None, openapi_url=None
 )
 app.include_router(planning_router)
+app.include_router(retirement_router)
 app.include_router(insights.router)
 app.include_router(spending_history_router)
 app.include_router(dashboard_router)
@@ -657,14 +659,15 @@ def save_settings(data: s.Preferences, user=Depends(authenticate), db=Depends(ge
         state = sync_state(db, old_source)
         state.status, state.quote_requested = "idle", False
         state.generation += 1
-    prefs = data.model_dump()
+    prefs = data.model_dump(mode="json")
     # Calibration has its own endpoint; stale display/price forms must not reset it.
     prefs["debt_limits"] = old_preferences.get("debt_limits")
     prefs["card_orders"] = old_preferences.get("card_orders", {})
     prefs["category_payment_defaults"] = old_preferences.get("category_payment_defaults", {})
     prefs["payee_rules"] = old_preferences.get("payee_rules", [])
+    prefs["retirement"] = old_preferences.get("retirement")
     user.preferences = json.dumps(prefs)
-    ledger.audit(db, "settings.save", user.id, data.model_dump())
+    ledger.audit(db, "settings.save", user.id, data.model_dump(mode="json", exclude={"retirement"}))
     return {"ok": True}
 
 
