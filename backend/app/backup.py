@@ -5,7 +5,6 @@ import json
 import os
 import sqlite3
 import tempfile
-from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
@@ -16,6 +15,7 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.exc import SQLAlchemyError
 
 from .db import engine
+from .paths import ALEMBIC_INI
 from .money import rate_decimal, convert
 from .prices import parse_time
 
@@ -120,7 +120,7 @@ def upgrade_candidate(path):
     The same migrations that upgrade a ledger at startup run here, so nothing is
     converted by a second code path. A backup from a newer version is refused.
     """
-    config = Config(str(Path(__file__).resolve().parents[2] / "database" / "alembic.ini"))
+    config = Config(str(ALEMBIC_INI))
     script = ScriptDirectory.from_config(config)
     heads = set(script.get_heads())
     known = {revision.revision for revision in script.walk_revisions()}

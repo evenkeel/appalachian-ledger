@@ -43,7 +43,7 @@ chmod 600 .env
 docker compose up --build -d
 ```
 
-Open [Appalachian Bitcoin](http://localhost:8080). Create your local owner account with a password of at least 12 characters. No default credentials, cloud account or Bitcoin node are required. Migrations run automatically before the API starts. The frontend binds to **127.0.0.1:8080**; the backend has no published port. Records persist in the `ledger-data` named volume.
+Open [Appalachian Bitcoin](http://localhost:8080). Create your local owner account with any password you like. No default credentials, cloud account or Bitcoin node are required. Migrations run automatically before the API starts. The frontend binds to **127.0.0.1:8080**; the backend has no published port. Records persist in the `ledger-data` named volume.
 
 To stop: `docker compose down`. Do not add `--volumes` unless you intend to erase the ledger. For logs: `docker compose logs backend`. Do not run more than one backend worker or share a database across backend instances.
 

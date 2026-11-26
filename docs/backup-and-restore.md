@@ -2,7 +2,7 @@
 
 ## Encrypted backup (recommended)
 
-1. In **Settings → Data ownership**, enter a passphrase of at least 12 characters.
+1. In **Settings → Data ownership**, enter a passphrase.
 2. Select **Download encrypted backup** and keep the `.albackup` file outside this device.
 3. Store the passphrase separately. There is no recovery key or cloud recovery service.
 

@@ -236,11 +236,11 @@ class ConversionInput(StrictModel):
 
 class PasswordInput(StrictModel):
     current_password: str
-    new_password: str = Field(min_length=12, max_length=200)
+    new_password: str = Field(min_length=1, max_length=200)
 
 
 class BackupInput(StrictModel):
-    passphrase: str = Field(min_length=12, max_length=200)
+    passphrase: str = Field(min_length=1, max_length=200)
 
 
 class WalletInput(StrictModel):

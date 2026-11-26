@@ -186,14 +186,13 @@ export function Auth({
             </Field>
             <Field
               label="Password"
-              hint={!initialized ? "At least 12 characters." : undefined}
             >
               <input
                 name="password"
                 type="password"
                 autoComplete={initialized ? "current-password" : "new-password"}
                 required
-                minLength={initialized ? 1 : 12}
+                minLength={1}
                 maxLength={200}
               />
             </Field>
@@ -204,7 +203,6 @@ export function Auth({
                   type="password"
                   autoComplete="new-password"
                   required
-                  minLength={12}
                   maxLength={200}
                 />
               </Field>

@@ -135,8 +135,6 @@ def auth_status(db=Depends(get_db, scope="function")):
 def setup(data: s.Credentials, request: Request, response: Response, db=Depends(get_db, scope="function")):
     if db.scalar(select(User.id).limit(1)):
         raise HTTPException(409, "A local owner already exists")
-    if len(data.password) < 12:
-        raise ValueError("Choose a password of at least 12 characters")
     user = User(username=data.username, password_hash=hasher.hash(data.password))
     db.add(user)
     db.flush()
@@ -815,7 +813,7 @@ def backup(data: s.BackupInput, user=Depends(authenticate), db=Depends(get_db, s
 @app.post("/api/restore")
 def restore_backup(
     response: Response,
-    passphrase: str = Form(..., min_length=12, max_length=200),
+    passphrase: str = Form(..., min_length=1, max_length=200),
     file: UploadFile = File(...),
     user=Depends(authenticate),
     db=Depends(get_db, scope="function"),

@@ -331,12 +331,11 @@ export function Settings({
             <h3>Encrypted database backup</h3>
             <Field
               label="Backup passphrase"
-              hint="At least 12 characters. Keep it somewhere safe; it cannot be recovered."
+              hint="Keep it somewhere safe; it cannot be recovered."
             >
               <input
                 name="passphrase"
                 type="password"
-                minLength={12}
                 maxLength={200}
                 required
                 autoComplete="new-password"
@@ -362,7 +361,6 @@ export function Settings({
                 <input
                   name="passphrase"
                   type="password"
-                  minLength={12}
                   required
                   autoComplete="off"
                 />
@@ -526,7 +524,6 @@ export function Settings({
             <input
               type="password"
               name="new_password"
-              minLength={12}
               maxLength={200}
               autoComplete="new-password"
               required

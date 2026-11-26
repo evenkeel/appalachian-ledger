@@ -30,7 +30,7 @@ export function Backup({ onChanged }: { onChanged: () => void }) {
     const data = new FormData(form);
     const passphrase = String(data.get("passphrase") ?? "");
     void action.run(async () => {
-      if (passphrase.length < 12 || passphrase.length > 200) throw new Error("Use a passphrase of 12 to 200 characters.");
+      if (!passphrase || passphrase.length > 200) throw new Error("Enter a passphrase of up to 200 characters.");
       if (passphrase !== String(data.get("again") ?? "")) throw new Error("The two passphrases do not match. Nothing was made.");
       await download("/backup", `ledger-${today()}.albackup`, { passphrase });
       form.reset();
@@ -55,13 +55,13 @@ export function Backup({ onChanged }: { onChanged: () => void }) {
       <form className="set-form plain" onSubmit={make}>
         <label className="field">
           <span>Passphrase</span>
-          <input type="password" name="passphrase" autoComplete="new-password" minLength={12} maxLength={200} required />
+          <input type="password" name="passphrase" autoComplete="new-password" maxLength={200} required />
         </label>
         <label className="field">
           <span>Passphrase again</span>
           <input type="password" name="again" autoComplete="new-password" maxLength={200} required />
         </label>
-        <div className="hint">At least 12 characters. It is not stored anywhere: without it, the backup cannot be opened.</div>
+        <div className="hint">Any passphrase you like. It is not stored anywhere: without it, the backup cannot be opened.</div>
         <div className="set-actions">
           <button className="btn primary" disabled={action.busy}>
             {action.busy ? "Making backup…" : "Make encrypted backup"}
@@ -86,7 +86,7 @@ export function Restore() {
     event.preventDefault();
     action.setNote(null);
     if (!file) return action.setNote({ kind: "error", text: "Choose the backup file first." });
-    if (passphrase.length < 12) return action.setNote({ kind: "error", text: "Enter the passphrase the backup was made with. It has at least 12 characters." });
+    if (!passphrase) return action.setNote({ kind: "error", text: "Enter the passphrase the backup was made with." });
     setConfirming(true);
   }
   function restore() {
