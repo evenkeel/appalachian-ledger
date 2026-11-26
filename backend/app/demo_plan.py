@@ -51,6 +51,11 @@ TAKE_HOME = [
     (date(2025, 3, 1), usd(1652.70)),
     (date(2026, 3, 1), usd(1818.40)),  # final-year apprentice
 ]
+# Who paid him. Both outfits are made up.
+EMPLOYERS = [
+    (date(2021, 11, 1), "Blue Ridge Home Electric"),
+    (date(2023, 3, 13), "Carver & Sons Electrical"),
+]
 # The week between jobs: his first check from the new contractor covers one week, not two.
 SHORT_CHECKS = {date(2023, 3, 24): 0.5}
 # Overtime turns up in about one check in five, more often in summer when sites are busy.

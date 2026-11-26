@@ -7,6 +7,7 @@ import { AlertDrawer, AlertsButton, useAlerts } from "./dashboard/Alerts";
 import { Dashboard } from "./dashboard/Dashboard";
 import type { DashboardData } from "./dashboard/types";
 import { Lockup } from "./design/Logo";
+import { Income } from "./income/Income";
 import { Learn } from "./learn/Learn";
 import { DemoBanner, NotInDemo } from "../demo/Banner";
 import { DEMO } from "../demo/mode";
@@ -124,6 +125,8 @@ function Screens() {
           <Spending go={go} drill={drill} onDrill={setDrill} onChanged={changed} />
         ) : route === "bills" ? (
           <Bills go={go} onChanged={changed} />
+        ) : route === "income" ? (
+          <Income go={go} onChanged={changed} />
         ) : route === "learn" ? (
           <Learn go={go} />
         ) : route === "retirement" ? (

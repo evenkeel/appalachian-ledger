@@ -316,6 +316,8 @@ class IncomeSchedule(Base):
     archived: Mapped[bool] = mapped_column(Boolean, default=False)
     # The amount is a typical one (tips, side work), so the forecast treats it as an estimate.
     varies: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    # The income source this schedule is the expected pay of.
+    source_id: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[str] = mapped_column(default=now)
 
 
@@ -345,3 +347,31 @@ class AlertSettings(Base):
     __tablename__ = "alert_settings"
     id: Mapped[int] = mapped_column(primary_key=True)
     settings: Mapped[str] = mapped_column(Text)
+
+
+class IncomeSource(Base):
+    """Who pays: a job, a side gig, or another kind of income. Ended or merged, its history stays."""
+
+    __tablename__ = "income_sources"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120))
+    ended_on: Mapped[str | None] = mapped_column(String(10))
+    # Set when this source was folded into another; its paychecks now count there.
+    merged_into_id: Mapped[int | None] = mapped_column(ForeignKey("income_sources.id"))
+    created_at: Mapped[str] = mapped_column(default=now)
+
+
+class IncomeSourceName(Base):
+    """A description that has been matched to a source, so the next paycheck with it lands there too."""
+
+    __tablename__ = "income_source_names"
+    name_key: Mapped[str] = mapped_column(String(500), primary_key=True)
+    source_id: Mapped[int] = mapped_column(ForeignKey("income_sources.id"))
+
+
+class IncomeEntrySource(Base):
+    """Journal entries are immutable, so the source of a paycheck lives beside it."""
+
+    __tablename__ = "income_entry_sources"
+    entry_id: Mapped[int] = mapped_column(ForeignKey("journal_entries.id"), primary_key=True)
+    source_id: Mapped[int] = mapped_column(ForeignKey("income_sources.id"), index=True)

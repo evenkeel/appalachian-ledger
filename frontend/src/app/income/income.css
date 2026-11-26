@@ -1,0 +1,143 @@
+.inc-kv {
+  margin-top: 4px;
+}
+.inc-read {
+  min-height: 2.6em;
+}
+.inc-chart {
+  width: 100%;
+  height: 150px;
+  display: block;
+}
+.inc-chart .inc-s0,
+.inc-legend .inc-s0 {
+  fill: var(--usd);
+  background: var(--usd);
+}
+.inc-chart .inc-s1,
+.inc-legend .inc-s1 {
+  fill: var(--plan);
+  background: var(--plan);
+}
+.inc-chart .inc-s2,
+.inc-legend .inc-s2 {
+  fill: var(--ok);
+  background: var(--ok);
+}
+.inc-chart .inc-s3,
+.inc-legend .inc-s3 {
+  fill: var(--adv);
+  background: var(--adv);
+}
+.inc-chart .inc-rest,
+.inc-legend .inc-rest {
+  fill: var(--bezel);
+  background: var(--bezel);
+}
+.inc-chart .inc-gap {
+  fill: none;
+  stroke: var(--ink-3);
+  stroke-width: 0.15;
+  stroke-dasharray: 0.6 0.6;
+}
+.inc-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+.inc-legend i {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  margin-right: 4px;
+}
+.inc-legend i.inc-gap {
+  border: 1px dashed var(--ink-3);
+  background: none;
+}
+.rows.inc-sources li {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+}
+.rows.inc-changes li {
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 10px;
+}
+.inc-changes .nm {
+  white-space: normal;
+}
+.inc-source {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.inc-source small {
+  color: var(--ink-3);
+}
+.inc-source .tag {
+  margin-left: 8px;
+}
+.inc-edit {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 10px;
+  padding: 10px 0 4px;
+}
+.inc-actions {
+  display: flex;
+  gap: 8px;
+}
+.inc-dir.up {
+  color: var(--ok);
+}
+.inc-dir.down {
+  color: var(--warn);
+}
+.inc-expected {
+  display: grid;
+  gap: 6px;
+}
+.inc-expected + .inc-expected {
+  margin-top: 12px;
+}
+.inc-expected .rows li {
+  grid-template-columns: 56px 64px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+.inc-expected .tag {
+  justify-self: start;
+}
+.tag.inc-short,
+.tag.inc-late {
+  color: var(--caution);
+  border-color: currentColor;
+}
+.tag.inc-missing {
+  color: var(--warn);
+  border-color: currentColor;
+}
+.tag.inc-received {
+  color: var(--ok);
+  border-color: currentColor;
+}
+.inc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--t-small);
+}
+.inc-table th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--ink-3);
+  padding: 4px 0;
+}
+.inc-table td {
+  padding: 5px 0;
+  border-top: 1px solid var(--hairline);
+}
+.inc-table .r {
+  text-align: right;
+}

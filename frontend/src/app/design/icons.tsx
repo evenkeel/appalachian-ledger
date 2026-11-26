@@ -40,6 +40,13 @@ export const NavIcon = {
       <path d="M9 8h6M9 12h6" />
     </>,
   ),
+  // A paycheck: a note with an arrow coming in.
+  income: line(
+    <>
+      <rect x="3" y="8" width="18" height="11" rx="2" />
+      <path d="M12 3v8M9 8l3 3 3-3M7 15h2M15 15h2" />
+    </>,
+  ),
   // The bitcoin sign: a B with the two short strokes above and below.
   stack: line(
     <>
