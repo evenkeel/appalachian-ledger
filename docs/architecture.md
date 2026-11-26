@@ -1,13 +1,14 @@
 # Architecture and accounting decisions
 
-Appalachian Bitcoin is a single-owner, local-first application. The browser talks to FastAPI through the same-origin nginx proxy. SQLite is the system of record. No external account or service is required. Public Coinbase/CoinGecko prices are opt-in; Bitcoin Core is optional.
+Appalachian Bitcoin is a local-first application for one household computer. Several people can use it, each with a private ledger. The browser talks to FastAPI through the same-origin nginx proxy. SQLite is the system of record: one file per person, plus one small shared file. No external account or service is required. Public Coinbase/CoinGecko prices are opt-in; Bitcoin Core is optional.
 
 ```mermaid
 flowchart LR
   Browser[React / TypeScript] --> Proxy[nginx :8080]
   Proxy --> API[FastAPI :8000 / private network]
   API --> Ledger[Exact accounting services]
-  Ledger --> DB[(SQLite / local volume)]
+  Ledger --> DB[(One SQLite ledger file per person)]
+  API --> Shared[(people.db: names, sessions, downloaded prices)]
   API -. opt-in background sync .-> Price[Coinbase / CoinGecko adapters]
   API -. read-only allowlist .-> Node[Bitcoin Core watch-only RPC]
 ```
@@ -58,15 +59,27 @@ Visible native bitcoin amounts use the `₿` prefix without a repeated unit suff
 
 CSV exports label theoretical equivalents explicitly and include actual destination amount/currency separately. Converting a valuation never posts bitcoin; only an actual journal entry changes holdings. The browser formats exact strings and uses floating point solely for chart coordinates and progress geometry. Chart tooltips use the exact API decimal strings.
 
+## People and their ledgers
+
+Each person has their own SQLite file. It holds everything that is theirs: accounts, journal, bills, budgets, goals, settings (`users.preferences`), audit events, and the bitcoin prices their entries were recorded at. A second file, `people.db`, holds only what is nobody's money: usernames, password hashes, sessions, sign-in attempts, and a cache of downloaded bitcoin prices (`market_days`, `market_quotes`). Both live in the folder of `DATABASE_URL`. The file `DATABASE_URL` names is the first person's ledger; others are `ledgers/<random>.db`.
+
+**Why one file per person, not an owner column.** With an owner column, every query in the application has to remember a filter, and one forgotten filter leaks a household member's finances. With a file per person there is no filter to forget. `db.get_db` reads the session cookie, finds the person, and opens that person's file; every route receives that session and no other. Ledger code is the same code that ran when there was one owner, and it cannot name another person's file. A test (`test_people.py`) uses every read and write route as two people and compares the other person's file row for row; another fails if any module outside `db.py` and `startup.py` refers to a default ledger.
+
+**Prices are fetched once and copied.** The price worker visits each ledger in turn. Its provider is wrapped (`price_sync.Shared`) so a quote or a range of daily closes is downloaded once, saved in `people.db`, and served from there to the next ledger. Each ledger then stores its own copy in `exchange_rates`. The copy is deliberate: journal entries, conversion attachments and expense costs point at the exact rate row they used, SQLite cannot enforce a foreign key across files, and a backup must be complete without anyone else's file. Daily closes for five years are under two thousand small rows. Each person keeps their own price source, their own typed prices, and their own `ExpenseCost` records; the worker prices unpriced expenses in every ledger. A failure in one ledger is logged and the others continue. Stock quotes for share holdings are still fetched per ledger, on request.
+
+**Upgrade from a single ledger.** At startup, if `people.db` has nobody and the ledger file has an owner with a password, the app saves a copy of the ledger beside it (`<name>.before-people.db`), then copies the username and password hash into `people.db`. Migration `0016_people` then removes the ledger's own `sessions` and `login_attempts` tables and empties `users.password_hash`. No money table is rewritten. Everyone signs in once more after the upgrade.
+
+**Sign-in screen.** `/api/auth/status` says whether anyone has a ledger and never who. The names offered on the sign-in screen are the ones that have signed in on that browser, kept in its local storage. This gives a household one-tap names on the family computer without letting someone who has not signed in list who uses the app. `/api/auth/setup` starts a new person's ledger from the sign-in screen; after the first person it shares the sign-in attempt limit.
+
 ## Persistence and concurrency
 
-SQLAlchemy models cover Users, Sessions, LoginAttempts, Accounts, Categories, JournalEntries, Postings, ExchangeRates, Assets, AssetPrices, Budgets, WalletConnections, ImportJobs and AuditEvents. Alembic includes a frozen initial schema and separate database-guard and currency-budget migrations. Foreign keys are enabled on every SQLAlchemy connection.
+SQLAlchemy models cover Users (one settings row per ledger), Accounts, Categories, JournalEntries, Postings, ExchangeRates, Assets, AssetPrices, Budgets, WalletConnections, ImportJobs and AuditEvents. Alembic includes a frozen initial schema and separate database-guard and currency-budget migrations; the same migrations run on every ledger file. The shared file's few tables are created directly from `people.py`. Foreign keys are enabled on every SQLAlchemy connection.
 
-Run exactly one Uvicorn worker. A process-wide writer lock serializes authenticated request sessions, mutation, export and restore. This trades throughput for predictable local SQLite behavior and safe backups. Multi-owner isolation, multiple workers, background ingest, large-ledger query optimization and pagination are future work. Never run two backend instances on the same database.
+Run exactly one Uvicorn worker. A process-wide writer lock serializes authenticated request sessions, mutation, export and restore. This trades throughput for predictable local SQLite behavior and safe backups. Multiple workers, background ingest, large-ledger query optimization and pagination are future work. Never run two backend instances on the same data folder.
 
 ## Authentication and privacy
 
-One local owner is created through the first-run screen. Argon2id hashes passwords. Random session tokens are stored only as SHA-256 hashes; HttpOnly, SameSite=Strict cookies expire after 12 hours. Each mutation requires a session-bound CSRF header. Origin and Host allowlists protect same-origin use and reduce DNS-rebinding risk. Login attempts are persisted and limited to ten per 15 minutes per connection IP. Password changes and restore revoke sessions. The reverse proxy makes clients share its IP, so the login limit is intentionally installation-wide in Compose.
+The first person is created through the first-run screen; others start their own ledger from the sign-in screen. Argon2id hashes passwords, which are kept in the shared file and never in a ledger or a backup. Random session tokens are stored only as SHA-256 hashes; HttpOnly, SameSite=Strict cookies expire after 12 hours. Each mutation requires a session-bound CSRF header. Origin and Host allowlists protect same-origin use and reduce DNS-rebinding risk. Login attempts are persisted and limited to ten per 15 minutes per connection IP. A password change or a restore ends that person's sessions and nobody else's. The reverse proxy makes clients share its IP, so the login limit is intentionally installation-wide in Compose.
 
 No tracking scripts, analytics, cloud identities, telemetry exporters, remote fonts, or external imagery are included. FastAPI's transitive OpenTelemetry API library has no configured provider/exporter. SQLite itself is not encrypted at rest; protect the host and its volume using OS permissions and disk encryption. Backups are encrypted, separately from the live database.
 
@@ -74,9 +87,9 @@ Secrets remain in a protected environment/configuration. Bitcoin Core RPC creden
 
 ## Backup integrity
 
-Export uses SQLite's backup API for a consistent snapshot. Session and login-attempt rows are removed from the snapshot. A random 16-byte salt feeds scrypt (N=32768, r=8, p=1); AES-256-GCM uses a random 12-byte nonce and authenticated version header. The encrypted payload includes the complete database and its Alembic revision.
+Backup and restore are per person. Export uses SQLite's backup API for a consistent snapshot of the signed-in person's ledger file only; it holds no password and no sign-in records. A random 16-byte salt feeds scrypt (N=32768, r=8, p=1); AES-256-GCM uses a random 12-byte nonce and authenticated version header. The encrypted payload includes the complete database and its Alembic revision.
 
-Restore authenticates before parsing, then checks database integrity, exact schema/trigger compatibility, foreign keys, one-owner cardinality, posted status, balanced postings per currency and valid exchange rates. Only a validated candidate is copied through SQLite's transactional backup API. All sessions are cleared. Restores require the same schema version. The in-app backup limit is 32 MB; see the filesystem procedure for larger ledgers.
+Restore authenticates before parsing, then checks database integrity, exact schema/trigger compatibility, foreign keys, exactly one settings row, posted status, balanced postings per currency and valid exchange rates. Only a validated candidate is copied through SQLite's transactional backup API, into the signed-in person's file and no other. The restored ledger keeps that person's name and password, whoever made the backup. Backups from before separate ledgers are upgraded in a temporary copy and restore the same way. Restores require the same schema version. The in-app backup limit is 32 MB; see the filesystem procedure for larger ledgers.
 
 ## Integrations and current limits
 

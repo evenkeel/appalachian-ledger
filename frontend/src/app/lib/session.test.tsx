@@ -73,6 +73,42 @@ describe("session", () => {
     expect(await screen.findByRole("heading", { name: "Unlock your ledger" })).toBeInTheDocument();
   });
 
+  it("lets someone new start their own ledger from the sign-in screen", async () => {
+    localStorage.clear();
+    replies["GET /auth/status"] = { initialized: true, demo_enabled: false };
+    replies["GET /auth/me"] = new Error("Request failed (401)");
+    replies["POST /auth/setup"] = { username: "ben", csrf: "token" };
+    show();
+    fireEvent.click(await screen.findByRole("button", { name: "New to this computer? Start your own ledger" }));
+    expect(screen.getByRole("heading", { name: "Start your own ledger" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Username"), { target: { value: "ben" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "bens-password" } });
+    fireEvent.change(screen.getByLabelText("Password again"), { target: { value: "bens-password" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+    expect(await screen.findByText("ready night USD ben")).toBeInTheDocument();
+    expect(calls).toContainEqual({ path: "/auth/setup", method: "POST", body: { username: "ben", password: "bens-password" } });
+    expect(JSON.parse(localStorage.getItem("ledger:names")!)).toEqual(["ben"]);
+  });
+
+  it("offers the names that have signed in on this browser, and no others", async () => {
+    localStorage.setItem("ledger:names", JSON.stringify(["ann", "ben"]));
+    replies["GET /auth/status"] = { initialized: true, demo_enabled: false };
+    replies["GET /auth/me"] = new Error("Request failed (401)");
+    replies["POST /auth/login"] = { username: "ben", csrf: "token" };
+    show();
+    const people = await screen.findByRole("group", { name: "People who have signed in here" });
+    expect(people.textContent).toBe("annben");
+    fireEvent.click(screen.getByRole("button", { name: "ben" }));
+    expect(screen.getByLabelText("Username")).toHaveValue("ben");
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "bens-password" } });
+    fireEvent.click(screen.getByRole("button", { name: "Unlock" }));
+    expect(await screen.findByText("ready night USD ben")).toBeInTheDocument();
+    expect(calls).toContainEqual({ path: "/auth/login", method: "POST", body: { username: "ben", password: "bens-password" } });
+    // The list came from this browser: the server was never asked who has a ledger.
+    expect(calls.map((call) => call.path).sort()).toEqual(["/auth/login", "/auth/me", "/auth/status"]);
+    localStorage.clear();
+  });
+
   it("blanks the screen when a session expires mid-use", async () => {
     replies["GET /auth/status"] = { initialized: true, demo_enabled: false };
     replies["GET /auth/me"] = { username: "owner", csrf: "t", preferences: {} };

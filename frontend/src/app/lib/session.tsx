@@ -26,7 +26,11 @@ interface Session {
   lens: Lens;
   setTheme: (theme: Theme) => void;
   setLens: (lens: Lens) => void;
-  signIn: (username: string, password: string) => Promise<void>;
+  /** Sign in, or with `create` start a new ledger for a new person. */
+  signIn: (username: string, password: string, create?: boolean) => Promise<void>;
+  /** Names that have signed in on this browser. The server never lists people. */
+  names: string[];
+  forgetName: (name: string) => void;
   signOut: () => Promise<void>;
   retry: () => void;
 }
@@ -36,6 +40,23 @@ export function useSession() {
   const value = useContext(Context);
   if (!value) throw new Error("useSession needs a SessionProvider");
   return value;
+}
+
+const NAMES = "ledger:names";
+function savedNames(): string[] {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(NAMES) ?? "[]");
+    return Array.isArray(value) ? value.filter((name): name is string => typeof name === "string") : [];
+  } catch {
+    return [];
+  }
+}
+function saveNames(names: string[]) {
+  try {
+    localStorage.setItem(NAMES, JSON.stringify(names));
+  } catch {
+    // Private windows may refuse storage; the names are only a convenience.
+  }
 }
 
 const themeOf = (stored: Preferences["theme"] | undefined): Theme => (stored === "light" ? "day" : "night");
@@ -51,10 +72,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [lens, setLensState] = useState<Lens>("USD");
   const [attempt, setAttempt] = useState(0);
   const [signedOut, setSignedOut] = useState(false);
+  const [names, setNames] = useState<string[]>(savedNames);
 
   const adopt = useCallback((me: Owner) => {
     setCsrf(me.csrf);
     setOwner(me);
+    setNames((known) => {
+      if (known.includes(me.username)) return known;
+      const next = [...known, me.username].sort((a, b) => a.localeCompare(b));
+      saveNames(next);
+      return next;
+    });
     setSignedOut(false);
     setThemeState(themeOf(me.preferences?.theme));
     setLensState(lensOf(me.preferences?.denomination));
@@ -125,8 +153,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setLensState(next);
         api("/settings/monetary-lens", "PUT", { denomination: next }).catch(() => setLensState(previous));
       },
-      async signIn(username, password) {
-        adopt(await api<Owner>(phase === "setup" ? "/auth/setup" : "/auth/login", "POST", { username, password }));
+      async signIn(username, password, create = false) {
+        const path = phase === "setup" || create ? "/auth/setup" : "/auth/login";
+        adopt(await api<Owner>(path, "POST", { username, password }));
+      },
+      names,
+      forgetName(name) {
+        const next = names.filter((known) => known !== name);
+        saveNames(next);
+        setNames(next);
       },
       async signOut() {
         try {
@@ -144,7 +179,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setAttempt((n) => n + 1);
       },
     }),
-    [phase, signedOut, owner, demoEnabled, error, theme, lens, adopt],
+    [phase, signedOut, owner, demoEnabled, error, theme, lens, adopt, names],
   );
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }

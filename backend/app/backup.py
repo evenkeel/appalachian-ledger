@@ -14,7 +14,6 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from sqlalchemy import create_engine, event
 from sqlalchemy.exc import SQLAlchemyError
 
-from .db import engine
 from .paths import ALEMBIC_INI
 from .money import rate_decimal, convert
 from .prices import parse_time
@@ -35,11 +34,9 @@ def schema(conn):
 
 def snapshot(db, passphrase):
     db.commit()
-    with sqlite3.connect(engine.url.database) as source, sqlite3.connect(":memory:") as memory:
+    # Only this person's ledger file is read. Sign-in records are not in it.
+    with sqlite3.connect(db.get_bind().url.database) as source, sqlite3.connect(":memory:") as memory:
         source.backup(memory)
-        memory.execute("DELETE FROM sessions")
-        memory.execute("DELETE FROM login_attempts")
-        memory.commit()
         plain = memory.serialize()
         if len(plain) > MAX_BYTES - 128:
             raise ValueError(
@@ -59,7 +56,7 @@ def validate(conn, current):
     if list(conn.execute("PRAGMA foreign_key_check")):
         raise ValueError("Backup has broken foreign keys")
     if conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] != 1:
-        raise ValueError("Backup must contain exactly one local owner")
+        raise ValueError("Backup must hold exactly one person's ledger")
     from .planning import ScenarioInput
 
     for name, version, assumptions in conn.execute("SELECT name,version,assumptions FROM planning_scenarios"):
@@ -147,7 +144,8 @@ def upgrade_candidate(path):
         candidate.dispose()
 
 
-def restore(db, content, passphrase):
+def restore(db, content, passphrase, username):
+    """Replace the ledger `db` is open on, and no other, with a validated backup."""
     if len(content) > MAX_BYTES or not content.startswith(MAGIC):
         raise ValueError("Invalid or oversized encrypted backup")
     pos = len(MAGIC)
@@ -163,10 +161,11 @@ def restore(db, content, passphrase):
             file.write(plain)
         upgrade_candidate(path)
         try:
+            engine = db.get_bind()
             with sqlite3.connect(path) as candidate, sqlite3.connect(engine.url.database) as current:
                 validate(candidate, current)
-                candidate.execute("DELETE FROM sessions")
-                candidate.execute("DELETE FROM login_attempts")
+                # The ledger keeps its owner: a backup never changes who signs in, or how.
+                candidate.execute("UPDATE users SET username=?, password_hash=''", (username,))
                 candidate.commit()
                 db.commit()
                 db.close()

@@ -14,7 +14,10 @@ from alembic.config import Config  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 import json  # noqa: E402
 from sqlalchemy import select  # noqa: E402
+import shutil  # noqa: E402
+from app import db as app_db, price_sync  # noqa: E402
 from app.db import SessionLocal, engine  # noqa: E402
+from app.startup import ensure_schema  # noqa: E402
 from app.models import User  # noqa: E402
 from app.main import app  # noqa: E402
 
@@ -23,9 +26,20 @@ ROOT = Path(__file__).resolve().parents[2]
 
 @pytest.fixture(autouse=True)
 def database():
-    engine.dispose()
+    # A fresh computer for every test: no people, no ledgers, no saved prices.
+    for name, made in list(app_db._ledgers.items()):
+        made.dispose()
+        if made is not engine:
+            del app_db._ledgers[name]
+    app_db.people_engine.dispose()
     Path(engine.url.database).unlink(missing_ok=True)
+    app_db.PEOPLE_FILE.unlink(missing_ok=True)
+    shutil.rmtree(app_db.DATA_DIR / "ledgers", ignore_errors=True)
+    for extra in app_db.DATA_DIR.glob("*.before-people.db"):
+        extra.unlink()
+    price_sync._answered.clear()
     command.upgrade(Config(str(ROOT / "database/alembic.ini")), "head")
+    ensure_schema()
     yield
     engine.dispose()
 
@@ -45,7 +59,9 @@ def owner(client):
     # prices and never reach the network; test_prices covers the Coinbase start itself.
     with SessionLocal() as db:
         user = db.scalar(select(User))
-        user.preferences = json.dumps(json.loads(user.preferences) | {"rate_source": "manual", "automatic_prices": False})
+        user.preferences = json.dumps(
+            json.loads(user.preferences) | {"rate_source": "manual", "automatic_prices": False}
+        )
         db.commit()
     return client
 

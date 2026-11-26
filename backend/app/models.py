@@ -9,28 +9,19 @@ def now():
 
 
 class User(Base):
+    """The one person this ledger belongs to, and their settings.
+
+    The name is a copy kept for backups. The password lives in the shared file, so
+    `password_hash` is always empty here.
+    """
+
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(primary_key=True)
     username: Mapped[str] = mapped_column(String(80), unique=True)
-    password_hash: Mapped[str] = mapped_column(Text)
+    password_hash: Mapped[str] = mapped_column(Text, default="")
     preferences: Mapped[str] = mapped_column(Text, default="{}")
     demo: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[str] = mapped_column(default=now)
-
-
-class Session(Base):
-    __tablename__ = "sessions"
-    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    csrf: Mapped[str]
-    expires: Mapped[int] = mapped_column(BigInteger)
-
-
-class LoginAttempt(Base):
-    __tablename__ = "login_attempts"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    client: Mapped[str] = mapped_column(index=True)
-    at: Mapped[int] = mapped_column(BigInteger)
 
 
 class Account(Base):

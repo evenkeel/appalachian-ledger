@@ -97,7 +97,7 @@ export function Restore() {
       .run(async () => {
         const result = await api<{ message?: string }>("/restore", "POST", body);
         setPassphrase("");
-        setRestored(result.message || "Restored and verified. Sign in with the restored owner credentials.");
+        setRestored(result.message || "Restored and verified. Sign in again with your own name and password.");
       })
       .then(() => setConfirming(false));
   }
