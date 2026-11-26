@@ -254,7 +254,7 @@ def test_the_share_saved_in_bitcoin_is_shown_for_each_month(owner):
 def test_the_demo_person_has_five_years_of_pay_with_raises_and_a_job_change(owner):
     assert owner.post("/api/demo").status_code == 200
     data = income(owner)
-    assert data["months_of_history"] == 60 and data["problems"] == []
+    assert data["months_of_history"] >= 60 and data["problems"] == []
     names = {row["name"]: row for row in data["sources"]}
     assert set(names) == {"Carver & Sons Electrical", "Blue Ridge Home Electric", "Tax refund", "Other income"}
     assert names["Blue Ridge Home Electric"]["ended_on"] == "2023-03-10"
@@ -292,3 +292,27 @@ def test_one_persons_income_never_shows_for_another(client):
         assert ben.post(f"/api/income/sources/{id}/merge", json={"into": 1}).status_code == 404
     assert ann.get("/api/income").text == hers
     assert not [item for item in ben.get("/api/alerts").json()["active"] if item["id"] == "pay"]
+
+
+def test_a_hundred_years_of_income_is_all_there(owner):
+    """No cap on years: a ledger kept for a century shows every month of it."""
+    from app import income as income_module
+    from app.db import SessionLocal
+
+    checking = new_account(owner)
+    pay(owner, checking, date(1971, 3, 5), "200.00", "First job")
+    pay(owner, checking, TODAY, "1500.00")
+    data = income(owner)
+    span = (TODAY.year - 1971) * 12 + TODAY.month - 3 + 1
+    assert data["months_of_history"] == span > 600
+    assert (data["months"][0]["month"], data["months"][0]["usd"]) == ("1971-03", "200.00")
+    # Read a hundred years from now, the same ledger answers with every month since the first.
+    later = date(TODAY.year + 100, TODAY.month, 1)
+    with SessionLocal() as db:
+        far = income_module.report(db, later)
+    assert far["months_of_history"] == span + 1200 and far["months"][-1]["month"] == later.strftime("%Y-%m")
+    assert far["months"][0]["usd"] == "200.00" and far["problems"] == []
+    # The longer views take as many years as are asked for.
+    assert owner.get("/api/reports?months=1200").status_code == 200
+    first, last = date(1971, 1, 1), TODAY
+    assert owner.get(f"/api/spending-history?start={first}&end={last}&interval=year").status_code == 200

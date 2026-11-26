@@ -24,7 +24,6 @@ from .schemas import StrictModel
 
 router = APIRouter(prefix="/api/income", dependencies=[Depends(authenticate)])
 
-MONTHS = 60  # five years
 LEVEL_CHANGE = Decimal("0.02")  # a typical paycheck that moves less than this is not a raise or a cut
 SAME_PAY = Decimal("0.01")  # two paychecks this close are the same pay
 SHORT = Decimal("0.02")  # a paycheck this far under the expected amount is short
@@ -265,7 +264,8 @@ def report(db, today=None):
     )
 
     first = paychecks[0]["day"] if paychecks else today
-    start = max(first.year * 12 + first.month - 1, today.year * 12 + today.month - MONTHS)
+    # Every month since the first paycheck, however many years that is.
+    start = first.year * 12 + first.month - 1
     history = []
     for index in range(start, today.year * 12 + today.month):
         key = f"{index // 12:04d}-{index % 12 + 1:02d}"

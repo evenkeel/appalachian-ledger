@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { api } from "../../lib/api";
 import { Panel } from "../dashboard/panels";
+import { RangeControl, useRange } from "../design/timeline";
 import { btc, longMonth, monthYear, plural, shortDate, shortMonthYear, usd } from "../lib/format";
 import type { Route } from "../lib/router";
 import { useSession } from "../lib/session";
@@ -188,16 +189,20 @@ function sum(months: Month[]) {
 /** One bar a month, split by source. A month with a paycheck that has no saved price is drawn empty, never guessed. */
 function HistoryPanel({ className, data, lens }: { className: string; data: IncomeData; lens: Lens }) {
   const [at, setAt] = useState<number | null>(null);
-  const months = data.months;
+  // Opens on the last five years of a longer history; the control reaches every year on record.
+  const range = useRange(data.months.length);
+  const months = data.months.slice(range.start, range.end);
   const unit = lens === "USD" ? "usd" : "bitcoin";
   const value = (total: Total | undefined) => (total && total[unit] !== null ? Number(total[unit]) : 0);
   const top = Math.max(...months.map((month) => value(month)), 1);
   const sources = data.sources.slice(0, 4);
   const gaps = months.filter((month) => month[unit] === null).length;
-  const shown = at === null ? null : months[at];
+  const all = data.months.length;
+  const shown = at === null ? null : (months[at] ?? null);
   const width = 100 / months.length;
   return (
     <Panel className={className} name="Income by month" plain={months.length > 1 ? `${shortMonthYear(months[0].month)} to ${shortMonthYear(months[months.length - 1].month)}` : longMonth(months[0].month)}>
+      {data.months.length > 12 && <RangeControl label="Income by month" range={range} months={data.months.map((month) => month.month)} />}
       <div className="inc-read sub" aria-live="polite">
         {shown ? (
           <>
@@ -215,7 +220,7 @@ function HistoryPanel({ className, data, lens }: { className: string; data: Inco
         ) : months.length < 3 ? (
           "Each month you record adds a bar. Trends show once there are a few months to compare."
         ) : (
-          "Point at a month to read it."
+          `Point at a month to read it.${all > months.length ? ` Showing ${plural(months.length, "month")} of ${all}.` : ""}`
         )}
       </div>
       <svg className="inc-chart" viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label={`Income by month in ${lens === "USD" ? "dollars" : "bitcoin"}, ${plural(months.length, "month")}.`} onMouseLeave={() => setAt(null)}>
