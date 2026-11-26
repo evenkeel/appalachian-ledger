@@ -12,7 +12,11 @@ NOW = datetime.now(timezone.utc)
 
 def quote(value="80000.00", age=timedelta(seconds=30)):
     with SessionLocal() as db:
-        db.merge(PriceQuote(source="Coinbase", usd_per_btc=value, observed_at=(NOW - age).isoformat(), fetched_at=NOW.isoformat()))
+        db.merge(
+            PriceQuote(
+                source="Coinbase", usd_per_btc=value, observed_at=(NOW - age).isoformat(), fetched_at=NOW.isoformat()
+            )
+        )
         db.commit()
 
 
@@ -25,7 +29,12 @@ class LiveCoinbase:
         return Reference(NOW.date(), "50000.00", NOW.isoformat(), "spot")
 
     def history(self, start, end):
-        return [Reference(start + timedelta(days=i), "40000.00", f"{start + timedelta(days=i + 1)}T00:00:00+00:00", self.method) for i in range((end - start).days + 1)]
+        return [
+            Reference(
+                start + timedelta(days=i), "40000.00", f"{start + timedelta(days=i + 1)}T00:00:00+00:00", self.method
+            )
+            for i in range((end - start).days + 1)
+        ]
 
 
 def cost(entry_id):
