@@ -142,7 +142,9 @@ describe("stack screen", () => {
     expect(within(buys).getByText("$118,750.00")).toBeInTheDocument();
     expect(within(buys).queryByText(/To savings/)).not.toBeInTheDocument();
 
-    expect(await screen.findByLabelText("Cost of living: the same life, priced two ways")).toBeInTheDocument();
+    // The panel is drawn again when its history arrives, so look for it afresh each time rather than
+    // holding on to the first one found. On a slow machine the first one has already been replaced.
+    await waitFor(() => expect(screen.getByLabelText("Cost of living: the same life, priced two ways")).toBeInTheDocument());
     expect(document.body.textContent).not.toMatch(/\bsats?\b|satoshi/i);
   });
 

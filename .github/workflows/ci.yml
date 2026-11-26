@@ -1,5 +1,14 @@
 name: Ledger checks
-on: [push, pull_request]
+# Once for each pull request update, and once for main. Running on every push as well ran each
+# branch twice and sent two failure emails for one problem.
+on:
+  pull_request:
+  push:
+    branches: [main]
+# A newer push to the same branch replaces the run still in progress.
+concurrency:
+  group: ledger-checks-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
