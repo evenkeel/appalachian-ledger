@@ -5,7 +5,7 @@ from conftest import new_account, transaction
 
 def test_auth_csrf_and_origin(client):
     assert client.get("/api/accounts").status_code == 401
-    assert client.post("/api/auth/setup", json={"username": "owner", "password": "short"}).status_code == 422
+    assert client.post("/api/auth/setup", json={"username": "owner", "password": ""}).status_code == 422
     response = client.post("/api/auth/setup", json={"username": "owner", "password": "secure-long-password"})
     assert response.status_code == 200
     cookie = response.headers["set-cookie"].lower()
@@ -178,3 +178,25 @@ def test_database_permissions_are_owner_only(owner):
     import stat
 
     assert stat.S_IMODE(os.stat(engine.url.database).st_mode) == 0o600
+
+
+def test_owner_chooses_any_password(client):
+    # No length rule: a short password is the owner's choice. Only an empty one is refused.
+    assert client.post("/api/auth/setup", json={"username": "owner", "password": "abc"}).status_code == 200
+    csrf = client.post("/api/auth/login", json={"username": "owner", "password": "abc"}).json()["csrf"]
+    changed = client.post(
+        "/api/auth/password", json={"current_password": "abc", "new_password": "z"}, headers={"X-CSRF-Token": csrf}
+    )
+    assert changed.status_code == 200
+    assert client.post("/api/auth/login", json={"username": "owner", "password": "z"}).status_code == 200
+
+
+def test_backup_with_any_passphrase(owner):
+    # No length rule for backups either: a short passphrase is the owner's choice.
+    transaction(owner, new_account(owner), amount="20")
+    assert owner.post("/api/backup", json={"passphrase": ""}).status_code == 422
+    exported = owner.post("/api/backup", json={"passphrase": "abc"})
+    assert exported.status_code == 200
+    files = {"file": ("ledger.albackup", exported.content, "application/octet-stream")}
+    assert owner.post("/api/restore", data={"passphrase": "abd"}, files=files).status_code == 422
+    assert owner.post("/api/restore", data={"passphrase": "abc"}, files=files).status_code == 200

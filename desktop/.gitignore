@@ -1,0 +1,5 @@
+.build-venv/
+.engine-build/
+engine-dist/
+src-tauri/target/
+src-tauri/gen/

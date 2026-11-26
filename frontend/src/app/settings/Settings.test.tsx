@@ -287,13 +287,23 @@ describe("appearance, backup, password and export", () => {
     expect(screen.getByLabelText("New password")).toHaveValue("");
   });
 
-  it("refuses a short new password without asking the server", async () => {
+  it("accepts a short new password: the owner chooses it", async () => {
     open();
     fireEvent.change(screen.getByLabelText("Current password"), { target: { value: "anything" } });
-    fireEvent.change(screen.getByLabelText("New password"), { target: { value: "too short" } });
-    fireEvent.change(screen.getByLabelText("New password again"), { target: { value: "too short" } });
+    fireEvent.change(screen.getByLabelText("New password"), { target: { value: "abc" } });
+    fireEvent.change(screen.getByLabelText("New password again"), { target: { value: "abc" } });
     fireEvent.submit(screen.getByRole("button", { name: "Change password" }).closest("form")!);
-    expect(await screen.findByText("Use a new password of 12 to 200 characters.")).toBeInTheDocument();
+    expect(await screen.findByText("Password changed. Every other session was signed out.")).toBeInTheDocument();
+    expect(calls("POST", "/auth/password").at(-1)).toEqual(["/auth/password", "POST", { current_password: "anything", new_password: "abc" }]);
+  });
+
+  it("refuses mismatched new passwords without asking the server", async () => {
+    open();
+    fireEvent.change(screen.getByLabelText("Current password"), { target: { value: "anything" } });
+    fireEvent.change(screen.getByLabelText("New password"), { target: { value: "abc" } });
+    fireEvent.change(screen.getByLabelText("New password again"), { target: { value: "abd" } });
+    fireEvent.submit(screen.getByRole("button", { name: "Change password" }).closest("form")!);
+    expect(await screen.findByText("The two new passwords do not match. Nothing was changed.")).toBeInTheDocument();
     expect(calls("POST", "/auth/password")).toHaveLength(0);
   });
 
@@ -375,7 +385,6 @@ describe("restore", () => {
     fireEvent.click(screen.getByRole("button", { name: "Restore this backup…" }));
     expect(await screen.findByText("Choose the backup file first.")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Backup file"), { target: { files: [backupFile()] } });
-    change("Backup passphrase", "too short");
     fireEvent.click(screen.getByRole("button", { name: "Restore this backup…" }));
     expect(await screen.findByText(/^Enter the passphrase the backup was made with/)).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Confirm restore" })).not.toBeInTheDocument();

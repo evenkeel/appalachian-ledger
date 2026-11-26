@@ -1,0 +1,14 @@
+{
+  "name": "appalachian-bitcoin-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "engine": "./build-engine.sh",
+    "icons": "tauri icon icon.svg",
+    "build": "./build-engine.sh && tauri build",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.12.4"
+  }
+}

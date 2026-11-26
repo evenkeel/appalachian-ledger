@@ -2,40 +2,72 @@
 
 **Beta version for testing.**
 
-A self-hosted personal finance application and project of Appalachian Bitcoin. React, TypeScript, Tailwind CSS, shadcn/ui component patterns and Recharts power the interface; FastAPI, SQLAlchemy, Alembic and SQLite power the local ledger.
+Appalachian Bitcoin is a personal finance manager that runs on your own computer. Input your
+paychecks, bills and everyday spending, so you can analyze what's actually happening and make
+wise decisions. Easily toggle between using dollars as a measuring stick or bitcoin.
 
-The repository contains source and fictional examples only. Cloning it does not
-copy a personal ledger or login. See [source privacy](docs/source-privacy.md) for
-safe remote development and transferring encrypted backups separately.
+There is no cloud account, no telemetry and no third-party analytics. Your ledger is one file on
+your computer. This repository holds the source code and fictional examples only: cloning it
+never copies anyone's ledger or login. See [source privacy](docs/source-privacy.md).
 
-Every API startup applies pending database migrations before loading ledger data or starting background workers. A failed migration stops startup. Keep a backup before updating. Local development and testing launchers reload the API when backend code or migrations change; restart the testing launcher after frontend edits so it rebuilds the interface. Docker installations require `docker compose up --build -d` after code updates to rebuild and restart both services.
+Website and in-browser demo: [appalachianbitcoin.com](https://appalachianbitcoin.com)
 
-## The new interface (in progress)
+## Where things stand
 
-The app is being rebuilt as a dense dashboard; see the [design brief](docs/cockpit-design.md). The front page is the new interface: sign-in, navigation, and a dashboard with Checking forecast, Bills (pay, destroy, pay off), Stack with stack rate, Spend pace, Cards & debt, Allowances, alert lights, Cost of living, Spending bridge and Money flow; a Spending screen with drill-down; a Transactions screen with keyboard entry (`N` new, `/` search, `J`/`K` move, `E` correct); Bills, Stack, Accounts and Settings screens; a [Markets](docs/markets.md) screen of live, resizable price charts and watchlists for bitcoin, gold, stocks and indexes, with bitcoin's live order book and depth chart; and Learn, which explains how the ledger thinks about money. Every screen now lives in the new interface, including Retirement. The previous interface is still reachable at `/legacy.html`, on the same ledger, until it is removed. The data contract for the dashboard is in [docs/dashboard-api.md](docs/dashboard-api.md).
+- **Mac app (new).** A real Mac program: download it, drag it to Applications and double-click
+  it. No Docker, no terminal. It is a beta for Macs with Apple silicon (M1 or newer) on macOS 11 or newer, and is
+  not yet signed, so the first time you open it the Mac says it can't be opened. Go to
+  **System Settings → Privacy & Security** and click **Open Anyway**. You only do this once.
+  Download it from [Releases](https://github.com/evenkeel/appalachian-ledger/releases) or the
+  website. How it is built: [desktop/README.md](desktop/README.md).
+- **Windows, Intel Macs and home servers.** Until their apps exist, run it with Docker (below).
+  A Windows app and automatic updates are next.
+- **The interface.** Every screen has been rebuilt as one dense dashboard (see the
+  [design brief](docs/cockpit-design.md)). The previous interface is still reachable at
+  `/legacy.html` on the same ledger until it is removed.
+- **Not yet independently reviewed.** Each release is tested, but there has been no outside
+  security or accounting audit. Keep backups.
 
-Existing ledgers upgrade in place: migration `0014_dashboard` only adds tables and two nullable columns, and `backend/tests/test_ledger_migration.py` proves the journal, balances and every earlier table are unchanged by it. Keep a backup before updating all the same. An encrypted backup made by an older version restores too: it is upgraded in a temporary copy first, and the ledger is replaced only if every check passes.
+## What it does
 
-USD and bitcoin are first-class units of account. The new-installation reporting default is USD; existing preferences are retained. Bitcoin terminology follows BIP-177: **1 bitcoin is one native base unit; 100,000,000 bitcoin = 1 legacy BTC.** Native amounts display with a prefix (`₿125,000`); legacy amounts remain explicitly labeled (`0.00125000 BTC`). Original USD cents and native bitcoin amounts are always retained. The application uses the proposal's terminology explicitly; it does not imply universal adoption of BIP-177.
+- **Dashboard:** checking forecast, bills, stack and stack rate, spend pace, cards and debt,
+  allowances, cost of living, spending bridge, money flow, and warning lights that say what
+  needs attention.
+- **Activity:** every transaction, with keyboard entry (`N` new, `/` search, `J`/`K` move,
+  `E` correct). Corrections never erase history: they post a reversal.
+- **Spending:** where the money went, with drill-down, month and year history.
+- **Bills:** what is due and when; pay a bill, or destroy it (cancel it or pay it off for good).
+  See [bills](docs/bills.md).
+- **Stack:** bitcoin bought, and the stack rate: how much of your income becomes bitcoin.
+- **Markets:** live, resizable price charts and watchlists for bitcoin, gold, stocks and
+  indexes, with bitcoin's live order book. See [markets](docs/markets.md).
+- **Accounts:** checking, savings, cash, cards, loans, brokerage holdings and bitcoin wallets.
+- **Retirement:** how long your savings would last (the runway), worked out from your own
+  ledger, with the bitcoin growth rate you choose shown openly. See [retirement](docs/retirement.md).
+- **Learn:** how the ledger thinks about money.
+- **Settings:** prices, appearance, password, exports, and encrypted backup and restore.
 
-## Run with Docker Compose
+Dollars and bitcoin are both first-class units. Bitcoin amounts follow BIP-177:
+**1 bitcoin is one base unit; 100,000,000 bitcoin = 1 legacy BTC.** Amounts show with a prefix
+(`₿125,000`); legacy amounts are labelled (`0.00125000 BTC`). Original dollar cents and bitcoin
+amounts are always kept. Bitcoin figures for past spending use that day's real price, never
+today's; missing prices stay visibly missing rather than being guessed. See [prices](docs/prices.md).
 
-### Browser access on your computer or node
+## Your account, password and backups
 
-Use one web interface across Windows, macOS, and phones. Run
-`python3 scripts/host.py computer --start` for localhost access, or
-`python3 scripts/host.py node --bind YOUR_PRIVATE_IP --start` on a private server
-for HTTPS access from other devices. Both require Docker Compose 2.24.4+ and
-Python 3.12+. On Windows, use `py -3` instead of `python3`.
+- The account lives only on your computer. Choose any username and password you like; there is
+  no "forgot my password", because nobody else has it.
+- Your whole ledger is one file. On the Mac app it is in
+  `~/Library/Application Support/com.appalachianbitcoin.desktop/`.
+- **Settings → Backup** makes an encrypted `.albackup` file locked with a passphrase you choose.
+  Keep copies off the computer. Without the passphrase a backup cannot be opened by anyone.
+  Restoring checks the whole file before replacing anything. See [backup and restore](docs/backup-and-restore.md).
+- Every start applies any pending database upgrades first; a failed upgrade stops startup rather
+  than serving a half-upgraded ledger. Backups made by older versions restore too.
 
-The server holds one ledger; devices sign in to that same ledger. Optional
-home-screen installation adds a shortcut without a separate desktop release.
-Private HTTPS requires trusting the server's certificate on each device. Follow
-[browser hosting](docs/browser-hosting.md) for certificate setup, updates, and backups.
+## Run it with Docker (Windows, Intel Macs, servers)
 
-### Manual localhost setup
-
-Requires Docker Engine/Desktop with Compose v2.24.4+.
+Requires Docker Desktop (or Docker Engine) with Compose v2.24.4+.
 
 ```sh
 cp .env.example .env
@@ -43,196 +75,104 @@ chmod 600 .env
 docker compose up --build -d
 ```
 
-Open [Appalachian Bitcoin](http://localhost:8080). Create your local owner account with a password of at least 12 characters. No default credentials, cloud account or Bitcoin node are required. Migrations run automatically before the API starts. The frontend binds to **127.0.0.1:8080**; the backend has no published port. Records persist in the `ledger-data` named volume.
+Open [http://localhost:8080](http://localhost:8080) and create your account. Records persist in
+the `ledger-data` volume. To stop: `docker compose down` (never add `--volumes`: it erases the
+ledger). After updating the code, run `docker compose up --build -d` again.
 
-To stop: `docker compose down`. Do not add `--volumes` unless you intend to erase the ledger. For logs: `docker compose logs backend`. Do not run more than one backend worker or share a database across backend instances.
+To reach one ledger from your phone and other devices over your private network, use
+`python3 scripts/host.py node --bind YOUR_PRIVATE_IP --start` and follow
+[browser hosting](docs/browser-hosting.md).
 
-## Explore the fictional demo
+## The fictional demo
 
-Run a separate project and volume on port 8081:
+**The person is fictional. The bitcoin prices are real.** The demo follows one made-up man,
+25 today, an electrician who rents in the city, for five years: every paycheck, every bill,
+everyday spending, a credit card, a car loan, and a little bitcoin bought every payday. His life
+is written as a plan in [`backend/app/demo_plan.py`](backend/app/demo_plan.py). Every bitcoin
+figure uses the real Coinbase BTC-USD daily close for its day, saved in
+[`backend/app/demo_data/btc_usd_daily.json`](backend/app/demo_data/btc_usd_daily.json).
+
+Try it in your browser at [appalachianbitcoin.com/demo](https://appalachianbitcoin.com/demo/),
+or run a separate demo installation on port 8081:
 
 ```sh
 docker compose -p appalachian-ledger-demo \
   -f docker-compose.yml -f deployment/demo.compose.yml up --build -d
 ```
 
-Open [the isolated demo](http://localhost:8081), create a local owner, and click **Or load the fictional demo** on the empty dashboard. It takes a few seconds and cannot seed a nonempty ledger.
+Create a local owner there and click **Or load the fictional demo** on the empty dashboard.
+Keep real records in a separate installation. `make demo-prices` moves the demo's five years
+forward to the newest prices; `make website` rebuilds the website and its demo
+(see [the website](website/README.md)).
 
-**The person is fictional. The bitcoin prices are real.** The demo follows one made-up man, 25 today, an electrician who rents in the city, for five years: every paycheck, every bill on its due date, everyday spending, a credit card, a car loan, and a little bitcoin bought every payday. His life is written as a plan in [`backend/app/demo_plan.py`](backend/app/demo_plan.py); his dollar amounts are invented, modelled on how US prices moved from 2021 on. Every bitcoin figure uses the real Coinbase BTC-USD daily close for its day, saved with its source and retrieval time in [`backend/app/demo_data/btc_usd_daily.json`](backend/app/demo_data/btc_usd_daily.json). Each buy is the dollars paid divided by that day's close, with the ledger's usual rounding. Nothing is estimated, interpolated or invented.
+## Develop
 
-Loading the demo reads that file and never uses the network. The file ends at the last release, so days after it are entered in dollars only: their bitcoin price shows as missing and he records no bitcoin buy on them. The demo switches on automatic Coinbase prices, so the ordinary price sync fills those days in when the computer is online; turn it off in **Settings → Prices** to stay offline.
-
-At each release, `make demo-prices` fetches the newest closes and moves the five-year window forward, and `make website` rebuilds the website's browser demo from the same person and prices (see [the website](website/README.md)).
-
-Alternatively, set `DEMO_ENABLED=true` in `.env` before starting an empty normal installation. Keep real financial records in a separate installation. There is no automatic demo login or shared demo password.
-
-## Quick bills and expenses
-
-**Expenses → Analysis** compares spending with the preceding calendar month. It opens in dollars, with a historical bitcoin toggle and shared account/category filters. Spending pace compares matching elapsed days while retaining the previous month's full gray line for context. The spending bridge explains category increases/decreases; the category explorer switches between six-month trends and a spending map. Expand **When you spent** for the daily calendar. Select categories or dates to inspect and edit their transactions, or expand exact-value tables. Missing purchase-date conversions remain unavailable. These views describe recorded expenses, not forecasts or proof that unrecorded spending did not occur.
-
-Open **Expenses**, directly below Income, for one **Analysis** workspace. **Upcoming expenses** shows exactly seven dots, Sunday through Saturday, for one week at a time; light blue means no planned expenses, while larger orange dots represent larger native-currency totals. Select a dot to inspect its expenses in a popup, or use the overdue shortcut for unpaid earlier dates. Week arrows show earlier or later weeks, including across month boundaries. The total covers the displayed week. Recorded expenses and Cost history expand below the charts. Overview keeps a compact linked summary of payments due in the next seven days and overdue items. Dollar and bitcoin totals remain separate. **Add expense → Payment → Upcoming**, with **Repeats → Once**, saves a future cost without posting spending; after confirmation it leaves the upcoming list. The dots show the next unpaid occurrence of each recurring bill, rather than projecting all later repeats.
-
-Use **Add expense** for both paid and upcoming expenses. Choose **Payment → Paid** to record spending now, or **Upcoming** to save planned spending without posting a payment. **Repeats** offers Once, Weekly, Monthly, Quarterly, Every 6 months, and Yearly. One Add expense action serves the Analysis workspace; there are no separate Upcoming, History, or Cost history navigation tabs. Once saved, **Record → Confirm payment** records a planned occurrence; the payment date defaults to today and variable amounts can be adjusted before confirming. Each confirmation advances one scheduled occurrence. Calendar schedules retain their original day after short months (January 31 → February 28 → March 31 for monthly repeats).
-
-Click an account card or its name to see the bills paid with that account in a modal. Close it to return to the same place on the page. For example, a Spotify bill assigned to Prime Card appears when you open Prime Card. Adding a bill from there preselects that account.
-
-**Cost history** shows actual monthly expense totals in dollars and bitcoin, with search and category filters (for example, groceries or electricity). Each bill also has a **History** button with its recorded payments, including earlier prices after its scheduled amount or name changes. Changes compare the previous recorded month; usage and purchase changes are included. The current month may be incomplete.
-
-Expense bitcoin equivalents use the **purchase date**, never the date entered or today's spot quote. Because entries currently store a date without a purchase time, these are labelled daily references (Coinbase UTC daily close, CoinGecko daily reference, or a manual dated rate), not exact intraday prices. Source, rate, and reference timestamp are retained with each immutable cost observation. Missing conversions remain unavailable until an exact-date historical reference is saved; the first saved observation is never repriced by later rates or provider changes. Existing payments are filled from their saved journal rates or available purchase-date references at startup. New daily price synchronization completes eligible gaps automatically. Corrections preserve the original conversion rate when the purchase date stays the same; reversals disappear from active cost totals. Snapshot equivalents use decimal arithmetic and the app's whole-bitcoin-unit rounding. JSON journal exports include these observations.
-
-Choose **Paid** with a repeating frequency to record an expense now and prepare the next occurrence together. In Transactions, **Repeat expense** fills the previous expense's details with today's date; save to record it again. Edit recurring bills to update their details or next due date, or remove them to stop repeating. Saved bills require confirmation for every payment; they do not initiate payments or post automatically. Repeated requests for the same bill occurrence return the existing payment instead of duplicating it.
-
-## Default payment methods
-
-In **Settings → Default payment methods**, choose a payment account for each expense category and click **Save payment defaults**. For example, assign Gemini Credit Card to Groceries. Selecting that category on a new expense suggests its account; you can override it for that expense. Category shortcuts also use the default unless opened from a specific account. Existing transactions, repeated expenses, and saved bills retain their accounts. Archived accounts are never suggested. Choose **No default** and save to clear a category's preference.
-
-## Arrange your cards
-
-Use the grip on a card to drag it into a different position. This works with mouse and touch on Accounts, Assets & liabilities, upcoming bill cards, and Overview's balance cards. You can also focus a grip and use arrow keys to move one position, or Home/End to move to the start/end. Changes save automatically with your local owner preferences and survive reloads and server restarts. Each grid keeps its own order. New cards appear after saved cards; **Reset order** restores the default arrangement (including due-date order for bills). Financial balances, schedules, and history are unchanged by arranging cards.
-
-## Where to manage things
-
-**Accounts** is the primary home for bitcoin wallets, checking, savings, cash, brokerage/stock/ETF accounts, and credit cards. **Assets & liabilities** automatically shows property, vehicles, other valued assets, loans, mortgages, and other longer-term liabilities from the same ledger. Existing records appear without a separate linking step; valuation history is optional. Use **Add asset** or **Add debt** on that page to create a record of the appropriate type. No balances or transactions are copied between pages, and net worth/reporting still use every underlying account.
-
-Manage the account name, archive status, and consumer debt exclusion from its card on its primary page. Archived cards are hidden by default on Accounts and Assets & liabilities; select **Show archived** to review or reactivate them. On Assets & liabilities, use **Update value** for property or **Record payment** for debt. Wallets and investments stay manageable in Accounts, while all debts and assets remain included in Overview totals.
-
-## Transfer between your accounts
-
-Use **Transfer** on Overview or Accounts, or **Transfer from this account** on a wallet or cash account card. The compact form fills today's date and a description automatically. A card shortcut selects the source account; when there is only one other account in the same currency, it suggests that destination. For River → Bitkey, enter the bitcoin amount and click **Record transfer**. You can enter whole native bitcoin units or decimal legacy BTC, with exact conversion. Same-currency transfers need only one amount. For a cross-currency transfer, enter the actual amount received as well. Date and notes are optional details. Transfers update both account balances without counting as income, spending, or budget expenses; record any fee separately.
-
-Account actions follow the account type: wallets, checking, savings and cash offer **Transfer**; tracked brokerage/stock/ETF accounts offer **Move cash**, showing only uninvested cash. Brokerage withdrawals cannot exceed that cash balance; moving securities requires editing holdings rather than transferring the account's market value. Set up holdings and cash before using Move cash on an untracked investment account.
-
-Credit cards offer **Make payment**, with a **Pay from account** selector. Loans and mortgages offer **Record payment**. Choose a paying account and enter the total; if part of it is interest or fees, enter that portion and its expense category. The remainder reduces principal as a transfer. Both entries save together, and only interest/fees consume expense budgets. Property, vehicles and other valued assets offer **Update value**, which records an equity valuation without income or spending.
-
-## Balances and spending
-
-The overview leads with **total net worth in bitcoin**, followed by its smaller USD equivalent. Each overview category has its own swap button for switching between bitcoin and USD. Trend categories remember their own currency choices while the overview stays open. Separate native-currency balances remain visible for bitcoin, USD cash, other assets, and liabilities. Combined net worth is an estimated valuation, not a claim to own that amount of bitcoin.
-
-A single chart switches between bitcoin and USD for income, expenses, debt, and net worth. “Same lifestyle” holds a recorded month's dollar spending constant to isolate Bitcoin's exchange-rate effect. Prices are never fabricated and trends are not forced downward. Income and expense conversions prefer saved transaction-date rates, automatically use available exact-date references for missing snapshots, and label today’s fresh-quote conversions as estimates. Genuinely missing historical prices remain gaps; original amounts stay visible.
-
-A dedicated **Income** page explains the calculation and provides payment entry, category totals, filtering, editing and reversal. **Accounts → Enter shares & ticker** supports automatic USD security quotes, fractional shares, cash, optional cost basis and unrealized gain/loss. See [income, holdings, and denomination comparisons](docs/holdings-and-income.md).
-
-Overview's compact financial summary compares recorded expenses with income in one USD equivalent. **Spending pressure** reaches its redline at 100%; readings above it retain the actual percentage. **Classify expenses** assigns expense categories to fixed commitments, variable essentials, discretionary spending, or unclassified. Assignments persist and apply across category history. The summary shows the spending mix, cash surplus or shortfall, and the share of income left after expenses. Zero income or missing conversions leave the percentage unavailable. Current months are labeled **month so far**. Recorded burn rate averages up to three completed months and annualizes that average; transfers and investment value changes are excluded. These are observations based on recorded activity, not budget targets or forecasts.
-
-**Budgets** now compares monthly spending with USD category plans over 3–24 months, highlights unbudgeted spending, and provides category-specific expense entry. **Copy previous month** fills missing USD plans while preserving existing allowances and legacy bitcoin budgets.
-
-**Savings & investing** tracks bitcoin buys, savings and investment funding with monthly charts, account filters, exact monthly figures and editable activity. **Bitcoin buy** accepts the actual dollars exchanged and whole bitcoin units. Purchases remain transfers, so they do not consume expense budgets. See [budget, savings and investing tracking](docs/tracking.md).
-
-In **Manage account** on Accounts or Assets & liabilities, turn on **Exclude from consumer debt** for a non-mortgage debt that should not count toward the Overview gauge. The choice persists with the account and affects the consumer debt gauge in current and historical views. Its balance still counts toward total debt and net worth. Mortgages remain automatically excluded.
-
-## First real records
-
-1. Create accounts in their original currency with dated opening balances. USD accepts two decimals; bitcoin accepts whole units. Positive liability balances mean debt owed. Dollar-only records work without price data.
-2. In Settings → Prices, select Coinbase and enable Automatic prices, or stay offline with manual rates. Current quotes refresh every five minutes; completed daily history syncs automatically. See [pricing behavior](docs/prices.md).
-3. Record income and expenses with matching categories. Conversions use an exact-date reference. After syncing history, Review missing conversions lets you save dated conversions without changing original entries. Today’s daily close is unavailable until the UTC day ends, so display reports can use a labeled current-quote estimate. Existing saved conversions stay fixed.
-4. Use transfers for movements between accounts, including mortgage principal. Cross-currency transfers require the actual received amount. Record fees and mortgage interest separately as expenses.
-5. Set monthly category budgets in USD. Cards show only recorded spending in bitcoin, alongside dollar spending, the dollar allowance, and dollars remaining. Prior months remain available through the month selector. Existing bitcoin allowances are retained without assuming a dollar conversion; use “Set USD budget” where no USD plan exists.
-6. Switch between bitcoin and USD on Overview, or choose a denomination in Reports. Select an investment account in Reports to compare value history and net additions. Legacy BTC remains available through the reporting preference in Settings.
-7. Export records and make encrypted backups in Settings.
-
-## Implemented
-
-- Ten screens: Overview, Accounts, Income, Expenses, Transactions, Budgets, Savings & investing, Assets & liabilities, Reports, Settings. Responsive navy/mist design, custom mountain mark and persisted dark/light preference.
-- One local owner; Argon2id password hashing; expiring hashed sessions; HttpOnly/SameSite cookies; CSRF, Origin and Host checks; persistent login throttling; password change/session revocation.
-- Exact integer/Decimal accounting with independently balanced postings per currency. SQLite triggers seal journals and protect audit events and exchange-rate rows. Edits/deletions create immutable reversals.
-- Account creation, renaming, archiving and auditable adjustments. Original ownership and estimated values in either unit remain distinct.
-- Categorized income/expense, same/cross-currency transfers, search, account/type/currency/month filtering, notes, edits and reversals.
-- USD category budgets, historical bitcoin spending, dollar actual/remaining amounts, progress indicators and prior-month review. Older currency-specific plans remain stored and accessible through the original API.
-- Linked assets/debts, chronological total valuations, and share-based brokerage holdings with automatic quotes and optional cost basis; appreciation posts to equity.
-- Separate native-currency balances, monthly cash flow, expense trends, category spending and account balance history. Combined net worth leads the Overview with clearly labeled valuation estimates.
-- Automatic Coinbase current quotes and completed daily history, optional CoinGecko, manual rates, resumable local caching, freshness checks and explicit gaps. Reviewed missing conversions use immutable, audited attachments.
-- Atomic CSV imports with duplicate detection and import audit; CSV transaction export and complete JSON journal export.
-- AES-256-GCM/scrypt encrypted SQLite backups and verified restore that revokes sessions.
-- Bitcoin Core read-only method allowlist, private-key-disabled wallet checks, sync status, balances, latest-1,000 transaction retrieval/deduplication and balance reconciliation.
-- Optional fictional demo (one made-up person over five years, priced with real Coinbase daily closes), migrations, Dockerfiles, localhost Compose deployment, documentation and CI configuration.
-
-## Scope and remaining work
-
-This is a functional initial release, not an independently audited accounting product. The following are deliberately not claimed as complete:
-
-- **Original currencies:** USD and native bitcoin only. Legacy BTC is a reporting/RPC compatibility unit. Other fiat currencies, multi-currency FX gains and tax lots are future work.
-- **Node ingestion:** read-only review and balance comparison work in adapter tests. Automatic posting/matching, full-history pagination, reorg/fee handling and live-node/regtest verification remain incomplete. Never assume every wallet receipt is income or that historic receipts are absent from an opening balance.
-- **Investment data:** live-polled USD stock/ETF quotes, share-based valuations and unrealized gain/loss are supported. No trading, tax lots, realized total returns, annualized/TWR/IRR calculations, automatic splits, historical equity backfill, amortization schedules, split transactions or automatically posted recurring transactions. Public quote availability and exchange delays depend on the provider.
-- **Scale:** a single owner, one worker, serialized local requests, no pagination. In-app encrypted backup/restore is limited to 32 MB. No multi-user/cloud/remote-exposure configuration is provided.
-- **History:** corrections restate their effective dates. Valuation-protected account history cannot be backdated; use a current adjustment. No closed-period accounting workflow.
-- **Deployment verification:** Docker was not available in the implementation environment, so the containers and Compose startup have not been executed there. Native migrations, API tests, frontend build and browser workflows were verified. CI includes Compose build/start/HTTP smoke checks, but no remote CI run is claimed.
-- **Umbrel:** the architecture is portable, but packaging and on-device verification are pending.
-
-## Develop without Docker
-
-For the local beta, run `sh scripts/start-testing.sh`. This builds the frontend and serves the app and API together at [the beta](http://127.0.0.1:5173); no separate development server is needed. Keep this process running while testing. Stop any previous beta API or Vite server before launching it. The first visit offers **Create account**; later visits offer **Log in**. Beta records persist in `data/testing.db`, separately from existing demo databases. Automatic price updates run with the server when enabled in Settings. Creating the account signs you in immediately; you can then add your first financial account. Demo loading is disabled in this personal beta; use the separate demo installation for fictional records.
-
-Use Python 3.12+ and Node 24 LTS.
+Use Python 3.12+ and Node 24.
 
 ```sh
 python3.12 -m venv .venv
 .venv/bin/pip install -r backend/requirements-dev.txt
 npm --prefix frontend ci
-.venv/bin/alembic -c database/alembic.ini upgrade head
+make dev-backend     # API on 127.0.0.1:8000, reloads on change
+make dev-frontend    # interface on 127.0.0.1:5173, proxies /api
 ```
 
-In one terminal:
+`sh scripts/start-testing.sh` instead builds the interface and serves it with the API on one
+port (127.0.0.1:5173), with its ledger in `data/testing.db`.
+
+The engine reads its settings from the environment: `DATABASE_URL`, `APP_ORIGIN` and
+`ALLOWED_HOSTS` (exact addresses the interface is served from), `COOKIE_SECURE=true` behind
+HTTPS, `DEMO_ENABLED`, and `PRICE_WORKER_ENABLED`. Never expose Bitcoin Core RPC publicly.
+
+To build the Mac app: see [desktop/README.md](desktop/README.md). GitHub builds it on every pull
+request that touches the app, and a version tag (`v0.1.0-beta.1`) publishes it as a pre-release.
+
+### Tests and checks
 
 ```sh
-APP_ORIGIN=http://localhost:5173,http://127.0.0.1:5173 \
-PYTHONPATH=backend .venv/bin/uvicorn app.main:app \
-  --host 127.0.0.1 --port 8000 --no-access-log
+make test     # pytest, interface tests, ruff, and the database upgrade
 ```
 
-In another:
-
-```sh
-npm --prefix frontend run dev
-```
-
-Open [the Vite development app](http://127.0.0.1:5173). Vite proxies `/api` to FastAPI. For a disposable native demo, set `DATABASE_URL=sqlite:///./data/demo.db` for **both** migration and API commands, and set `DEMO_ENABLED=true` for the API process. Use a different database from your real ledger.
-
-Changing `PORT` or serving behind a private TLS proxy also requires updating the exact `APP_ORIGIN` and `ALLOWED_HOSTS` values. For TLS deployments, set `COOKIE_SECURE=true`. The default HTTP cookie setting is for localhost only. Never expose Bitcoin RPC publicly. Protect `.env` and the live database using OS permissions and disk encryption.
-
-## Tests and checks
-
-```sh
-.venv/bin/pytest -q
-.venv/bin/ruff check backend database
-.venv/bin/ruff format --check backend database
-.venv/bin/alembic -c database/alembic.ini check
-npm --prefix frontend run lint
-npm --prefix frontend test
-npm --prefix frontend run build
-```
-
-Backend tests exercise denomination identity, rounding and overflow, journals and database guards, income/expenses/transfers, liabilities, exact historical rates, net worth, budgets, valuations, authentication/CSRF/login limits, CSV deduplication/rollback, encrypted backup/restore/tampering, fictional demo and mocked provider/node adapters. Additional tests cover ownership classification, independent native-currency flows, actual exchange receipts, contribution-adjusted investment changes in both units, missing conversion snapshots, currency budgets, migration preservation, and backup integrity. Frontend tests cover exact money displays, reporting controls, original-currency filters, actual transfer receipts, and new/legacy budget forms.
-
-See [verification notes](docs/verification.md) for the observed results and browser checks. External APIs are mocked in automated tests, not required to run the suite.
+The tests cover exact money and rounding, the balanced journal and its database guards,
+income, spending, transfers, debts, historical prices, budgets, sign-in and CSRF protection,
+imports, encrypted backup and restore, the fictional demo, and every screen of the interface.
+External price services are mocked; the suite needs no network.
 
 ## Repository map
 
 ```text
-backend/app/             API, auth, exact money, ledger, reports, adapters, backup
-backend/tests/           pytest integration and unit tests
-frontend/src/            React screens, forms, financial components and tests
-database/migrations/     Alembic schema and immutable-journal guards
-deployment/             Dockerfiles, nginx, startup, isolated demo override
-docs/                   Architecture, backup, node, Umbrel and verification
-.github/workflows/      Test/build/migration/Compose smoke CI
+backend/app/          The engine: API, sign-in, exact money, ledger, reports, prices, backup
+backend/tests/        Engine tests
+frontend/src/         The interface (React); app/ is the current one, components/ the legacy one
+database/migrations/  Database upgrades and the journal's guards
+desktop/              The Mac app: Tauri window, bundled engine, icons
+deployment/           Dockerfiles, nginx and Caddy for Docker installs
+website/              appalachianbitcoin.com and its in-browser demo
+docs/                 Design notes and how each part works
+.github/workflows/    Checks on every push; the Mac app build
 ```
 
-- [Architecture and accounting](docs/architecture.md)
-- [Markets: live price charts](docs/markets.md)
-- [Backup and restore](docs/backup-and-restore.md)
-- [Bitcoin Core setup](docs/bitcoin-core.md)
-- [Umbrel roadmap](docs/umbrel.md)
+More: [architecture and accounting](docs/architecture.md) ·
+[dashboard data](docs/dashboard-api.md) · [Bitcoin Core](docs/bitcoin-core.md) ·
+[Umbrel plans](docs/umbrel.md) · [monetary lens roadmap](docs/monetary-lens-roadmap.md)
 
-## Next development priorities
+## Known limits
 
-1. Execute the container smoke suite on Docker and test persistence/restore on both amd64 and arm64.
-2. Add Bitcoin Core regtest integration, paginated on-chain history, reorg handling and an explicit review/match/import workflow.
-3. Broaden historical-provider verification and consider multi-currency support only when needed; preserve original amounts and recorded conversion provenance.
-4. Add pagination/query optimization, accessibility automation and broader browser end-to-end coverage.
-5. Complete independent security/accounting review and Umbrel packaging before broader distribution.
+- One owner per ledger, one engine process, USD and bitcoin only (no other currencies, tax lots
+  or trading). In-app backups are limited to 32 MB.
+- Bitcoin Core: read-only review and balance comparison only; no automatic import of on-chain
+  history yet.
+- Investments: live stock and ETF quotes and unrealized gain or loss; no realized returns,
+  splits or historical backfill.
+- The desktop app is Mac-only (Apple silicon) and unsigned for now.
 
-Released under the [MIT License](LICENSE). shadcn/ui's Button pattern is used under its MIT license; see [third-party notices](THIRD_PARTY_NOTICES.md).
+## Next
 
-The [monetary lens and retirement roadmap](docs/monetary-lens-roadmap.md) maps the longer-term planning vision to the existing ledger and records incremental implementation decisions.
+1. Windows app and automatic updates for the desktop app.
+2. Signing, so Macs and Windows open it without a warning.
+3. Retire the legacy interface.
+4. Bitcoin Core import with review and matching.
+5. An independent security and accounting review before wider release.
 
-[Retirement scenarios and extended spending history](docs/retirement.md) documents planner inputs, monthly calculations, saved comparisons, and the scenario-table migration.
+Released under the [MIT License](LICENSE). shadcn/ui's Button pattern is used under its MIT
+license; see [third-party notices](THIRD_PARTY_NOTICES.md).

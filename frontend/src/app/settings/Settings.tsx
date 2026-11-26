@@ -95,7 +95,7 @@ function Password() {
       next = String(data.get("new_password") ?? "");
     void action.run(async () => {
       if (!current) throw new Error("Enter your current password.");
-      if (next.length < 12 || next.length > 200) throw new Error("Use a new password of 12 to 200 characters.");
+      if (!next || next.length > 200) throw new Error("Enter a new password of up to 200 characters.");
       if (next !== String(data.get("again") ?? "")) throw new Error("The two new passwords do not match. Nothing was changed.");
       const owner = await api<{ csrf: string }>("/auth/password", "POST", { current_password: current, new_password: next });
       setCsrf(owner.csrf);
@@ -112,13 +112,13 @@ function Password() {
         </label>
         <label className="field">
           <span>New password</span>
-          <input type="password" name="new_password" autoComplete="new-password" minLength={12} maxLength={200} required />
+          <input type="password" name="new_password" autoComplete="new-password" maxLength={200} required />
         </label>
         <label className="field">
           <span>New password again</span>
           <input type="password" name="again" autoComplete="new-password" maxLength={200} required />
         </label>
-        <div className="hint">At least 12 characters. There is no reset by email: this ledger has no outside account.</div>
+        <div className="hint">Any password you like. There is no reset by email: this ledger has no outside account.</div>
         <div className="set-actions">
           <button className="btn primary" disabled={action.busy}>
             Change password

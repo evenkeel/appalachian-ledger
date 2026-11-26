@@ -15,7 +15,6 @@ export function SignIn() {
     const data = new FormData(event.currentTarget);
     const password = String(data.get("password") ?? "");
     if (creating && password !== data.get("confirm")) return setError("The two passwords do not match.");
-    if (creating && password.length < 12) return setError("Use at least 12 characters.");
     setBusy(true);
     setError("");
     try {
@@ -34,7 +33,7 @@ export function SignIn() {
         <h1 id="gate-title">{creating ? "Create your owner account" : "Unlock your ledger"}</h1>
         <p className="sub">
           {creating
-            ? "This account lives only on this machine. There is no cloud sign-up and no recovery email, so keep the password somewhere safe."
+            ? "This account lives only on this machine. There is no cloud sign-up and no recovery email, so pick a password you will remember."
             : "Your session ended. Sign in to show your figures again."}
         </p>
         <label className="field">
@@ -48,7 +47,6 @@ export function SignIn() {
             type="password"
             autoComplete={creating ? "new-password" : "current-password"}
             required
-            minLength={creating ? 12 : undefined}
           />
         </label>
         {creating && (
