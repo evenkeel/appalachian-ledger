@@ -197,7 +197,7 @@ def test_encrypted_restore_preserves_both_budget_currencies(owner):
         encrypted = snapshot(db, passphrase)
     post(owner, "/budgets", {"month": "2026-01", "category_id": cat, "currency": "USD", "amount": "999"})
     with SessionLocal() as db:
-        restore(db, encrypted, passphrase)
+        restore(db, encrypted, passphrase, "owner")
     from app.reports import budgets_report
 
     with SessionLocal() as db:

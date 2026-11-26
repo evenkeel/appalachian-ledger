@@ -1,5 +1,5 @@
 import sqlite3
-from app.db import engine
+from app.db import PEOPLE_FILE, engine
 from conftest import new_account, transaction
 
 
@@ -19,7 +19,8 @@ def test_auth_csrf_and_origin(client):
     )
     assert client.get("/api/accounts", headers={"Host": "attacker.example"}).status_code == 400
     assert (
-        client.post("/api/auth/setup", json={"username": "other", "password": "secure-long-password"}).status_code
+        # A name belongs to one person: a second ledger cannot take it.
+        client.post("/api/auth/setup", json={"username": "owner", "password": "another-long-password"}).status_code
         == 409
     )
     assert client.post("/api/auth/logout", headers={"X-CSRF-Token": response.json()["csrf"]}).status_code == 200
@@ -132,7 +133,7 @@ def test_expired_session_and_password_revocation(owner):
     assert owner.post("/api/auth/logout").status_code == 403  # old CSRF is revoked
     owner.headers["X-CSRF-Token"] = response.json()["csrf"]
     assert owner.get("/api/accounts").status_code == 200
-    with sqlite3.connect(engine.url.database) as db:
+    with sqlite3.connect(PEOPLE_FILE) as db:
         db.execute("UPDATE sessions SET expires=1")
     assert owner.get("/api/accounts").status_code == 401
     assert (

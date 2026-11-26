@@ -12,8 +12,9 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from . import accounting as ledger
 from .accounting import DEFAULT_AUTOMATIC_PRICES, DEFAULT_RATE_SOURCE
 from . import schemas as s
-from .auth import authenticate, COOKIE, DUMMY_HASH, hasher, start_session, throttle, verify
-from .db import get_db, SessionLocal, write_lock
+from .auth import authenticate, DUMMY_HASH, hasher, start_session, throttle, verify
+from .db import COOKIE, get_db, get_people, ledger_engine, new_ledger_name, open_ledger, write_lock
+from .people import LoginAttempt, Person, Session
 from .models import (
     Account,
     RecurringBill,
@@ -24,8 +25,6 @@ from .models import (
     Category,
     ExchangeRate,
     JournalEntry,
-    LoginAttempt,
-    Session,
     User,
     WalletConnection,
     now,
@@ -50,7 +49,7 @@ from .demo import seed_demo
 from .tracking import tracking_report
 from .overview_metrics import debt_gauge, dominance_history
 from .account_activity import account_activity
-from .startup import ensure_schema
+from .startup import ensure_schema, everyone, migrate
 from .planning import router as planning_router
 from .retirement_plan import router as retirement_router
 from .spending_history import router as spending_history_router
@@ -63,9 +62,10 @@ from .market_stream import end_streams_when_stopping, router as market_stream_ro
 @asynccontextmanager
 async def lifespan(app):
     ensure_schema()
-    with write_lock, SessionLocal() as db:
-        costs.capture(db)
-        db.commit()
+    for person in everyone():
+        with write_lock, open_ledger(person) as db:
+            costs.capture(db)
+            db.commit()
     worker = PriceWorker()
     worker.start()
     end_streams_when_stopping()
@@ -124,61 +124,85 @@ def health():
     return {"status": "ok"}
 
 
+STARTING_CATEGORIES = [
+    ("Salary", "income"),
+    ("Freelance", "income"),
+    ("Other income", "income"),
+    ("Groceries", "expense"),
+    ("Housing", "expense"),
+    ("Utilities", "expense"),
+    ("Transport", "expense"),
+    ("Dining", "expense"),
+    ("Health", "expense"),
+    ("Shopping", "expense"),
+    ("Other expense", "expense"),
+]
+
+
 @app.get("/api/auth/status")
-def auth_status(db=Depends(get_db, scope="function")):
+def auth_status(people=Depends(get_people, scope="function")):
+    # Says only whether anyone has a ledger here. It never lists who.
     return {
-        "initialized": db.scalar(select(User.id).limit(1)) is not None,
+        "initialized": people.scalar(select(Person.id).limit(1)) is not None,
         "demo_enabled": os.getenv("DEMO_ENABLED", "false").lower() == "true",
     }
 
 
 @app.post("/api/auth/setup")
-def setup(data: s.Credentials, request: Request, response: Response, db=Depends(get_db, scope="function")):
-    if db.scalar(select(User.id).limit(1)):
-        raise HTTPException(409, "A local owner already exists")
-    # Prices come from Coinbase from the first minute: there is no price step in setup.
-    preferences = {"rate_source": DEFAULT_RATE_SOURCE, "automatic_prices": DEFAULT_AUTOMATIC_PRICES}
-    user = User(username=data.username, password_hash=hasher.hash(data.password), preferences=json.dumps(preferences))
-    db.add(user)
-    db.flush()
-    for name, kind in [
-        ("Salary", "income"),
-        ("Freelance", "income"),
-        ("Other income", "income"),
-        ("Groceries", "expense"),
-        ("Housing", "expense"),
-        ("Utilities", "expense"),
-        ("Transport", "expense"),
-        ("Dining", "expense"),
-        ("Health", "expense"),
-        ("Shopping", "expense"),
-        ("Other expense", "expense"),
-    ]:
-        db.add(Category(name=name, kind=kind))
-    # Ask for a quote now, so the price is on screen within seconds of the first sign-in.
-    sync_state(db, DEFAULT_RATE_SOURCE).quote_requested = True
-    ledger.audit(db, "auth.setup", user.id, {})
-    return start_session(db, user, response)
+def setup(data: s.Credentials, request: Request, response: Response, people=Depends(get_people, scope="function")):
+    """Start a ledger: the first on this computer, or another person's own beside it."""
+    first = people.scalar(select(Person.id).limit(1)) is None
+    if not first:
+        # Starting a ledger needs no sign-in, so it shares the sign-in limit.
+        throttle(people, request)
+    if people.scalar(select(Person.id).where(Person.username == data.username)) is not None:
+        raise HTTPException(409, "That name is already used on this computer. Choose another.")
+    person = Person(
+        username=data.username, password_hash=hasher.hash(data.password), ledger=new_ledger_name(first)
+    )
+    people.add(person)
+    people.flush()
+    migrate(ledger_engine(person.ledger))
+    with open_ledger(person) as db:
+        if db.scalar(select(User.id).limit(1)) is not None:
+            raise HTTPException(409, "That ledger file is already in use.")
+        # Prices come from Coinbase from the first minute: there is no price step in setup.
+        preferences = {"rate_source": DEFAULT_RATE_SOURCE, "automatic_prices": DEFAULT_AUTOMATIC_PRICES}
+        user = User(username=data.username, preferences=json.dumps(preferences))
+        db.add(user)
+        db.flush()
+        for name, kind in STARTING_CATEGORIES:
+            db.add(Category(name=name, kind=kind))
+        # Ask for a quote now, so the price is on screen within seconds of the first sign-in.
+        sync_state(db, DEFAULT_RATE_SOURCE).quote_requested = True
+        ledger.audit(db, "auth.setup", user.id, {})
+        reply = start_session(people, person, user, response)
+        db.commit()
+    return reply
 
 
 @app.post("/api/auth/login")
-def login(data: s.Credentials, request: Request, response: Response, db=Depends(get_db, scope="function")):
-    throttle(db, request)
-    user = db.scalar(select(User).where(User.username == data.username))
-    valid = verify(data.password, user.password_hash if user else DUMMY_HASH)
-    if not user or not valid:
+def login(data: s.Credentials, request: Request, response: Response, people=Depends(get_people, scope="function")):
+    throttle(people, request)
+    person = people.scalar(select(Person).where(Person.username == data.username))
+    valid = verify(data.password, person.password_hash if person else DUMMY_HASH)
+    if not person or not valid:
         raise HTTPException(401, "Invalid username or password")
     # Only failed attempts count toward the throttle.
     client = request.client.host if request.client else "local"
-    db.execute(delete(LoginAttempt).where(LoginAttempt.client == client))
-    ledger.audit(db, "auth.login", user.id, {})
-    return start_session(db, user, response)
+    people.execute(delete(LoginAttempt).where(LoginAttempt.client == client))
+    with open_ledger(person) as db:
+        user = db.scalar(select(User))
+        ledger.audit(db, "auth.login", user.id, {})
+        reply = start_session(people, person, user, response)
+        db.commit()
+    return reply
 
 
 @app.get("/api/auth/me")
 def me(request: Request, user=Depends(authenticate)):
     return {
-        "username": user.username,
+        "username": request.state.person.username,
         "csrf": request.state.session.csrf,
         "preferences": json.loads(user.preferences),
         "demo": user.demo,
@@ -186,22 +210,28 @@ def me(request: Request, user=Depends(authenticate)):
 
 
 @app.post("/api/auth/logout")
-def logout(request: Request, response: Response, user=Depends(authenticate), db=Depends(get_db, scope="function")):
-    db.delete(request.state.session)
+def logout(request: Request, response: Response, user=Depends(authenticate)):
+    request.state.people.delete(request.state.session)
     response.delete_cookie(COOKIE, path="/")
     return {"ok": True}
 
 
 @app.post("/api/auth/password")
 def change_password(
-    data: s.PasswordInput, response: Response, user=Depends(authenticate), db=Depends(get_db, scope="function")
+    data: s.PasswordInput,
+    request: Request,
+    response: Response,
+    user=Depends(authenticate),
+    db=Depends(get_db, scope="function"),
 ):
-    if not verify(data.current_password, user.password_hash):
+    people, person = request.state.people, request.state.person
+    if not verify(data.current_password, person.password_hash):
         raise HTTPException(403, "Current password is incorrect")
-    user.password_hash = hasher.hash(data.new_password)
-    db.execute(delete(Session))
+    person.password_hash = hasher.hash(data.new_password)
+    # Every place this person is signed in is signed out. Nobody else is affected.
+    people.execute(delete(Session).where(Session.person_id == person.id))
     ledger.audit(db, "auth.password_changed", user.id, {})
-    return start_session(db, user, response)
+    return start_session(people, person, user, response)
 
 
 @app.get("/api/accounts")
@@ -817,6 +847,7 @@ def backup(data: s.BackupInput, user=Depends(authenticate), db=Depends(get_db, s
 
 @app.post("/api/restore")
 def restore_backup(
+    request: Request,
     response: Response,
     passphrase: str = Form(..., min_length=1, max_length=200),
     file: UploadFile = File(...),
@@ -824,10 +855,13 @@ def restore_backup(
     db=Depends(get_db, scope="function"),
 ):
     content = file.file.read(MAX_BYTES + 1)
-    restore(db, content, passphrase)
+    person = request.state.person
+    restore(db, content, passphrase, person.username)
     ledger.audit(db, "backup.restore", "database", {"verified": True})
+    # Only this person is signed out. Their name and password are not part of a backup.
+    request.state.people.execute(delete(Session).where(Session.person_id == person.id))
     response.delete_cookie(COOKIE, path="/")
-    return {"ok": True, "message": "Restored and verified. Sign in with the restored owner credentials."}
+    return {"ok": True, "message": "Restored and verified. Sign in again with your own name and password."}
 
 
 @app.get("/api/audit")

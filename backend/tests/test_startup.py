@@ -54,7 +54,7 @@ def test_direct_api_start_upgrades_an_existing_ledger(owner):
         assert flow["expenses"] == "25.00" and flow["spending"]["fixed"] == "25.00"
     ensure_schema()  # An already upgraded ledger is safe to start again.
     with SessionLocal() as db:
-        assert db.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0015_income_varies"
+        assert db.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0016_people"
 
 
 def test_api_does_not_start_workers_if_migration_fails(monkeypatch):

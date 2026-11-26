@@ -1,4 +1,10 @@
-"""Single-worker, resumable price synchronization. Never hold the ledger lock during HTTP."""
+"""Single-worker, resumable price synchronization. Never hold the ledger lock during HTTP.
+
+Bitcoin prices are market data, so they are downloaded once and kept in the shared file. Each
+person's ledger then takes its own copy of the days it needs, because its entries point at the
+exact price they were recorded with and its backup must be complete without anyone else's file.
+The worker visits every person's ledger in turn; one ledger is open at a time.
+"""
 
 import json
 import logging
@@ -6,9 +12,10 @@ import os
 import threading
 from datetime import date, timedelta
 from sqlalchemy import func, select
-from .db import SessionLocal, write_lock
+from .db import People, open_ledger, write_lock
 from .models import ExchangeRate, JournalEntry, PriceQuote, PriceSync, User
-from .prices import parse_time, provider_for, save_reference, utcnow, validate_current, RateUnavailable
+from .people import MarketDay, MarketQuote
+from .prices import parse_time, provider_for, save_reference, utcnow, validate_current, RateUnavailable, Reference
 from .accounting import DEFAULT_AUTOMATIC_PRICES, DEFAULT_RATE_SOURCE, audit
 from .costs import capture, unpriced_today
 
@@ -19,6 +26,72 @@ _epoch = 0
 def invalidate_inflight():
     global _epoch
     _epoch += 1
+
+
+class Shared:
+    """A price source that asks the network once, however many ledgers want the answer."""
+
+    QUOTE_SECONDS = 60
+
+    def __init__(self, provider, clock):
+        self.provider, self.clock = provider, clock
+        self.name, self.method, self.batch_days = provider.name, provider.method, provider.batch_days
+
+    def current(self):
+        with People() as people:
+            saved = people.get(MarketQuote, self.name)
+            if saved and 0 <= (self.clock - parse_time(saved.fetched_at)).total_seconds() < self.QUOTE_SECONDS:
+                return Reference(parse_time(saved.observed_at).date(), saved.usd_per_btc, saved.observed_at, "spot")
+        ref = self.provider.current()
+        with People() as people:
+            people.merge(
+                MarketQuote(
+                    source=self.name, usd_per_btc=ref.value, observed_at=ref.observed_at, fetched_at=self.clock.isoformat()
+                )
+            )
+            people.commit()
+        return ref
+
+    def history(self, start, end):
+        days = (end - start).days + 1
+        with People() as people:
+            saved = list(
+                people.scalars(
+                    select(MarketDay)
+                    .where(
+                        MarketDay.source == self.name,
+                        MarketDay.method == self.method,
+                        MarketDay.day >= str(start),
+                        MarketDay.day <= str(end),
+                    )
+                    .order_by(MarketDay.day)
+                )
+            )
+        if len(saved) == days:
+            return [Reference(date.fromisoformat(row.day), row.usd_per_btc, row.observed_at, row.method) for row in saved]
+        # A range the source answered with gaps is remembered for the day, not asked for again.
+        key = (self.name, self.method, start, end, self.clock.date())
+        if key not in _answered:
+            refs = self.provider.history(start, end)
+            with People() as people:
+                for ref in refs:
+                    people.merge(
+                        MarketDay(
+                            source=self.name,
+                            method=ref.method,
+                            day=str(ref.day),
+                            usd_per_btc=ref.value,
+                            observed_at=ref.observed_at,
+                        )
+                    )
+                people.commit()
+            if len(_answered) > 500:
+                _answered.clear()
+            _answered[key] = refs
+        return _answered[key]
+
+
+_answered = {}
 
 
 def preferences(db):
@@ -111,15 +184,29 @@ def seconds_since(stamp, clock):
 
 
 def tick(clock=None):
-    """One quote and at most one historical batch. All external requests happen unlocked."""
+    """Every person's ledger in turn. True if any of them has more history to fetch."""
+    from .startup import everyone
+
     clock = clock or utcnow()
+    more = False
+    for person in everyone():
+        try:
+            more = tick_ledger(person, clock) or more
+        except Exception:
+            # One person's trouble never stops prices for the others.
+            log.exception("Price sync failed for one ledger; the others continue")
+    return more
+
+
+def tick_ledger(person, clock):
+    """One quote and at most one historical batch. All external requests happen unlocked."""
     epoch = _epoch
-    with write_lock, SessionLocal() as db:
+    with write_lock, open_ledger(person) as db:
         prefs = preferences(db)
         source = prefs.get("rate_source", DEFAULT_RATE_SOURCE)
         if source == "manual":
             return False
-        provider = provider_for(source)
+        provider = Shared(provider_for(source), clock)
         state = sync_state(db, source)
         automatic = prefs.get("automatic_prices", DEFAULT_AUTOMATIC_PRICES)
         if automatic and state.scheduled_day != str(clock.date()) and state.status not in ("pending", "running"):
@@ -155,7 +242,7 @@ def tick(clock=None):
         try:
             ref = provider.current()
             validate_current(ref.value, ref.observed_at, clock)
-            with write_lock, SessionLocal() as db:
+            with write_lock, open_ledger(person) as db:
                 if epoch != _epoch or preferences(db).get("rate_source", DEFAULT_RATE_SOURCE) != source:
                     return False
                 db.merge(
@@ -174,7 +261,7 @@ def tick(clock=None):
                     capture(db, entry_id=entry_id)
                 db.commit()
         except RateUnavailable as exc:
-            with write_lock, SessionLocal() as db:
+            with write_lock, open_ledger(person) as db:
                 if epoch == _epoch:
                     sync_state(db, source).quote_error = str(exc)
                     db.commit()
@@ -182,7 +269,7 @@ def tick(clock=None):
         start, end, cached, generation = batch
         try:
             refs = [] if cached else provider.history(start, end)
-            with write_lock, SessionLocal() as db:
+            with write_lock, open_ledger(person) as db:
                 state = db.get(PriceSync, source)
                 # A settings change, restore, or replacement job invalidates an in-flight batch.
                 if (
@@ -203,7 +290,7 @@ def tick(clock=None):
                     audit(db, "prices.history_synced", source, {"start": state.start_day, "end": state.end_day})
                 db.commit()
         except RateUnavailable as exc:
-            with write_lock, SessionLocal() as db:
+            with write_lock, open_ledger(person) as db:
                 state = db.get(PriceSync, source)
                 if epoch == _epoch and state and state.generation == generation and state.status == "running":
                     state.status, state.error = "error", str(exc)

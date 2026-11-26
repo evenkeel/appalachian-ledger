@@ -112,7 +112,7 @@ def test_an_existing_ledger_migrates_with_nothing_lost(owner):
 
     assert ledger_rows() == rows_before
     with engine.connect() as connection:
-        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0015_income_varies"
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0016_people"
         assert connection.execute(text("PRAGMA foreign_key_check")).all() == []
         assert connection.execute(text("PRAGMA integrity_check")).scalar() == "ok"
         columns = {row[1] for row in connection.execute(text("PRAGMA table_info(recurring_bills)"))}
@@ -228,7 +228,7 @@ def test_a_backup_from_before_the_dashboard_restores_with_nothing_lost(owner):
     # Every record the old version held is there, untouched, on the current schema.
     assert ledger_rows() == rows_before
     with engine.connect() as connection:
-        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0015_income_varies"
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0016_people"
         assert connection.execute(text("PRAGMA foreign_key_check")).all() == []
         assert connection.execute(text("PRAGMA integrity_check")).scalar() == "ok"
         assert connection.execute(text("SELECT COUNT(*) FROM income_schedules")).scalar() == 0
