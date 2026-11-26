@@ -45,7 +45,7 @@ Website and in-browser demo: [appalachianbitcoin.com](https://appalachianbitcoin
 - **Retirement:** how long your savings would last (the runway), worked out from your own
   ledger, with the bitcoin growth rate you choose shown openly. See [retirement](docs/retirement.md).
 - **Learn:** how the ledger thinks about money.
-- **Settings:** prices, appearance, password, exports, and encrypted backup and restore.
+- **Settings:** prices, appearance, exports, and encrypted backup and restore.
 
 Dollars and bitcoin are both first-class units. Bitcoin amounts follow BIP-177:
 **1 bitcoin is one base unit; 100,000,000 bitcoin = 1 legacy BTC.** Amounts show with a prefix
@@ -53,17 +53,12 @@ Dollars and bitcoin are both first-class units. Bitcoin amounts follow BIP-177:
 amounts are always kept. Bitcoin figures for past spending use that day's real price, never
 today's; missing prices stay visibly missing rather than being guessed. See [prices](docs/prices.md).
 
-## Your account, password and backups
+## Your data
 
-- The account lives only on your computer. Choose any username and password you like; there is
-  no "forgot my password", because nobody else has it.
-- Your whole ledger is one file. On the Mac app it is in
+- Your whole ledger is one file on your computer. On the Mac app it is in
   `~/Library/Application Support/com.appalachianbitcoin.desktop/`.
-- **Settings → Backup** makes an encrypted `.albackup` file locked with a passphrase you choose.
-  Keep copies off the computer. Without the passphrase a backup cannot be opened by anyone.
-  Restoring checks the whole file before replacing anything. See [backup and restore](docs/backup-and-restore.md).
-- Every start applies any pending database upgrades first; a failed upgrade stops startup rather
-  than serving a half-upgraded ledger. Backups made by older versions restore too.
+- **Settings → Backup** makes an encrypted backup file. Keep copies off the computer.
+  See [backup and restore](docs/backup-and-restore.md).
 
 ## Run it with Docker (Windows, Intel Macs, servers)
 
