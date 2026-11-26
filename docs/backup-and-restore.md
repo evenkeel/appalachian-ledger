@@ -12,7 +12,7 @@ To restore, first download a backup of the current ledger. Open **Restore an enc
 
 To restore to a fresh installation, create a temporary local owner first. Restore then replaces that temporary owner with the backed-up owner. Migrate older backups using the matching application version before importing into a newer schema.
 
-The in-app size limit is 32 MB. Backups are verified during restore; keep more than one generation and periodically test a restore into a separate installation.
+The in-app size limit is 256 MB, which is several hundred years of an ordinary ledger. Backups are verified during restore; keep more than one generation and periodically test a restore into a separate installation.
 
 ## Offline filesystem backup
 

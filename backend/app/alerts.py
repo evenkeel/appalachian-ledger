@@ -15,6 +15,7 @@ from sqlalchemy import select
 
 from . import accounting as ledger
 from . import dashboard
+from . import income
 from .auth import authenticate
 from .db import get_db
 from .models import AlertAcknowledgement, AlertSettings, AuditEvent, ExpenseCost, now
@@ -35,6 +36,7 @@ LIGHTS = [
     ("allow", "Allowance"),
     ("price", "Price feed"),
     ("conv", "Missing price"),
+    ("pay", "Paycheck"),
     ("backup", "Backup"),
     ("stack", "No stack yet"),
 ]
@@ -94,6 +96,10 @@ class StackRule(Switch):
     by_day: int = Field(20, ge=1, le=28)
 
 
+class PayRule(Switch):
+    late_caution_days: int = Field(3, ge=1, le=30)
+
+
 class Thresholds(StrictModel):
     """Defaults are chosen to stay quiet unless something needs a decision."""
 
@@ -105,6 +111,7 @@ class Thresholds(StrictModel):
     allow: AllowanceRule = AllowanceRule()
     price: PriceRule = PriceRule()
     conv: MissingPriceRule = MissingPriceRule()
+    pay: PayRule = PayRule()
     backup: BackupRule = BackupRule()
     stack: StackRule = StackRule()
 
@@ -443,6 +450,30 @@ def evaluate(reading, facts, thresholds=None):
             )
         )
 
+    # Paycheck: expected pay that is late, short or has not come at all.
+    if t.pay.on:
+        for item in facts.get("pay", []):
+            unit = item["currency"]
+            when = short_date(item["date"])
+            if item["status"] == "short":
+                level, size = "caution", item["short_by"]
+                title = f"{item['source']}: the {when} paycheck was short"
+                why = "It came in under the amount this pay schedule expects."
+                shown = [fact("Expected", item["expected"], unit), fact("Received", item["actual"], unit)]
+            else:
+                missing = item["status"] == "missing"
+                level = (
+                    "warning" if missing else "caution" if item["days_late"] >= t.pay.late_caution_days else "advisory"
+                )
+                size = item["days_late"]
+                title = f"{item['source']}: the {when} paycheck " + ("has not arrived" if missing else "is late")
+                why = "No income is recorded for this pay date. If it did arrive, record it and this clears."
+                shown = [fact("Expected", item["expected"], unit), fact("Days late", item["days_late"], "days")]
+            found.append(
+                alert("pay", level, size, title, why, facts=shown, action={"label": "Open income", "route": "income"})
+            )
+            break
+
     # Backup: this ledger lives on one machine.
     age = facts.get("backup_days")
     if t.backup.on:
@@ -534,6 +565,7 @@ def gather_facts(db, today, reading):
         "price": price,
         "missing": missing,
         "pace_rows": pace_rows(db, today),
+        "pay": income.problems(db, today),
     }
 
 

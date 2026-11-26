@@ -88,7 +88,7 @@ def test_copy_previous_is_idempotent_keeps_existing_and_legacy_plans(owner):
 
 
 def test_tracking_requires_auth_and_valid_filters(client, owner):
-    assert owner.get("/api/tracking?month=2026-01&months=25").status_code == 422
+    assert owner.get("/api/tracking?month=2026-01&months=25").status_code == 200  # no cap on years of history
     assert owner.get("/api/tracking?month=2026-13").status_code == 422
     assert owner.get("/api/tracking?month=2026-01&account_id=999999").status_code == 422
     assert owner.get(f"/api/tracking?month=2026-01&category_id={category(owner, 'income')}").status_code == 422

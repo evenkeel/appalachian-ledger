@@ -17,6 +17,7 @@ const defaults = {
   allow: { on: true, advisory_percent: 90, advisory_days_left: 7 },
   price: { on: true, stale_minutes: 10, failing_minutes: 30 },
   conv: { on: true, caution_count: 10, caution_age_days: 14 },
+  pay: { on: true, late_caution_days: 3 },
   backup: { on: true, advisory_days: 14, caution_days: 30, grace_days: 7 },
   stack: { on: true, by_day: 20 },
 };
@@ -91,7 +92,7 @@ describe("alert thresholds", () => {
     const onChanged = open();
     const field = await screen.findByLabelText("Credit use: Warning at (percent of limit)");
     expect(field).toHaveValue("90");
-    expect(screen.getAllByRole("switch", { name: /light$/ })).toHaveLength(10);
+    expect(screen.getAllByRole("switch", { name: /light$/ })).toHaveLength(11);
     expect(screen.getByRole("button", { name: "Save alert settings" })).toBeDisabled();
 
     change("Credit use: Warning at (percent of limit)", "80");

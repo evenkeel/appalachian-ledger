@@ -19,7 +19,9 @@ from .money import rate_decimal, convert
 from .prices import parse_time
 
 MAGIC = b"APPALACHIAN-LEDGER\x01"
-MAX_BYTES = 32 * 1024 * 1024
+# A guard against a runaway upload, not a limit on history: a busy ledger adds about half a
+# megabyte a year, so this is several hundred years of records.
+MAX_BYTES = 256 * 1024 * 1024
 
 
 def key(passphrase, salt):
@@ -39,9 +41,7 @@ def snapshot(db, passphrase):
         source.backup(memory)
         plain = memory.serialize()
         if len(plain) > MAX_BYTES - 128:
-            raise ValueError(
-                "This database exceeds the 32 MB encrypted-backup limit. Use an offline filesystem backup."
-            )
+            raise ValueError("This ledger exceeds the 256 MB encrypted-backup limit. Use an offline filesystem backup.")
     salt, nonce = os.urandom(16), os.urandom(12)
     return MAGIC + salt + nonce + AESGCM(key(passphrase, salt)).encrypt(nonce, plain, MAGIC)
 

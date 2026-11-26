@@ -426,8 +426,19 @@ def test_the_existing_ledger_becomes_the_first_persons_with_nothing_lost(owner):
             "CREATE TABLE login_attempts (id INTEGER NOT NULL PRIMARY KEY, client VARCHAR NOT NULL, at BIGINT NOT NULL)"
         )
         conn.execute("INSERT INTO sessions VALUES ('old', 1, 'old', 9999999999)")
+        # Income sources came later still; a ledger of that time had none of their tables.
+        for table in ("income_entry_sources", "income_source_names", "income_sources"):
+            conn.execute(f"DROP TABLE {table}")
+        conn.execute("ALTER TABLE income_schedules DROP COLUMN source_id")
         conn.execute("UPDATE alembic_version SET version_num='0015_income_varies'")
-    gone = ("sessions", "login_attempts", "alembic_version")
+    gone = (
+        "sessions",
+        "login_attempts",
+        "alembic_version",
+        "income_entry_sources",
+        "income_source_names",
+        "income_sources",
+    )
     before = all_rows(path, skip=gone)
     assert len(before["journal_entries"]) > 3000 and len(before["exchange_rates"]) > 1500
     assert before["expense_costs"] and before["audit_events"] and before["recurring_bills"]
@@ -436,13 +447,18 @@ def test_the_existing_ledger_becomes_the_first_persons_with_nothing_lost(owner):
 
     after = all_rows(path, skip=gone)
     users_before, users_after = before.pop("users"), after.pop("users")
+    # Pay schedules gained one empty column; everything they held is unchanged.
+    schedules = after.pop("income_schedules")
+    assert [row[:-1] for row in schedules] == before.pop("income_schedules") and all(
+        row[-1] is None for row in schedules
+    )
     assert after == before  # every entry, price, cost record, bill and audit event
     # The settings row is the same but for the password, which moved to the shared file.
     assert [row[:2] + row[3:] for row in users_after] == [row[:2] + row[3:] for row in users_before]
     assert users_after[0][2] == "" and person("owner").password_hash == old_hash
     assert person("owner").ledger == path.name
     kept = path.with_name(path.stem + ".before-people.db")
-    assert all_rows(kept, skip=gone) == before | {"users": users_before}
+    assert all_rows(kept, skip=(*gone, "income_schedules")) == before | {"users": users_before}
     with sqlite3.connect(path) as conn:
         assert conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
         assert list(conn.execute("PRAGMA foreign_key_check")) == []
@@ -450,7 +466,7 @@ def test_the_existing_ledger_becomes_the_first_persons_with_nothing_lost(owner):
             conn.execute("UPDATE postings SET amount_minor = amount_minor + 1")
 
     ensure_schema()  # starting again changes nothing
-    assert all_rows(path, skip=gone) == after | {"users": users_after}
+    assert all_rows(path, skip=gone) == after | {"users": users_after, "income_schedules": schedules}
     with TestClient(app) as restarted:
         assert restarted.get("/api/accounts").status_code == 401  # the old session did not come along
         signed = restarted.post(
@@ -461,7 +477,15 @@ def test_the_existing_ledger_becomes_the_first_persons_with_nothing_lost(owner):
         assert restarted.get("/api/export/journal").text == journal
         again = read_everything(restarted)
         for url in answers:
-            if url not in ("/api/audit", "/api/auth/me", "/api/backup/status", "/api/alerts", "/api/dashboard"):
+            # Income sources did not exist in the old version; they are made on first read.
+            if url not in (
+                "/api/audit",
+                "/api/auth/me",
+                "/api/backup/status",
+                "/api/alerts",
+                "/api/dashboard",
+                "/api/income",
+            ):
                 assert again[url] == answers[url], url
         assert restarted.get("/api/settings").json()["preferences"]["denomination"] == "BITCOIN"
         # And a second person can start beside it.

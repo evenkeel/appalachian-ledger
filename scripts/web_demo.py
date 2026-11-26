@@ -38,6 +38,7 @@ CORE = [
     "/categories",
     "/accounts",
     "/income-schedules",
+    "/income",
     "/recurring-bills",
     "/recurring-bills/destroyed",
     "/prices/status",

@@ -332,6 +332,7 @@ def test_an_empty_ledger_is_all_dark(owner):
         "allow",
         "price",
         "conv",
+        "pay",
         "backup",
         "stack",
     ]

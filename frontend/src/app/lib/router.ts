@@ -5,6 +5,7 @@ export const ROUTES = [
   "activity",
   "spending",
   "bills",
+  "income",
   "stack",
   "markets",
   "accounts",

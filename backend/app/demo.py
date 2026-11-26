@@ -25,7 +25,11 @@ from .models import (
     CardTerms,
     Category,
     ExchangeRate,
+    IncomeEntrySource,
     IncomeSchedule,
+    IncomeSource,
+    IncomeSourceName,
+    JournalEntry,
     RecurringBill,
 )
 from .money import original
@@ -162,9 +166,27 @@ def seed_demo(db, user, today=None, prices=None, months=None):
         if event.bill:
             db.add(BillOccurrence(bill_id=bills[event.bill].id, due_date=str(event.day), entry_id=entry.id))
 
+    # Income sources: the job he left, the job he has, and the odd bits.
+    changed_jobs = plan.EMPLOYERS[1][0]
+    first_job, job = (IncomeSource(name=name) for _, name in plan.EMPLOYERS)
+    first_job.ended_on = str(changed_jobs - timedelta(days=3))
+    refunds, other = IncomeSource(name="Tax refund"), IncomeSource(name="Other income")
+    db.add_all([first_job, job, refunds, other])
+    db.flush()
+    for entry in db.scalars(select(JournalEntry).where(JournalEntry.kind == "income")):
+        if entry.description.startswith("Paycheck"):
+            source = first_job if entry.date < str(changed_jobs) else job
+        else:
+            source = refunds if entry.description == "Tax refund" else other
+        db.add(IncomeEntrySource(entry_id=entry.id, source_id=source.id))
+    # A paycheck he records from here on lands with the job he has now.
+    for text, source in (("paycheck", job), ("paycheck, with overtime", job), ("tax refund", refunds)):
+        db.add(IncomeSourceName(name_key=text, source_id=source.id))
+
     # Paid every second Friday; the schedule only forecasts and never posts income.
     db.add(
         IncomeSchedule(
+            source_id=job.id,
             account_id=accounts["checking"].id,
             name="Paycheck",
             amount=original(life.take_home, "USD"),

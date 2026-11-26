@@ -209,7 +209,7 @@ def test_long_term_reports_keep_native_values_without_prices(owner):
     result = report(owner, months=120)
     assert len(result["history"]) == 120
     assert result["history"][-1]["net_worth"] == "1000.00"
-    assert owner.get("/api/reports?months=121").status_code == 422
+    assert owner.get("/api/reports?months=121").status_code == 200  # no cap on years of history
 
 
 def test_export_names_estimates_and_preserves_actual_exchange(owner):

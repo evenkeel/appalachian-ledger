@@ -55,6 +55,7 @@ from .retirement_plan import router as retirement_router
 from .spending_history import router as spending_history_router
 from .dashboard import router as dashboard_router
 from .alerts import router as alerts_router
+from .income import router as income_router
 from .market import router as market_router
 from .market_stream import end_streams_when_stopping, router as market_stream_router
 
@@ -82,6 +83,7 @@ app.include_router(insights.router)
 app.include_router(spending_history_router)
 app.include_router(dashboard_router)
 app.include_router(alerts_router)
+app.include_router(income_router)
 app.include_router(market_router)
 app.include_router(market_stream_router)
 
@@ -403,7 +405,7 @@ def delete_transaction(id: int, user=Depends(authenticate), db=Depends(get_db, s
 @app.get("/api/reports")
 def reports(
     month: str | None = None,
-    months: int = Query(6, ge=1, le=120),
+    months: int = Query(6, ge=1),
     denomination: str = "BITCOIN",
     user=Depends(authenticate),
     db=Depends(get_db, scope="function"),
@@ -460,7 +462,7 @@ def budgets(month: str, user=Depends(authenticate), db=Depends(get_db, scope="fu
 @app.get("/api/tracking")
 def tracking(
     month: str,
-    months: int = Query(6, ge=1, le=24),
+    months: int = Query(6, ge=1),
     account_id: int | None = None,
     category_id: int | None = None,
     user=Depends(authenticate),

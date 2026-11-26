@@ -14,7 +14,7 @@ export function addMonths(month: string, offset: number) {
 /** Every month from `first` through `last`, oldest first. Empty when `first` is after `last`. */
 export function monthsBetween(first: string, last: string) {
   const months: string[] = [];
-  for (let month = first; month <= last && months.length < 1200; month = addMonths(month, 1)) months.push(month);
+  for (let month = first; month <= last && months.length < 120_000; month = addMonths(month, 1)) months.push(month);
   return months;
 }
 

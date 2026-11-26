@@ -1,7 +1,7 @@
 /* The alert thresholds as the owner edits them. Bounds mirror `Thresholds` in backend/app/alerts.py,
    so a value this file accepts is one the server accepts. */
 
-export const LIGHT_IDS = ["overdue", "cash", "card", "pace", "util", "allow", "price", "conv", "backup", "stack"] as const;
+export const LIGHT_IDS = ["overdue", "cash", "card", "pace", "util", "allow", "price", "conv", "pay", "backup", "stack"] as const;
 export type LightId = (typeof LIGHT_IDS)[number];
 export type Rule = { on: boolean } & { [field: string]: number | boolean };
 export type Thresholds = Record<LightId, Rule>;
@@ -94,6 +94,12 @@ export const SPECS: LightSpec[] = [
       { key: "caution_count", label: "Caution at", unit: "expenses", min: 1, max: 100_000 },
       { key: "caution_age_days", label: "or one older than", unit: "days", min: 1, max: 3650 },
     ],
+  },
+  {
+    id: "pay",
+    name: "Paycheck",
+    when: "A paycheck you expect is late, short or has not come. Missing after a week is always a warning.",
+    fields: [{ key: "late_caution_days", label: "Late: caution after", unit: "days", min: 1, max: 30 }],
   },
   {
     id: "backup",

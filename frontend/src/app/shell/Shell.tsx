@@ -13,6 +13,7 @@ const NAV: { route: Route; label: string }[] = [
   { route: "activity", label: "Activity" },
   { route: "spending", label: "Spending" },
   { route: "bills", label: "Bills" },
+  { route: "income", label: "Income" },
   { route: "stack", label: "Stack" },
   { route: "markets", label: "Markets" },
   { route: "accounts", label: "Accounts" },
@@ -21,7 +22,7 @@ const NAV: { route: Route; label: string }[] = [
 ];
 // The phone bar holds four screens; everything else is under More.
 const TABS: Route[] = ["dashboard", "bills", "stack"];
-const MORE: Route[] = ["activity", "spending", "markets", "accounts", "retirement", "learn", "settings"];
+const MORE: Route[] = ["activity", "spending", "income", "markets", "accounts", "retirement", "learn", "settings"];
 
 export interface PriceReading {
   bitcoin_per_usd: string;

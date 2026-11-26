@@ -53,8 +53,8 @@ def expense_rows(db, start, end, category_id, account_id, rate):
 
 
 def spending_history(db, start, end, category_id=None, account_id=None, interval="month", summary=False):
-    if start > end or start.year < 1970 or end > date.today() or (end - start).days > 366 * 50:
-        raise ValueError("Choose a date range of at most 50 years, from 1970 through today")
+    if start > end or start.year < 1970 or end > date.today():
+        raise ValueError("Choose a date range from 1970 through today")
     rate = ledger.current_rate(db)
     with ledger.bulk_read(db):
         rows = expense_rows(db, start, end, category_id, account_id, rate)
