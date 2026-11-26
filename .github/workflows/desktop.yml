@@ -30,7 +30,10 @@ jobs:
         working-directory: desktop
         env:
           PYTHON: ${{ steps.python.outputs.python-path }}
-        run: npm ci && npm run build
+        # macOS's disk-image tool sometimes reports "Resource busy" on GitHub's machines; try the .dmg again once.
+        run: |
+          npm ci
+          npm run build || { sleep 15; npx tauri build; }
       - name: Oldest macOS it runs on
         run: |
           app="desktop/src-tauri/target/release/bundle/macos/Appalachian Bitcoin.app/Contents"
