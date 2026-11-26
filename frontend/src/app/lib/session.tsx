@@ -16,6 +16,8 @@ type Phase = "booting" | "offline" | "setup" | "locked" | "ready";
 
 interface Session {
   phase: Phase;
+  /** The owner pressed Log out, rather than the session running out. */
+  signedOut: boolean;
   username: string;
   demo: boolean;
   demoEnabled: boolean;
@@ -48,10 +50,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>("night");
   const [lens, setLensState] = useState<Lens>("USD");
   const [attempt, setAttempt] = useState(0);
+  const [signedOut, setSignedOut] = useState(false);
 
   const adopt = useCallback((me: Owner) => {
     setCsrf(me.csrf);
     setOwner(me);
+    setSignedOut(false);
     setThemeState(themeOf(me.preferences?.theme));
     setLensState(lensOf(me.preferences?.denomination));
     setPhase("ready");
@@ -99,6 +103,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const value = useMemo<Session>(
     () => ({
       phase,
+      signedOut,
       username: owner?.username ?? "",
       demo: owner?.demo ?? false,
       demoEnabled,
@@ -129,6 +134,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         } finally {
           setCsrf("");
           setOwner(null);
+          setSignedOut(true);
           setPhase("locked");
         }
       },
@@ -138,7 +144,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setAttempt((n) => n + 1);
       },
     }),
-    [phase, owner, demoEnabled, error, theme, lens, adopt],
+    [phase, signedOut, owner, demoEnabled, error, theme, lens, adopt],
   );
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }

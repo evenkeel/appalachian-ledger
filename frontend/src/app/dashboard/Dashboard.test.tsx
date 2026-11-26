@@ -103,7 +103,9 @@ describe("dashboard", () => {
   it("is useful on an empty ledger and draws no empty charts", async () => {
     current = empty;
     await show();
-    expect(screen.getByText("0 of 6 done")).toBeInTheDocument();
+    expect(screen.getByText("0 of 5 done")).toBeInTheDocument();
+    // Prices come from Coinbase from the start: choosing a source is not a setup step.
+    expect(screen.queryByText("Choose a price source")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Stack: bitcoin held")).toHaveTextContent("Record what you hold");
     expect(screen.getByLabelText("Spend pace: this month so far")).toHaveTextContent("Record your first expense");
     expect(document.querySelector("svg[role=img]")).toBeNull();

@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { api } from "../../lib/api";
+import { AmountInput } from "../lib/AmountInput";
 import { cents, fromCents, usd } from "../lib/format";
 import type { Bill, DashboardData } from "./types";
 
 export type BillMode = "pay" | "destroy" | "payoff";
 
 /** A small modal: Escape cancels, focus starts on the main action and returns on close. */
-export function Sheet({ label, onClose, children }: { label: string; onClose: () => void; children: ReactNode }) {
+export function Sheet({ label, onClose, wide, children }: { label: string; onClose: () => void; wide?: boolean; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
@@ -35,7 +36,7 @@ export function Sheet({ label, onClose, children }: { label: string; onClose: ()
   return (
     <>
       <div className="scrim" onClick={onClose} />
-      <div ref={ref} className="sheet" role="dialog" aria-modal="true" aria-label={label}>
+      <div ref={ref} className={wide ? "sheet wide" : "sheet"} role="dialog" aria-modal="true" aria-label={label}>
         {children}
       </div>
     </>
@@ -192,7 +193,7 @@ export function BillSheet({
           </label>
           <label className="field">
             <span>Amount</span>
-            <input name="amount" className="num" inputMode="decimal" defaultValue={bill.amount} required />
+            <AmountInput name="amount" defaultValue={bill.amount} required />
           </label>
         </div>
         <div className="sub">
@@ -237,6 +238,11 @@ export interface Paycheck {
 }
 
 export function PaycheckSheet({ data, schedule, onClose, onDone }: { data: DashboardData; schedule?: Paycheck; onClose: () => void; onDone: () => void }) {
+  if (!schedule) return <IncomeRows data={data} onClose={onClose} onDone={onDone} />;
+  return <PaycheckForm data={data} schedule={schedule} onClose={onClose} onDone={onDone} />;
+}
+
+function PaycheckForm({ data, schedule, onClose, onDone }: { data: DashboardData; schedule?: Paycheck; onClose: () => void; onDone: () => void }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [varies, setVaries] = useState(schedule?.varies ?? false);
@@ -272,7 +278,7 @@ export function PaycheckSheet({ data, schedule, onClose, onDone }: { data: Dashb
           </label>
           <label className="field">
             <span>{varies ? "Typical amount" : "Take-home amount"}</span>
-            <input name="amount" className="num" inputMode="decimal" placeholder="0.00" defaultValue={schedule?.amount} required />
+            <AmountInput name="amount" placeholder="0.00" defaultValue={schedule?.amount} required />
           </label>
           <label className="field">
             <span>How often</span>
@@ -313,6 +319,158 @@ export function PaycheckSheet({ data, schedule, onClose, onDone }: { data: Dashb
           </button>
           <button type="button" className="btn ghost" onClick={onClose}>
             Cancel <kbd>Esc</kbd>
+          </button>
+        </div>
+      </form>
+    </Sheet>
+  );
+}
+
+/** Income people often count on, shown greyed out until something is typed. */
+const INCOME_EXAMPLES = [
+  { name: "Paycheck", amount: "2,150.00", frequency: "biweekly", varies: false },
+  { name: "Tips", amount: "300.00", frequency: "weekly", varies: true },
+  { name: "Side work", amount: "400.00", frequency: "monthly", varies: true },
+  { name: "Second job", amount: "900.00", frequency: "biweekly", varies: false },
+];
+const INCOME_FREQUENCIES: [string, string][] = [
+  ["weekly", "Every week"],
+  ["biweekly", "Every two weeks"],
+  ["semimonthly", "Twice a month"],
+  ["monthly", "Once a month"],
+];
+interface IncomeRow {
+  key: number;
+  name: string;
+  amount: string;
+  frequency: string;
+  next: string;
+  varies: boolean;
+  error?: string;
+}
+const blankIncome = (key: number): IncomeRow => {
+  const example = INCOME_EXAMPLES[key % INCOME_EXAMPLES.length];
+  return { key, name: "", amount: "", frequency: example.frequency, next: "", varies: example.varies };
+};
+const incomeFilled = (row: IncomeRow) => Boolean(row.name.trim() || row.amount.trim() || row.next);
+
+/** Add several kinds of expected income at once: one row each, empty rows are skipped. */
+function IncomeRows({ data, onClose, onDone }: { data: DashboardData; onClose: () => void; onDone: () => void }) {
+  const [rows, setRows] = useState<IncomeRow[]>(() => [0, 1, 2].map(blankIncome));
+  const [into, setInto] = useState<number | undefined>(data.checking.accounts[0]?.id);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [added, setAdded] = useState<string[]>([]);
+  const edit = (key: number, change: Partial<IncomeRow>) => setRows((current) => current.map((row) => (row.key === key ? { ...row, ...change, error: undefined } : row)));
+  const more = () => setRows((current) => [...current, blankIncome(Math.max(...current.map((row) => row.key)) + 1)]);
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const wanted = rows.filter(incomeFilled);
+    if (!wanted.length) return setError("Fill in at least one row: a name, an amount and when it next comes.");
+    const problem = (row: IncomeRow) => (!row.name.trim() ? "Give this income a name." : !row.amount.trim() ? "Enter how much it usually is." : !row.next ? "Enter when it next comes." : "");
+    const bad = new Map(wanted.map((row) => [row.key, problem(row)]).filter(([, message]) => message) as [number, string][]);
+    if (bad.size) {
+      setRows((current) => current.map((row) => (bad.has(row.key) ? { ...row, error: bad.get(row.key) } : row)));
+      return setError("");
+    }
+    setBusy(true);
+    setError("");
+    const saved: string[] = [];
+    const failed = new Map<number, string>();
+    for (const row of wanted) {
+      try {
+        await api("/income-schedules", "POST", {
+          varies: row.varies,
+          account_id: into,
+          name: row.name.trim(),
+          amount: row.amount.replace(/[$,\s]/g, ""),
+          frequency: row.frequency,
+          next_date: row.next,
+        });
+        saved.push(row.name.trim());
+      } catch (e) {
+        failed.set(row.key, (e as Error).message);
+      }
+    }
+    setBusy(false);
+    if (!failed.size) return onDone();
+    setAdded([...added, ...saved]);
+    setRows((current) => current.filter((row) => failed.has(row.key) || !incomeFilled(row)).map((row) => ({ ...row, error: failed.get(row.key) })));
+  }
+
+  return (
+    <Sheet label="Add income you expect" onClose={onClose} wide>
+      <h2>Add income you expect</h2>
+      <p className="sub">One row for each kind of money you can count on: a paycheck, tips, side work. The grey text is only an example. It never records income by itself.</p>
+      {added.length > 0 && <p className="hint" role="status">Added {added.join(", ")}. The rows below did not save yet.</p>}
+      <form onSubmit={save} style={{ display: "grid", gap: 12 }}>
+        <div className="rows" style={{ ["--cols" as string]: "minmax(140px, 1.3fr) minmax(110px, 1fr) minmax(130px, 1fr) minmax(130px, 1fr) 70px" }}>
+          <div className="rows-head" aria-hidden="true">
+            <span>Name</span>
+            <span>Take-home amount</span>
+            <span>How often</span>
+            <span>Next time</span>
+            <span style={{ textAlign: "center" }}>Varies</span>
+          </div>
+          {rows.map((row, index) => {
+            const example = INCOME_EXAMPLES[row.key % INCOME_EXAMPLES.length];
+            return (
+              <div key={row.key} className="rows-line" aria-invalid={row.error ? true : undefined} role="group" aria-label={`Income ${index + 1}`}>
+                <input className="wide-cell" aria-label={`Name of income ${index + 1}`} maxLength={120} placeholder={example.name} value={row.name} onChange={(event) => edit(row.key, { name: event.target.value })} data-autofocus={index === 0 ? true : undefined} />
+                <span className="unit">
+                  <b aria-hidden="true">$</b>
+                  <AmountInput aria-label={`Amount of income ${index + 1}`} placeholder={example.amount} value={row.amount} onChange={(event) => edit(row.key, { amount: event.target.value })} />
+                </span>
+                <select aria-label={`How often income ${index + 1} comes`} value={row.frequency} onChange={(event) => edit(row.key, { frequency: event.target.value })}>
+                  {INCOME_FREQUENCIES.map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+                <input type="date" aria-label={`Next date of income ${index + 1}`} min={data.today} value={row.next} onChange={(event) => edit(row.key, { next: event.target.value })} />
+                <label className="rows-check" title="The amount varies, like tips or side work">
+                  <input type="checkbox" aria-label={`Income ${index + 1} varies`} checked={row.varies} onChange={(event) => edit(row.key, { varies: event.target.checked })} />
+                </label>
+                {row.error && (
+                  <p className="rows-error" role="alert">
+                    {row.error}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+          <button type="button" className="btn sm ghost rows-more" onClick={more}>
+            + Add another row
+          </button>
+        </div>
+        <div className="rows-shared">
+          <label className="field">
+            <span>Lands in</span>
+            <select value={into} onChange={(event) => setInto(Number(event.target.value))}>
+              {data.checking.accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="hint" style={{ flex: "1 1 260px" }}>
+            Tick Varies for tips or side work: enter what you usually get, and the forecast shows it as an estimate.
+          </p>
+        </div>
+        {error && (
+          <p className="gate-error" role="alert">
+            {error}
+          </p>
+        )}
+        <div className="acts">
+          <button className="btn primary" disabled={busy}>
+            {busy ? "Adding…" : "Add income"}
+          </button>
+          <button type="button" className="btn ghost" onClick={added.length ? onDone : onClose}>
+            {added.length ? "Done" : "Cancel"} <kbd>Esc</kbd>
           </button>
         </div>
       </form>

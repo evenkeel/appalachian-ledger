@@ -83,9 +83,9 @@ export function Shell({
           <div className="grow" />
           {link({ route: "settings", label: "Settings" })}
           {!DEMO && (
-            <button className="nav" onClick={() => void signOut()} title={`Lock (${username})`}>
-              {NavIcon.lock}
-              <span>Lock</span>
+            <button className="nav" onClick={() => void signOut()} title={`Log out ${username}`}>
+              {NavIcon.logout}
+              <span>Log out</span>
             </button>
           )}
         </nav>
@@ -191,8 +191,8 @@ export function Shell({
                   void signOut();
                 }}
               >
-                {NavIcon.lock}
-                <span>Lock</span>
+                {NavIcon.logout}
+                <span>Log out {username}</span>
               </button>
             )}
           </div>

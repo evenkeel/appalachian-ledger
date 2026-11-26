@@ -10,6 +10,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from . import accounting as ledger
+from .accounting import DEFAULT_AUTOMATIC_PRICES, DEFAULT_RATE_SOURCE
 from . import schemas as s
 from .auth import authenticate, COOKIE, DUMMY_HASH, hasher, start_session, throttle, verify
 from .db import get_db, SessionLocal, write_lock
@@ -135,7 +136,9 @@ def auth_status(db=Depends(get_db, scope="function")):
 def setup(data: s.Credentials, request: Request, response: Response, db=Depends(get_db, scope="function")):
     if db.scalar(select(User.id).limit(1)):
         raise HTTPException(409, "A local owner already exists")
-    user = User(username=data.username, password_hash=hasher.hash(data.password))
+    # Prices come from Coinbase from the first minute: there is no price step in setup.
+    preferences = {"rate_source": DEFAULT_RATE_SOURCE, "automatic_prices": DEFAULT_AUTOMATIC_PRICES}
+    user = User(username=data.username, password_hash=hasher.hash(data.password), preferences=json.dumps(preferences))
     db.add(user)
     db.flush()
     for name, kind in [
@@ -152,6 +155,8 @@ def setup(data: s.Credentials, request: Request, response: Response, db=Depends(
         ("Other expense", "expense"),
     ]:
         db.add(Category(name=name, kind=kind))
+    # Ask for a quote now, so the price is on screen within seconds of the first sign-in.
+    sync_state(db, DEFAULT_RATE_SOURCE).quote_requested = True
     ledger.audit(db, "auth.setup", user.id, {})
     return start_session(db, user, response)
 
@@ -598,7 +603,7 @@ def add_rate(data: s.RateInput, user=Depends(authenticate), db=Depends(get_db, s
 
 @app.post("/api/rates/fetch")
 def fetch_rate(day: date, refresh: bool = False, user=Depends(authenticate), db=Depends(get_db, scope="function")):
-    provider = provider_for(json.loads(user.preferences).get("rate_source", "manual"))
+    provider = provider_for(json.loads(user.preferences).get("rate_source", DEFAULT_RATE_SOURCE))
     row = fetch_daily(db, day, provider=provider, refresh=refresh)
     ledger.audit(db, "rate.fetch", row.id, {"source": row.source, "day": row.day})
     return {"id": row.id, "usd_per_btc": row.usd_per_btc, "day": row.day, "source": row.source}
@@ -611,7 +616,7 @@ def prices_status(user=Depends(authenticate), db=Depends(get_db, scope="function
 
 @app.post("/api/prices/refresh")
 def refresh_price(user=Depends(authenticate), db=Depends(get_db, scope="function")):
-    source = json.loads(user.preferences).get("rate_source", "manual")
+    source = json.loads(user.preferences).get("rate_source", DEFAULT_RATE_SOURCE)
     provider_for(source)
     sync_state(db, source).quote_requested = True
     ledger.audit(db, "prices.quote_queued", source, {})
@@ -620,7 +625,7 @@ def refresh_price(user=Depends(authenticate), db=Depends(get_db, scope="function
 
 @app.post("/api/prices/history")
 def sync_history(data: s.HistorySyncInput, user=Depends(authenticate), db=Depends(get_db, scope="function")):
-    source = json.loads(user.preferences).get("rate_source", "manual")
+    source = json.loads(user.preferences).get("rate_source", DEFAULT_RATE_SOURCE)
     provider_for(source)
     if data.start and (data.start < date(2009, 1, 1) or data.start >= utcnow().date()):
         raise ValueError("Choose a date from 2009 through yesterday (UTC)")
@@ -650,9 +655,9 @@ def settings(user=Depends(authenticate)):
 @app.put("/api/settings")
 def save_settings(data: s.Preferences, user=Depends(authenticate), db=Depends(get_db, scope="function")):
     old_preferences = json.loads(user.preferences)
-    old_source = old_preferences.get("rate_source", "manual")
+    old_source = old_preferences.get("rate_source", DEFAULT_RATE_SOURCE)
     if old_source != "manual" and (
-        old_source != data.rate_source or (old_preferences.get("automatic_prices") and not data.automatic_prices)
+        old_source != data.rate_source or (old_preferences.get("automatic_prices", DEFAULT_AUTOMATIC_PRICES) and not data.automatic_prices)
     ):
         state = sync_state(db, old_source)
         state.status, state.quote_requested = "idle", False

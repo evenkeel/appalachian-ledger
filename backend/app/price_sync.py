@@ -9,7 +9,8 @@ from sqlalchemy import func, select
 from .db import SessionLocal, write_lock
 from .models import ExchangeRate, JournalEntry, PriceQuote, PriceSync, User
 from .prices import parse_time, provider_for, save_reference, utcnow, validate_current, RateUnavailable
-from .accounting import audit
+from .accounting import DEFAULT_AUTOMATIC_PRICES, DEFAULT_RATE_SOURCE, audit
+from .costs import capture, unpriced_today
 
 log = logging.getLogger(__name__)
 _epoch = 0
@@ -68,7 +69,7 @@ def quote_payload(quote, clock=None):
 
 def price_status(db):
     prefs = preferences(db)
-    source = prefs.get("rate_source", "manual")
+    source = prefs.get("rate_source", DEFAULT_RATE_SOURCE)
     if source == "manual":
         return {"source": source, "automatic": False, "quote": None, "history": None}
     provider = provider_for(source)
@@ -99,7 +100,7 @@ def price_status(db):
         }
     return {
         "source": source,
-        "automatic": prefs.get("automatic_prices", False),
+        "automatic": prefs.get("automatic_prices", DEFAULT_AUTOMATIC_PRICES),
         "quote": quote_payload(db.get(PriceQuote, provider.name)),
         "history": history,
     }
@@ -115,12 +116,12 @@ def tick(clock=None):
     epoch = _epoch
     with write_lock, SessionLocal() as db:
         prefs = preferences(db)
-        source = prefs.get("rate_source", "manual")
+        source = prefs.get("rate_source", DEFAULT_RATE_SOURCE)
         if source == "manual":
             return False
         provider = provider_for(source)
         state = sync_state(db, source)
-        automatic = prefs.get("automatic_prices", False)
+        automatic = prefs.get("automatic_prices", DEFAULT_AUTOMATIC_PRICES)
         if automatic and state.scheduled_day != str(clock.date()) and state.status not in ("pending", "running"):
             queue_history(db, source, clock=clock)
         quote_due = state.quote_requested or (automatic and seconds_since(state.quote_attempt_at, clock) >= 300)
@@ -155,7 +156,7 @@ def tick(clock=None):
             ref = provider.current()
             validate_current(ref.value, ref.observed_at, clock)
             with write_lock, SessionLocal() as db:
-                if epoch != _epoch or preferences(db).get("rate_source") != source:
+                if epoch != _epoch or preferences(db).get("rate_source", DEFAULT_RATE_SOURCE) != source:
                     return False
                 db.merge(
                     PriceQuote(
@@ -167,6 +168,10 @@ def tick(clock=None):
                 )
                 state = sync_state(db, source)
                 state.quote_error, state.last_success_at = None, clock.isoformat()
+                db.flush()
+                # Expenses saved today before this quote arrived are priced with it now.
+                for entry_id in unpriced_today(db):
+                    capture(db, entry_id=entry_id)
                 db.commit()
         except RateUnavailable as exc:
             with write_lock, SessionLocal() as db:
@@ -182,7 +187,7 @@ def tick(clock=None):
                 # A settings change, restore, or replacement job invalidates an in-flight batch.
                 if (
                     epoch != _epoch
-                    or preferences(db).get("rate_source") != source
+                    or preferences(db).get("rate_source", DEFAULT_RATE_SOURCE) != source
                     or not state
                     or state.generation != generation
                     or state.status != "running"

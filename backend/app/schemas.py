@@ -208,8 +208,9 @@ class RetirementSettings(StrictModel):
 class Preferences(StrictModel):
     denomination: Literal["BITCOIN", "BTC", "USD"] = "USD"
     theme: Literal["dark", "light"] = "dark"
-    rate_source: Literal["manual", "coinbase", "coingecko"] = "manual"
-    automatic_prices: bool = False
+    # Coinbase prices are on from the start; manual prices are a choice in Settings, never a setup step.
+    rate_source: Literal["manual", "coinbase", "coingecko"] = "coinbase"
+    automatic_prices: bool = True
     debt_limits: DebtLimits | None = None
     card_orders: dict[CardScope, list[str]] = Field(default_factory=dict)
     category_payment_defaults: dict[int, int] = Field(default_factory=dict)

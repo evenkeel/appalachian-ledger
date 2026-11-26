@@ -1824,3 +1824,130 @@ a.btn {
   font-family: var(--font-num);
   text-align: right;
 }
+
+/* Several entries at once: rows of boxes, each with a grey example of what goes in it. */
+.sheet.wide {
+  top: 6vh;
+  width: min(880px, calc(100vw - 24px));
+  max-height: 88vh;
+  overflow-y: auto;
+}
+.rows {
+  display: grid;
+  gap: 6px;
+}
+.rows-head,
+.rows-line {
+  display: grid;
+  grid-template-columns: var(--cols);
+  gap: 8px;
+  align-items: center;
+}
+.rows-head span {
+  font-size: var(--t-micro);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.rows input:not([type="checkbox"]),
+.rows select {
+  min-height: 34px;
+  width: 100%;
+  min-width: 0;
+  border-radius: 7px;
+  border: 1px solid var(--bezel);
+  background: var(--well);
+  color: var(--ink);
+  font: inherit;
+  padding: 0 9px;
+}
+.rows input.num {
+  text-align: right;
+  font-family: var(--font-num);
+}
+.rows input::placeholder {
+  color: var(--ink-3);
+  opacity: 0.55;
+}
+.rows select.unset {
+  color: color-mix(in srgb, var(--ink-3) 55%, transparent);
+}
+.rows select option {
+  color: var(--ink);
+}
+.rows .unit {
+  position: relative;
+  display: block;
+}
+.rows .unit > b {
+  position: absolute;
+  left: 9px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-weight: 400;
+  color: var(--ink-3);
+  pointer-events: none;
+}
+.rows .unit > b.btc {
+  color: var(--btc);
+}
+.rows .unit input {
+  padding-left: 22px;
+}
+.rows .rows-extra {
+  grid-column: 2 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  font-size: var(--t-small);
+  color: var(--ink-3);
+}
+.rows .rows-extra input {
+  width: 130px;
+}
+.rows .rows-extra input.day {
+  width: 70px;
+}
+.rows .rows-check {
+  display: flex;
+  justify-content: center;
+}
+.rows-error {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--warn);
+  font-size: var(--t-small);
+}
+.rows-line[aria-invalid="true"] input,
+.rows-line[aria-invalid="true"] select {
+  border-color: var(--warn);
+}
+.rows-shared {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: end;
+}
+.rows-shared .field {
+  min-width: 180px;
+}
+.rows-more {
+  justify-self: start;
+}
+@media (max-width: 720px) {
+  .rows-head {
+    display: none;
+  }
+  .rows-line {
+    grid-template-columns: 1fr 1fr;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .rows-line > .wide-cell {
+    grid-column: 1 / -1;
+  }
+  .rows .rows-extra {
+    grid-column: 1 / -1;
+  }
+}

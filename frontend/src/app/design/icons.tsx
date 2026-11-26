@@ -95,6 +95,12 @@ export const NavIcon = {
       <path d="M8 11V8a4 4 0 0 1 8 0v3" />
     </>,
   ),
+  logout: line(
+    <>
+      <path d="M14 4H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h8" />
+      <path d="M11 12h9M17 8.5l3.5 3.5-3.5 3.5" />
+    </>,
+  ),
 };
 
 /** Alert levels are carried by shape as well as colour: circle, triangle, octagon. */

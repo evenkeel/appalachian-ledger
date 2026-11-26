@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
+import { AmountInput } from "../lib/AmountInput";
 import { api } from "../../lib/api";
 import { Sheet } from "../dashboard/Sheets";
 import { money, spendable, typed, untyped } from "./shared";
@@ -99,11 +100,11 @@ export function PaymentSheet({ debt, accounts, today, onClose, onDone }: { debt:
           </label>
           <label className="field">
             <span>Amount{unit === "BITCOIN" ? " (₿)" : ""}</span>
-            <input className="num" inputMode="decimal" placeholder={unit === "BITCOIN" ? "0" : "0.00"} value={amount} onChange={(event) => setAmount(event.target.value)} required data-autofocus />
+            <AmountInput placeholder={unit === "BITCOIN" ? "0" : "0.00"} value={amount} onChange={(event) => setAmount(event.target.value)} required data-autofocus />
           </label>
           <label className="field">
             <span>Interest and fees in it</span>
-            <input className="num" inputMode="decimal" placeholder={unit === "BITCOIN" ? "0" : "0.00"} value={interest} onChange={(event) => setInterest(event.target.value)} />
+            <AmountInput placeholder={unit === "BITCOIN" ? "0" : "0.00"} value={interest} onChange={(event) => setInterest(event.target.value)} />
           </label>
           {hasCharge && (
             <label className="field">

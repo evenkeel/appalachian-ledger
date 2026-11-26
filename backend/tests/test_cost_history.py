@@ -107,7 +107,7 @@ def test_monthly_totals_follow_category_search_and_exclude_transfers_and_income(
     assert owner.get("/api/expense-costs?category_id=9999").json()["payments"] == []
 
 
-def test_spot_quote_is_never_used_and_daily_sync_freezes_the_purchase_day(owner):
+def test_todays_expense_uses_the_live_quote_and_later_prices_never_change_it(owner):
     from datetime import date
     from test_reporting_conversions import live_quote
     from app.prices import Coinbase, Reference, save_reference
@@ -115,15 +115,16 @@ def test_spot_quote_is_never_used_and_daily_sync_freezes_the_purchase_day(owner)
     account = new_account(owner)
     live_quote("100000")
     transaction(owner, account, amount="20", date=str(date.today()))
-    assert owner.get("/api/expense-costs").json()["payments"][0]["bitcoin"] is None
+    row = owner.get("/api/expense-costs").json()["payments"][0]
+    assert row["bitcoin"] == "20000"
+    assert row["source"] == "Coinbase" and row["method"] == "spot"
+    # The day's close arriving later does not rewrite the price it was bought at.
     with SessionLocal() as db:
         save_reference(
             db, Coinbase(), Reference(date.today(), "110000", str(date.today()) + "T23:59:59+00:00", "daily_close")
         )
         db.commit()
-    row = owner.get("/api/expense-costs").json()["payments"][0]
-    assert row["bitcoin"] == "18182"
-    assert row["source"] == "Coinbase" and row["method"] == "daily_close"
+    assert owner.get("/api/expense-costs").json()["payments"][0] == row
     owner.put("/api/settings", json={"rate_source": "manual"})
     rate(owner, str(date.today()), "220000")
     assert owner.get("/api/expense-costs").json()["payments"][0] == row

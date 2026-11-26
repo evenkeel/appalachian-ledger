@@ -8,6 +8,7 @@ import type { DashboardData } from "../dashboard/types";
 import { btc, cents, coordinate, fromCents, plural, usd } from "../lib/format";
 import { subPath } from "../lib/router";
 import type { Route } from "../lib/router";
+import { AmountInput } from "../lib/AmountInput";
 import { useSession } from "../lib/session";
 import "./accounts.css";
 import { AccountDetail } from "./Detail";
@@ -134,7 +135,7 @@ export function Accounts({ go, onChanged }: { go: (route: Route) => void; onChan
             <div className="sub">Add your checking or cash account first. Bills are paid from it, and it turns on Checking forecast and Spend pace.</div>
             <div>
               <button className="btn sm primary" onClick={() => setSheet("new")}>
-                Add an account
+                Add your accounts
               </button>
             </div>
           </Panel>
@@ -219,7 +220,7 @@ export function Accounts({ go, onChanged }: { go: (route: Route) => void; onChan
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
         {open.length > 0 && (
           <button className="btn sm primary" onClick={() => setSheet("new")}>
-            Add an account
+            Add accounts
           </button>
         )}
         {closed.length > 0 && (
@@ -258,7 +259,18 @@ export function Accounts({ go, onChanged }: { go: (route: Route) => void; onChan
           </ul>
         </Panel>
       )}
-      {sheet === "new" && <AddSheet today={data.today} first={asked === "add-bitcoin" ? "bitcoin_wallet" : "checking"} onClose={() => setSheet(null)} onDone={done} />}
+      {sheet === "new" && (
+        <AddSheet
+          today={data.today}
+          first={asked === "add-bitcoin" ? "bitcoin_wallet" : "checking"}
+          onClose={() => setSheet(null)}
+          onDone={done}
+          onSome={() => {
+            void load();
+            onChanged?.();
+          }}
+        />
+      )}
       {sheet !== null && sheet !== "new" && <ChangeSheet account={sheet} card={cards.get(sheet.id)} today={data.today} onClose={() => setSheet(null)} onDone={done} />}
       {debt && <PaymentSheet debt={debt} accounts={open} today={data.today} onClose={() => setPaying(null)} onDone={done} />}
     </div>
@@ -345,84 +357,162 @@ function Mix({ bitcoin, dollars, other }: { bitcoin: bigint; dollars: bigint; ot
   );
 }
 
-function AddSheet({ today, first, onClose, onDone }: { today: string; first: string; onClose: () => void; onDone: (message: string) => void }) {
-  const [kind, setKind] = useState(first);
+/** What a row of each kind usually holds, shown greyed out until something is typed. */
+const EXAMPLE: Record<string, { name: string; amount: string }> = {
+  checking: { name: "Everyday checking", amount: "2,450.00" },
+  savings: { name: "Emergency savings", amount: "6,000.00" },
+  cash: { name: "Cash at home", amount: "200.00" },
+  credit_card: { name: "Visa card", amount: "640.00" },
+  bitcoin_wallet: { name: "Cold storage", amount: "1,250,000" },
+  loan: { name: "Car loan", amount: "11,800.00" },
+  mortgage: { name: "Home loan", amount: "182,000.00" },
+  brokerage: { name: "401(k)", amount: "24,000.00" },
+  real_estate: { name: "House", amount: "240,000.00" },
+  vehicle: { name: "Truck", amount: "14,000.00" },
+  other_asset: { name: "Gold coins", amount: "1,500.00" },
+  other_liability: { name: "Owed to family", amount: "500.00" },
+};
+/** The rows a new form starts with, and the kinds offered as more rows are added. */
+const START_KINDS = ["checking", "savings", "credit_card", "bitcoin_wallet", "loan"];
+const MORE_KINDS = ["cash", "brokerage", "mortgage", "vehicle", "other_asset"];
+
+interface AccountRow {
+  key: number;
+  kind: string;
+  name: string;
+  amount: string;
+  limit: string;
+  due: string;
+  error?: string;
+}
+const blankRow = (key: number, kind: string): AccountRow => ({ key, kind, name: "", amount: "", limit: "", due: "" });
+const filled = (row: AccountRow) => Boolean(row.name.trim() || row.amount.trim() || row.limit.trim() || row.due.trim());
+
+/** Add several accounts at once: one row each, empty rows are skipped. */
+function AddSheet({ today, first, onClose, onDone, onSome }: { today: string; first: string; onClose: () => void; onDone: (message: string) => void; onSome: () => void }) {
+  const [rows, setRows] = useState<AccountRow[]>(() => {
+    const kinds = first === "bitcoin_wallet" ? ["bitcoin_wallet", ...START_KINDS.filter((kind) => kind !== "bitcoin_wallet")] : START_KINDS;
+    return kinds.map((kind, index) => blankRow(index, kind));
+  });
+  const [date, setDate] = useState(today);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const debt = DEBT_KINDS.includes(kind);
-  const bitcoin = kind === "bitcoin_wallet";
+  const [added, setAdded] = useState<string[]>([]);
+
+  const edit = (key: number, change: Partial<AccountRow>) => setRows((current) => current.map((row) => (row.key === key ? { ...row, ...change, error: undefined } : row)));
+  const more = () =>
+    setRows((current) => {
+      const used = new Set(current.map((row) => row.kind));
+      const kind = MORE_KINDS.find((value) => !used.has(value)) ?? "checking";
+      return [...current, blankRow(Math.max(...current.map((row) => row.key)) + 1, kind)];
+    });
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const fields = new FormData(event.currentTarget);
-    const name = String(fields.get("name")).trim();
-    const limit = String(fields.get("credit_limit") ?? "").replace(/[$,\s]/g, "");
-    const dueDay = String(fields.get("due_day") ?? "");
+    const wanted = rows.filter(filled);
+    if (!wanted.length) return setError("Fill in at least one row: a name and a balance.");
+    const missing = wanted.filter((row) => !row.name.trim());
+    if (missing.length) {
+      setRows((current) => current.map((row) => (missing.includes(row) ? { ...row, error: "Give this account a name." } : row)));
+      return setError("");
+    }
     setBusy(true);
     setError("");
-    try {
-      const created = await api<{ id: number }>("/accounts", "POST", {
-        name,
-        kind,
-        currency: bitcoin ? "BITCOIN" : "USD",
-        opening_balance: String(fields.get("balance") || "0").replace(/[$₿,\s]/g, ""),
-        date: fields.get("date"),
-      });
-      if (kind === "credit_card" && (limit || dueDay))
-        await api(`/accounts/${created.id}/card-terms`, "PUT", { credit_limit: limit || null, due_day: dueDay ? Number(dueDay) : null });
-      onDone(`Added ${name}.`);
-    } catch (e) {
-      setError((e as Error).message);
-      setBusy(false);
+    const saved: string[] = [];
+    const failed = new Map<number, string>();
+    for (const row of wanted) {
+      const name = row.name.trim();
+      const bitcoin = row.kind === "bitcoin_wallet";
+      try {
+        const created = await api<{ id: number }>("/accounts", "POST", {
+          name,
+          kind: row.kind,
+          currency: bitcoin ? "BITCOIN" : "USD",
+          opening_balance: row.amount.replace(/[$₿,\s]/g, "") || "0",
+          date,
+        });
+        const limit = row.limit.replace(/[$,\s]/g, "");
+        if (row.kind === "credit_card" && (limit || row.due))
+          await api(`/accounts/${created.id}/card-terms`, "PUT", { credit_limit: limit || null, due_day: row.due ? Number(row.due) : null });
+        saved.push(name);
+      } catch (e) {
+        failed.set(row.key, (e as Error).message);
+      }
     }
+    setBusy(false);
+    const all = [...added, ...saved];
+    if (!failed.size) return onDone(`Added ${all.join(", ")}.`);
+    // Keep only the rows that did not save, each with its own reason; the rest are in the ledger already.
+    setAdded(all);
+    setRows((current) => current.filter((row) => failed.has(row.key) || !filled(row)).map((row) => ({ ...row, error: failed.get(row.key) })));
+    if (saved.length) onSome();
   }
+
   return (
-    <Sheet label="Add an account" onClose={onClose}>
-      <h2>Add an account</h2>
-      <form onSubmit={save} style={{ display: "grid", gap: 10 }}>
-        <div className="sheet-fields">
-          <label className="field">
+    <Sheet label="Add accounts" onClose={onClose} wide>
+      <h2>Add your accounts</h2>
+      <p className="sub">One row for each account you have: checking, savings, cards, loans, bitcoin. The grey text is only an example. Empty rows are skipped.</p>
+      {added.length > 0 && <p className="hint" role="status">Added {added.join(", ")}. The rows below did not save yet.</p>}
+      <form onSubmit={save} style={{ display: "grid", gap: 12 }}>
+        <div className="rows" style={{ ["--cols" as string]: "minmax(130px, 0.9fr) minmax(150px, 1.4fr) minmax(130px, 1fr)" }}>
+          <div className="rows-head" aria-hidden="true">
             <span>Kind</span>
-            <select name="kind" value={kind} onChange={(event) => setKind(event.target.value)} data-autofocus>
-              {ADD_KINDS.map((value) => (
-                <option key={value} value={value}>
-                  {KIND[value]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
             <span>Name</span>
-            <input name="name" required maxLength={120} placeholder={bitcoin ? "Cold storage" : debt ? "Visa" : "Checking"} />
-          </label>
-          <label className="field">
-            <span>{debt ? "Owed today" : bitcoin ? "Bitcoin held (₿)" : "Balance today"}</span>
-            <input name="balance" className="num" inputMode="decimal" placeholder={bitcoin ? "0" : "0.00"} />
-          </label>
-          <label className="field">
-            <span>As of</span>
-            <input name="date" type="date" defaultValue={today} max={today} required />
-          </label>
-          {kind === "credit_card" && (
-            <>
-              <label className="field">
-                <span>Credit limit</span>
-                <input name="credit_limit" className="num" inputMode="decimal" placeholder="Optional" />
-              </label>
-              <label className="field">
-                <span>Payment due day</span>
-                <input name="due_day" className="num" type="number" min={1} max={31} placeholder="1–31" />
-              </label>
-            </>
-          )}
+            <span>Balance or owed today</span>
+          </div>
+          {rows.map((row, index) => {
+            const example = EXAMPLE[row.kind] ?? EXAMPLE.checking;
+            const bitcoin = row.kind === "bitcoin_wallet";
+            const debt = DEBT_KINDS.includes(row.kind);
+            return (
+              <div key={row.key} className="rows-line" aria-invalid={row.error ? true : undefined} role="group" aria-label={`Account ${index + 1}`}>
+                <select aria-label={`Kind of account ${index + 1}`} value={row.kind} onChange={(event) => edit(row.key, { kind: event.target.value })} data-autofocus={index === 0 ? true : undefined}>
+                  {ADD_KINDS.map((value) => (
+                    <option key={value} value={value}>
+                      {KIND[value]}
+                    </option>
+                  ))}
+                </select>
+                <input aria-label={`Name of account ${index + 1}`} className="wide-cell" maxLength={120} placeholder={example.name} value={row.name} onChange={(event) => edit(row.key, { name: event.target.value })} />
+                <span className="unit">
+                  <b className={bitcoin ? "btc" : undefined} aria-hidden="true">
+                    {bitcoin ? "₿" : "$"}
+                  </b>
+                  <AmountInput aria-label={`${debt ? "Owed today on" : bitcoin ? "Bitcoin held in" : "Balance today of"} account ${index + 1}`} placeholder={example.amount.replace(/^\$/, "")} value={row.amount} onChange={(event) => edit(row.key, { amount: event.target.value })} />
+                </span>
+                {row.kind === "credit_card" && (
+                  <div className="rows-extra">
+                    <span>Limit</span>
+                    <span className="unit">
+                      <b aria-hidden="true">$</b>
+                      <AmountInput aria-label={`Credit limit of account ${index + 1}`} placeholder="5,000.00" value={row.limit} onChange={(event) => edit(row.key, { limit: event.target.value })} />
+                    </span>
+                    <span>Due on day</span>
+                    <input className="num day" type="number" min={1} max={31} aria-label={`Payment due day of account ${index + 1}`} placeholder="15" value={row.due} onChange={(event) => edit(row.key, { due: event.target.value })} />
+                    <span>both optional</span>
+                  </div>
+                )}
+                {row.error && (
+                  <p className="rows-error" role="alert">
+                    {row.error}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+          <button type="button" className="btn sm ghost rows-more" onClick={more}>
+            + Add another row
+          </button>
         </div>
-        <p className="hint">
-          {bitcoin
-            ? "Whole bitcoin units: ₿125,000 is the same as 0.00125 BTC."
-            : kind === "credit_card"
-              ? "The limit turns on the credit use light; the due day turns on the card due light."
-              : "The starting balance is recorded as an opening entry on that date."}
-        </p>
+        <div className="rows-shared">
+          <label className="field">
+            <span>Balances as of</span>
+            <input type="date" value={date} max={today} required onChange={(event) => setDate(event.target.value)} />
+          </label>
+          <p className="hint" style={{ flex: "1 1 260px" }}>
+            Bitcoin is counted in whole units: ₿1,250,000 is 0.0125 BTC. Each starting balance is recorded as an opening entry on that date.
+          </p>
+        </div>
         {error && (
           <p className="gate-error" role="alert">
             {error}
@@ -430,10 +520,10 @@ function AddSheet({ today, first, onClose, onDone }: { today: string; first: str
         )}
         <div className="acts">
           <button className="btn primary" disabled={busy}>
-            Add account
+            {busy ? "Adding…" : "Add accounts"}
           </button>
           <button type="button" className="btn ghost" onClick={onClose}>
-            Cancel <kbd>Esc</kbd>
+            {added.length ? "Done" : "Cancel"} <kbd>Esc</kbd>
           </button>
         </div>
       </form>
@@ -505,7 +595,7 @@ function ChangeSheet({ account, card, today, onClose, onDone }: { account: Accou
             <>
               <label className="field">
                 <span>Credit limit</span>
-                <input name="credit_limit" className="num" inputMode="decimal" placeholder="Not set" defaultValue={card?.limit ?? ""} />
+                <AmountInput name="credit_limit" placeholder="Not set" defaultValue={card?.limit ?? ""} />
               </label>
               <label className="field">
                 <span>Payment due day</span>
@@ -517,7 +607,7 @@ function ChangeSheet({ account, card, today, onClose, onDone }: { account: Accou
             <>
               <label className="field">
                 <span>{account.role === "liability" ? "Owed now" : account.currency === "BITCOIN" ? "Bitcoin held (₿)" : "Balance now"}</span>
-                <input name="balance" className="num" inputMode="decimal" defaultValue={account.balance} />
+                <AmountInput name="balance" defaultValue={account.balance} />
               </label>
               <label className="field">
                 <span>Why it changed</span>

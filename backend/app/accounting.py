@@ -50,9 +50,14 @@ def rate_for(db, day):
     return db.scalar(query.order_by((ExchangeRate.source == "Manual").desc(), ExchangeRate.id.desc()))
 
 
+# A ledger that never chose a price source uses Coinbase, fetched automatically.
+DEFAULT_RATE_SOURCE = "coinbase"
+DEFAULT_AUTOMATIC_PRICES = True
+
+
 def selected_source(db):
     user = db.scalar(select(User))
-    return json.loads(user.preferences).get("rate_source", "manual") if user else "manual"
+    return json.loads(user.preferences).get("rate_source", DEFAULT_RATE_SOURCE) if user else DEFAULT_RATE_SOURCE
 
 
 @contextmanager
@@ -315,9 +320,10 @@ def create_transaction(db, data, import_key=None, replaces_id=None):
         legs = [(acc, signed), (internal_account(db, data.kind, acc.currency), -signed)]
     result = post(db, entry, legs)
     if data.kind == "expense":
-        from .costs import capture
+        from .costs import ask_for_price, capture
 
         capture(db, entry_id=entry.id)
+        ask_for_price(db, entry)
     return result
 
 
