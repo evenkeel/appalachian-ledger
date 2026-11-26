@@ -59,7 +59,9 @@ def owner(client):
     # prices and never reach the network; test_prices covers the Coinbase start itself.
     with SessionLocal() as db:
         user = db.scalar(select(User))
-        user.preferences = json.dumps(json.loads(user.preferences) | {"rate_source": "manual", "automatic_prices": False})
+        user.preferences = json.dumps(
+            json.loads(user.preferences) | {"rate_source": "manual", "automatic_prices": False}
+        )
         db.commit()
     return client
 

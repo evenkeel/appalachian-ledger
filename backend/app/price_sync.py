@@ -46,7 +46,10 @@ class Shared:
         with People() as people:
             people.merge(
                 MarketQuote(
-                    source=self.name, usd_per_btc=ref.value, observed_at=ref.observed_at, fetched_at=self.clock.isoformat()
+                    source=self.name,
+                    usd_per_btc=ref.value,
+                    observed_at=ref.observed_at,
+                    fetched_at=self.clock.isoformat(),
                 )
             )
             people.commit()
@@ -68,7 +71,9 @@ class Shared:
                 )
             )
         if len(saved) == days:
-            return [Reference(date.fromisoformat(row.day), row.usd_per_btc, row.observed_at, row.method) for row in saved]
+            return [
+                Reference(date.fromisoformat(row.day), row.usd_per_btc, row.observed_at, row.method) for row in saved
+            ]
         # A range the source answered with gaps is remembered for the day, not asked for again.
         key = (self.name, self.method, start, end, self.clock.date())
         if key not in _answered:

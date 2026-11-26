@@ -21,6 +21,9 @@ docker compose up --build -d
 
 Then open [localhost:8080](http://localhost:8080).
 
+More than one person can use the app on the same computer. Each has their own private ledger
+and password.
+
 Make backups in Settings and keep them off your computer.
 
 ## Develop

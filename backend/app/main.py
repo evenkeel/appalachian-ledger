@@ -157,9 +157,7 @@ def setup(data: s.Credentials, request: Request, response: Response, people=Depe
         throttle(people, request)
     if people.scalar(select(Person.id).where(Person.username == data.username)) is not None:
         raise HTTPException(409, "That name is already used on this computer. Choose another.")
-    person = Person(
-        username=data.username, password_hash=hasher.hash(data.password), ledger=new_ledger_name(first)
-    )
+    person = Person(username=data.username, password_hash=hasher.hash(data.password), ledger=new_ledger_name(first))
     people.add(person)
     people.flush()
     migrate(ledger_engine(person.ledger))
@@ -687,7 +685,8 @@ def save_settings(data: s.Preferences, user=Depends(authenticate), db=Depends(ge
     old_preferences = json.loads(user.preferences)
     old_source = old_preferences.get("rate_source", DEFAULT_RATE_SOURCE)
     if old_source != "manual" and (
-        old_source != data.rate_source or (old_preferences.get("automatic_prices", DEFAULT_AUTOMATIC_PRICES) and not data.automatic_prices)
+        old_source != data.rate_source
+        or (old_preferences.get("automatic_prices", DEFAULT_AUTOMATIC_PRICES) and not data.automatic_prices)
     ):
         state = sync_state(db, old_source)
         state.status, state.quote_requested = "idle", False

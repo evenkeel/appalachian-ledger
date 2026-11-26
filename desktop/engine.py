@@ -13,7 +13,7 @@ from pathlib import Path
 
 
 def hold_lock(folder: Path):
-    """Allow one engine per ledger: two writers on one database would corrupt it."""
+    """Allow one engine per data folder: two writers on one database would corrupt it."""
     handle = open(folder / "engine.lock", "a+")
     try:
         if sys.platform == "win32":
@@ -25,7 +25,7 @@ def hold_lock(folder: Path):
 
             fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
-        print("Another copy of the app is already using this ledger.", file=sys.stderr)
+        print("Another copy of the app is already using these ledgers.", file=sys.stderr)
         sys.exit(3)
     return handle
 
@@ -52,9 +52,10 @@ def main():
     data.mkdir(parents=True, exist_ok=True, mode=0o700)
     if sys.platform != "win32":
         data.chmod(0o700)  # the window may have made the folder already, with looser defaults
-        for name in ("engine.log", "ledger.db"):
-            if (data / name).exists():
-                (data / name).chmod(0o600)
+        # Every person's ledger, the shared sign-in file and the log are for this user only.
+        for file in [data / "engine.log", *data.glob("*.db"), *data.glob("ledgers/*.db")]:
+            if file.exists():
+                file.chmod(0o600)
     lock = hold_lock(data)  # noqa: F841 (held until exit)
 
     # Bundled: PyInstaller unpacks migrations and the interface under sys._MEIPASS.
