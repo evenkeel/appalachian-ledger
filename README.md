@@ -15,7 +15,7 @@ Website and in-browser demo: [appalachianbitcoin.com](https://appalachianbitcoin
 ## Where things stand
 
 - **Mac app (new).** A real Mac program: download it, drag it to Applications and double-click
-  it. No Docker, no terminal. It is a beta for Macs with Apple silicon (M1 or newer) and is
+  it. No Docker, no terminal. It is a beta for Macs with Apple silicon (M1 or newer) on macOS 11 or newer, and is
   not yet signed, so the first time you open it the Mac says it can't be opened. Go to
   **System Settings → Privacy & Security** and click **Open Anyway**. You only do this once.
   Download it from [Releases](https://github.com/evenkeel/appalachian-ledger/releases) or the
