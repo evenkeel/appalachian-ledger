@@ -8,7 +8,7 @@ analytics, no cookies, and no third-party scripts or fonts.
 | --- | --- | --- |
 | `/` | Home | `pages/index.html` |
 | `/demo/` | The real app on the fictional demo ledger, no server and no sign-in | `frontend/` built with `--mode demo` |
-| `/download/` | Install guide for Mac and Windows | `pages/download.html` |
+| `/download/` | The Mac app download, and a Docker guide for Windows and Intel Macs | `pages/download.html` |
 | `/how-it-thinks-about-money/` | The app's money ideas, adapted from its Learn screen | `pages/how-it-thinks-about-money.html` |
 | `/privacy/` | What the app and this site do and do not send | `pages/privacy.html` |
 
@@ -49,11 +49,10 @@ installation; retake them by hand when those screens change.
   the footer. If it is ever emptied, the help sections point to GitHub issues instead.
 - **Email.** `contact_email` in `site.json` is empty, so no address appears anywhere. If one is
   added it shows only as a small link in the footer.
-- **Try the install guide.** The steps on `/download/` come from the project's own Docker
-  notes. They have not been run start to finish on a clean Mac and a clean Windows PC by the
-  person who wrote the page. Do that once before pointing people at it.
-- **The Download button** links to GitHub's ZIP of the `main` branch. Whatever is on `main` is
-  what visitors get, so merge the release there first.
+- **The Mac download** links to the release named in `site.json` (`mac_url`). Publish that
+  release first: pushing a version tag runs the Mac app workflow, which attaches the `.dmg`.
+- **The Docker guide** for Windows links to GitHub's ZIP of the `main` branch. Whatever is on
+  `main` is what those visitors get, so merge the release there first.
 
 ## Publishing
 

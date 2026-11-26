@@ -117,7 +117,7 @@ def main() -> int:
         path = meta(text, "path")
         root = "../" if path else "./"
         body = re.sub(r"<!--\s*(title|description|path):.*?-->\n?", "", text)
-        for key, value in {"repo_url": repo, "zip_url": site["zip_url"], "help_sentence": help_sentence}.items():
+        for key, value in {"repo_url": repo, "zip_url": site["zip_url"], "mac_url": site["mac_url"], "help_sentence": help_sentence}.items():
             body = body.replace("{{" + key + "}}", value)
         body = picture_sizes(body)
         left = re.findall(r"\{\{.*?\}\}", body)

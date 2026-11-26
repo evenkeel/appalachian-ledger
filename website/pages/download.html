@@ -1,58 +1,30 @@
-<!-- title: Download and install · Appalachian Bitcoin -->
-<!-- description: A step-by-step guide to installing Appalachian Bitcoin on a Mac or a Windows PC, how backups work, and where to get help. -->
+<!-- title: Download · Appalachian Bitcoin -->
+<!-- description: Download Appalachian Bitcoin for your Mac, what to expect the first time you open it, how backups work, and how to run it on Windows for now. -->
 <!-- path: download -->
-<h1>Download and install</h1>
-<p class="lede">Appalachian Bitcoin runs on your own computer and you use it in your web browser. There is no one-click installer yet. Today it takes seven steps and about fifteen minutes, most of it waiting. You will type two commands; they are written out below.</p>
-<p>This is beta software. Each release is tested, but it has not had an independent security or accounting review. Keep backups (step 7), and <a href="#help">tell us</a> if a step does not go the way this page says.</p>
+<h1>Download</h1>
+<p class="lede">Appalachian Bitcoin is a program for your own computer. Your records stay on that computer. It is free, and the source code is open for anyone to read.</p>
+<p>This is beta software. Each release is tested, but it has not had an independent security or accounting review. Keep backups, and <a href="#help">tell us</a> if something does not go the way this page says.</p>
 <div class="actions">
-  <a class="btn primary" href="{{zip_url}}">Download the app (ZIP)</a>
+  <a class="btn primary" href="{{mac_url}}">Download for Mac</a>
   <a class="btn" href="../demo/">Try the demo first</a>
 </div>
-<p class="notes">Free, with the source code open to read at <a href="{{repo_url}}">GitHub</a>. Nothing to sign up for.</p>
+<p class="notes">For Macs with Apple silicon (M1 or newer) running macOS 15 or newer. About 30&nbsp;MB. Nothing to sign up for. On Windows or an older Intel Mac? See <a href="#windows">Windows and Intel Macs</a>.</p>
 
-<h2 id="need">What you need first</h2>
-<ul>
-  <li>A Mac with a recent version of macOS, or a PC with Windows 10 or 11.</li>
-  <li>Permission to install software on it, and several gigabytes of free disk space.</li>
-  <li>An internet connection for the installation. After that the app works offline.</li>
-  <li>Docker Desktop, a free program that runs the app in the background. Step 1 installs it.</li>
-</ul>
-<p>The app serves one ledger, on the computer you install it on. It is reachable only from that computer.</p>
-
-<h2 id="steps">The steps</h2>
+<h2 id="mac">Install it on a Mac</h2>
 <ol class="steps">
   <li>
-    <h3>Install Docker Desktop</h3>
-    <p>Go to <a href="https://www.docker.com/products/docker-desktop/">docker.com/products/docker-desktop</a> and download Docker Desktop. It is free for personal use.</p>
-    <p><b>Mac:</b> choose <i>Apple silicon</i> if your Mac has an M-series chip, or <i>Intel</i> if it is older (Apple menu → About This Mac tells you). Open the downloaded file and drag Docker to Applications.</p>
-    <p><b>Windows:</b> run the installer and keep the option to use WSL 2 ticked. It may ask you to restart.</p>
-    <p>Then open Docker Desktop once and wait until it says it is running. You can skip its sign-in and its tutorial. Leave it running.</p>
+    <h3>Put it in Applications</h3>
+    <p>Open the file you downloaded (<code>Appalachian-Bitcoin-mac.dmg</code>). A window opens with the app in it. Drag <b>Appalachian Bitcoin</b> onto the <b>Applications</b> folder, then close that window.</p>
   </li>
   <li>
-    <h3>Download Appalachian Bitcoin</h3>
-    <p><a href="{{zip_url}}">Download the ZIP file</a> and unzip it (double-click it on a Mac; right-click → Extract All on Windows). You get a folder called <code>appalachian-ledger-main</code>.</p>
-    <p>Move that folder somewhere it can stay, such as Documents. <b>Do not rename it later.</b> Your records are tied to the folder&rsquo;s name.</p>
+    <h3>Open it the first time</h3>
+    <p>Open Appalachian Bitcoin from your Applications folder. <b>Your Mac will say it cannot open it.</b> That is expected: the app is not yet registered with Apple, so the Mac cannot check who made it. Click <b>Done</b>.</p>
+    <p>Then open <b>System Settings → Privacy &amp; Security</b>, scroll down to the message about Appalachian Bitcoin, and click <b>Open Anyway</b>. Confirm with your Mac&rsquo;s password. You only do this once; after that it opens like any other app.</p>
   </li>
   <li>
-    <h3>Open a terminal in that folder</h3>
-    <p><b>Mac:</b> open the Terminal app (press ⌘ Space and type Terminal). Type <code>cd</code> and a space, drag the <code>appalachian-ledger-main</code> folder onto the Terminal window, and press Return.</p>
-    <p><b>Windows:</b> open the <code>appalachian-ledger-main</code> folder in File Explorer, right-click an empty part of the window and choose <i>Open in Terminal</i>.</p>
-  </li>
-  <li>
-    <h3>Start the app</h3>
-    <p>Type these two lines, pressing Return (Enter) after each.</p>
-    <p><b>Mac:</b></p>
-<pre><code>cp .env.example .env
-docker compose up --build -d</code></pre>
-    <p><b>Windows:</b></p>
-<pre><code>copy .env.example .env
-docker compose up --build -d</code></pre>
-    <p>The second line downloads what the app needs and builds it. The first time, that takes five to ten minutes and prints a lot of text. It is finished when you get your prompt back and the last lines say <i>Started</i> or <i>Healthy</i>.</p>
-  </li>
-  <li>
-    <h3>Open it and create your account</h3>
-    <p>In your web browser, go to <a href="http://localhost:8080">http://localhost:8080</a>. Choose a username and a password.</p>
-    <p>This account exists only on your computer. There is no &ldquo;forgot my password&rdquo;, because nobody else has it. Write it down somewhere safe.</p>
+    <h3>Create your account</h3>
+    <p>Choose a username and a password. Type the password twice, so a typo cannot lock you out. After this, signing in asks for it once.</p>
+    <p>This account exists only on your computer. There is no &ldquo;forgot my password&rdquo;, because nobody else has it. Pick one you will remember.</p>
     <figure class="narrow">
       <img src="../img/install-create-account.png" width="1200" height="800" alt="The first screen of the app: a form asking for a username and a password to create the local account." loading="lazy">
       <figcaption><b>Fig. 1</b> <span>The first screen. It asks you to create your account.</span></figcaption>
@@ -68,31 +40,54 @@ docker compose up --build -d</code></pre>
   </li>
   <li>
     <h3>Make your first backup</h3>
-    <p>Go to Settings, find the backup section, type a passphrase and download the backup. Put that file somewhere other than this computer: a USB stick, or another machine.</p>
+    <p>Go to Settings, find Backup, type a passphrase and make the backup. It lands in your Downloads folder. Put a copy somewhere other than this computer: a USB stick, or another machine.</p>
     <p>Do this now, before you have much to lose, so you know how.</p>
   </li>
 </ol>
 
 <h2 id="everyday">Using it day to day</h2>
 <ul>
-  <li><b>To open it,</b> go to <a href="http://localhost:8080">http://localhost:8080</a>. Bookmark it.</li>
-  <li><b>It starts by itself</b> whenever Docker Desktop is running. If the page does not load, open Docker Desktop and wait a minute.</li>
-  <li><b>To stop it,</b> open a terminal in the folder (step 3) and type <code>docker compose down</code>. Never add <code>--volumes</code> to that command: it would erase your ledger.</li>
-  <li><b>To update it,</b> make a backup first. Then download the new ZIP, copy its contents over the old ones in the same <code>appalachian-ledger-main</code> folder (keep your <code>.env</code> file), and run <code>docker compose up --build -d</code> again. Your records carry over.</li>
+  <li><b>To open it,</b> click it in Applications or Launchpad. Keep it in the Dock if you like.</li>
+  <li><b>To close it,</b> quit it like any app (⌘Q). Your records are saved as you go.</li>
+  <li><b>To update it,</b> make a backup first. Then download the new version and drag it into Applications, replacing the old one. Your records carry over: they are kept apart from the app itself.</li>
+  <li><b>Live prices</b> need an internet connection. Everything else works offline.</li>
 </ul>
 
 <h2 id="backups">How backups work</h2>
 <p>Your whole ledger is one file on your computer. If that computer is lost or its disk fails, a backup is the only other copy.</p>
 <ul>
-  <li>A backup is a single file ending in <code>.albackup</code>, encrypted with the passphrase you type. Without the passphrase it cannot be read, by anyone.</li>
-  <li><b>There is no recovery.</b> If you lose the passphrase, the backup is useless. Keep the passphrase somewhere separate from the file.</li>
+  <li>A backup is a single file ending in <code>.albackup</code>, locked with the passphrase you type. Without the passphrase it cannot be read, by anyone.</li>
+  <li><b>There is no recovery.</b> If you lose the passphrase, the backup is useless. Keep the passphrase somewhere separate from the file. A longer passphrase is harder for someone who finds the file to guess.</li>
   <li>Keep more than one, made at different times, and keep them off the computer the app runs on.</li>
   <li>To restore, open Settings, choose the backup file and enter its passphrase. The app checks the whole file before it replaces anything, and refuses a wrong passphrase or a damaged file without touching your current ledger.</li>
   <li>The app reminds you when your last backup is getting old.</li>
 </ul>
 
-<h2 id="other">Other ways to run it</h2>
-<p>If you are comfortable with a little more setup, the project&rsquo;s own notes cover running it on a home server so your phone can reach it over your private network, and a single setup command for people who already have Python installed. See <a href="{{repo_url}}/blob/main/docs/browser-hosting.md">browser hosting</a> and <a href="{{repo_url}}/blob/main/docs/backup-and-restore.md">backup and restore</a> on GitHub.</p>
+<h2 id="windows">Windows and Intel Macs</h2>
+<p>A Windows app is next. Until then, Appalachian Bitcoin runs on Windows 10 or 11 and on Intel Macs with Docker Desktop, a free program that runs it in the background. You use it in your web browser. It takes about fifteen minutes, most of it waiting, and you type two commands.</p>
+<ol class="steps">
+  <li>
+    <h3>Install Docker Desktop</h3>
+    <p>Download it from <a href="https://www.docker.com/products/docker-desktop/">docker.com/products/docker-desktop</a> (free for personal use). On Windows, keep the option to use WSL 2 ticked; it may ask you to restart. Open Docker Desktop once and wait until it says it is running. You can skip its sign-in.</p>
+  </li>
+  <li>
+    <h3>Download Appalachian Bitcoin</h3>
+    <p><a href="{{zip_url}}">Download the ZIP file</a> and unzip it. You get a folder called <code>appalachian-ledger-main</code>. Move it somewhere it can stay, such as Documents, and <b>do not rename it later</b>: your records are tied to the folder&rsquo;s name.</p>
+  </li>
+  <li>
+    <h3>Start it</h3>
+    <p>Open a terminal in that folder. On Windows: right-click an empty part of the folder&rsquo;s window and choose <i>Open in Terminal</i>. On a Mac: open Terminal, type <code>cd</code> and a space, drag the folder onto the window and press Return. Then type these two lines, pressing Enter after each:</p>
+<pre><code>copy .env.example .env
+docker compose up --build -d</code></pre>
+    <p>On a Mac the first line is <code>cp .env.example .env</code>. The first start takes five to ten minutes. It is done when your prompt comes back and the last lines say <i>Started</i> or <i>Healthy</i>.</p>
+  </li>
+  <li>
+    <h3>Open it</h3>
+    <p>Go to <a href="http://localhost:8080">http://localhost:8080</a> in your web browser and bookmark it. Then follow steps 3 to 5 above.</p>
+  </li>
+</ol>
+<p>It starts by itself whenever Docker Desktop is running. To stop it, type <code>docker compose down</code> in that folder; never add <code>--volumes</code>, which would erase your ledger. To update, make a backup, copy the new ZIP&rsquo;s contents over the old folder (keep your <code>.env</code> file) and run <code>docker compose up --build -d</code> again.</p>
+<p>To reach one ledger from your phone over your home network, see <a href="{{repo_url}}/blob/main/docs/browser-hosting.md">browser hosting</a> on GitHub.</p>
 
 <h2 id="help">Getting help</h2>
 <p>{{help_sentence}}</p>
