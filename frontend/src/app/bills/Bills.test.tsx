@@ -85,15 +85,23 @@ describe("bills", () => {
     await waitFor(() => expect(writes()).toEqual([{ path: "/recurring-bills/9/destroy", method: "POST", body: undefined }]));
   });
 
-  it("adds a bill without recording a payment, and links it to a debt when asked", async () => {
+  it("adds several bills at once without recording a payment, skipping empty rows", async () => {
     await show();
-    fireEvent.click(screen.getByRole("button", { name: "Add a bill" }));
-    await screen.findByLabelText("Name");
-    set("Name", "Car loan");
-    set("Amount", "$1,310.50");
-    set("Next due", "2026-12-05");
-    set("Pays down a debt", "11");
-    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Add bill" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add bills" }));
+    await screen.findByLabelText("Name of bill 1");
+    const sheet = within(screen.getByRole("dialog"));
+    expect(sheet.getAllByRole("group", { name: /^Bill \d$/ })).toHaveLength(5);
+    expect(sheet.getByLabelText("Name of bill 1")).toHaveAttribute("placeholder", "Rent");
+    set("Name of bill 1", "Car loan");
+    set("Amount of bill 1", "$1,310.50");
+    set("Next due date of bill 1", "2026-12-05");
+    set("Category of bill 1", "2");
+    set("Name of bill 3", "Water");
+    set("Amount of bill 3", "40");
+    set("How often bill 3 comes", "quarterly");
+    set("Next due date of bill 3", "2026-12-20");
+    set("Category of bill 3", "2");
+    fireEvent.click(sheet.getByRole("button", { name: "Add bills" }));
     await waitFor(() => expect(writes()).toHaveLength(2));
     expect(writes()[0]).toEqual({
       path: "/recurring-bills",
@@ -104,7 +112,19 @@ describe("bills", () => {
         record_now: false,
       },
     });
-    expect(writes()[1]).toEqual({ path: "/recurring-bills/31/pays-account", method: "PUT", body: { account_id: 11 } });
+    expect(writes()[1]).toMatchObject({ body: { transaction: { amount: "40", description: "Water", date: "2026-12-20" }, frequency: "quarterly" } });
+  });
+
+  it("asks for what a half-filled bill row is missing", async () => {
+    await show();
+    fireEvent.click(screen.getByRole("button", { name: "Add bills" }));
+    await screen.findByLabelText("Name of bill 1");
+    set("Name of bill 2", "Gym");
+    set("Amount of bill 2", "30");
+    set("Next due date of bill 2", "2026-12-01");
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Add bills" }));
+    expect(await within(screen.getByRole("dialog")).findByText("Pick a category.")).toBeInTheDocument();
+    expect(writes()).toHaveLength(0);
   });
 
   it("changes a bill and keeps its notes and category", async () => {
@@ -138,12 +158,13 @@ describe("bills", () => {
     fireEvent.click(within(screen.getByLabelText(/^Income you expect/)).getByRole("button", { name: "Add income" }));
     const sheet = within(screen.getByRole("dialog"));
     expect(sheet.getByRole("heading", { name: "Add income you expect" })).toBeInTheDocument();
-    set("Name", "Tips");
-    fireEvent.click(sheet.getByLabelText(/The amount varies/));
-    set("Typical amount", "150");
-    set("How often", "weekly");
-    set("Next time you expect it", "2026-11-27");
-    fireEvent.click(sheet.getByRole("button", { name: "Save income" }));
+    expect(sheet.getAllByRole("group", { name: /^Income \d$/ })).toHaveLength(3);
+    set("Name of income 1", "Tips");
+    fireEvent.click(sheet.getByLabelText("Income 1 varies"));
+    set("Amount of income 1", "150");
+    set("How often income 1 comes", "weekly");
+    set("Next date of income 1", "2026-11-27");
+    fireEvent.click(sheet.getByRole("button", { name: "Add income" }));
     await waitFor(() =>
       expect(writes()).toEqual([{ path: "/income-schedules", method: "POST", body: { varies: true, account_id: 3, name: "Tips", amount: "150", frequency: "weekly", next_date: "2026-11-27" } }]),
     );

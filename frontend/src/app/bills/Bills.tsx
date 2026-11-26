@@ -10,6 +10,7 @@ import { LevelIcon } from "../design/icons";
 import { bitcoinFor, btc, cents, fromCents, plural, shortDate, usd } from "../lib/format";
 import { subPath } from "../lib/router";
 import type { Route } from "../lib/router";
+import { AmountInput } from "../lib/AmountInput";
 
 interface Destroyed {
   id: number;
@@ -280,7 +281,7 @@ export function Bills({ go, onChanged }: { go: (route: Route) => void; onChanged
           )}
           <div>
             <button className="btn sm primary" onClick={() => setForm("new")}>
-              Add a bill
+              Add bills
             </button>
           </div>
         </Panel>
@@ -404,6 +405,7 @@ export function Bills({ go, onChanged }: { go: (route: Route) => void; onChanged
             setNotice(message);
             changed();
           }}
+          onSome={changed}
         />
       )}
       {paycheck !== null && (
@@ -423,7 +425,7 @@ export function Bills({ go, onChanged }: { go: (route: Route) => void; onChanged
 }
 
 /** Add a bill or change one. Saving never records a payment. */
-function BillForm({ data, bill, onClose, onDone }: { data: DashboardData; bill?: Bill; onClose: () => void; onDone: (message: string) => void }) {
+function BillForm({ data, bill, onClose, onDone, onSome }: { data: DashboardData; bill?: Bill; onClose: () => void; onDone: (message: string) => void; onSome?: () => void }) {
   const [options, setOptions] = useState<{ accounts: AccountRow[]; categories: CategoryRow[]; saved?: SavedBill } | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -527,6 +529,8 @@ function BillForm({ data, bill, onClose, onDone }: { data: DashboardData; bill?:
       </Sheet>
     );
 
+  if (!bill) return <BillRows data={data} payFrom={payFrom} categories={options.categories} onClose={onClose} onDone={onDone} onSome={onSome} />;
+
   return (
     <Sheet label={title} onClose={onClose}>
       <h2>{title}</h2>
@@ -539,7 +543,7 @@ function BillForm({ data, bill, onClose, onDone }: { data: DashboardData; bill?:
           </label>
           <label className="field">
             <span>Amount{source?.currency === "BITCOIN" ? " (₿)" : ""}</span>
-            <input name="amount" className="num" inputMode="decimal" placeholder={source?.currency === "BITCOIN" ? "0" : "0.00"} defaultValue={bill?.amount} required />
+            <AmountInput name="amount" placeholder={source?.currency === "BITCOIN" ? "0" : "0.00"} defaultValue={bill?.amount} required />
           </label>
           <label className="field">
             <span>How often</span>
@@ -603,6 +607,195 @@ function BillForm({ data, bill, onClose, onDone }: { data: DashboardData; bill?:
             Cancel <kbd>Esc</kbd>
           </button>
           {bill && <TwoStep ask="Added by mistake? Remove" confirm="Yes, remove it" disabled={busy} onConfirm={() => void remove()} />}
+        </div>
+      </form>
+    </Sheet>
+  );
+}
+
+/** Bills people usually have, shown greyed out until something is typed. */
+const BILL_EXAMPLES = [
+  { name: "Rent", amount: "1,400.00", category: "Housing" },
+  { name: "Electric", amount: "95.00", category: "Utilities" },
+  { name: "Phone", amount: "65.00", category: "Utilities" },
+  { name: "Car insurance", amount: "120.00", category: "Transport" },
+  { name: "Streaming service", amount: "15.49", category: "Shopping" },
+  { name: "Internet", amount: "60.00", category: "Utilities" },
+  { name: "Gym", amount: "30.00", category: "Health" },
+  { name: "Student loan", amount: "210.00", category: "Other expense" },
+];
+const FREQUENCIES: [string, string][] = [
+  ["monthly", "Every month"],
+  ["weekly", "Every week"],
+  ["biweekly", "Every two weeks"],
+  ["quarterly", "Every 3 months"],
+  ["semiannual", "Every 6 months"],
+  ["yearly", "Every year"],
+  ["once", "One time"],
+];
+interface BillRow {
+  key: number;
+  name: string;
+  amount: string;
+  frequency: string;
+  due: string;
+  category: string;
+  error?: string;
+}
+const blankBill = (key: number): BillRow => ({ key, name: "", amount: "", frequency: "monthly", due: "", category: "" });
+const billFilled = (row: BillRow) => Boolean(row.name.trim() || row.amount.trim() || row.due || row.category);
+
+/** Add several bills at once: one row each, empty rows are skipped. Saving never records a payment. */
+function BillRows({
+  data,
+  payFrom,
+  categories,
+  onClose,
+  onDone,
+  onSome,
+}: {
+  data: DashboardData;
+  payFrom: AccountRow[];
+  categories: CategoryRow[];
+  onClose: () => void;
+  onDone: (message: string) => void;
+  onSome?: () => void;
+}) {
+  const [rows, setRows] = useState<BillRow[]>(() => [0, 1, 2, 3, 4].map(blankBill));
+  const [from, setFrom] = useState<number>(payFrom[0].id);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [added, setAdded] = useState<string[]>([]);
+  const source = payFrom.find((account) => account.id === from) ?? payFrom[0];
+  const bitcoin = source.currency === "BITCOIN";
+
+  const edit = (key: number, change: Partial<BillRow>) => setRows((current) => current.map((row) => (row.key === key ? { ...row, ...change, error: undefined } : row)));
+  const more = () => setRows((current) => [...current, blankBill(Math.max(...current.map((row) => row.key)) + 1)]);
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const wanted = rows.filter(billFilled);
+    if (!wanted.length) return setError("Fill in at least one row: a name, an amount and when it is next due.");
+    const problem = (row: BillRow) =>
+      !row.name.trim() ? "Give this bill a name." : !row.amount.trim() ? "Enter how much it is." : !row.due ? "Enter when it is next due." : !row.category ? "Pick a category." : "";
+    const bad = new Map(wanted.map((row) => [row.key, problem(row)]).filter(([, message]) => message) as [number, string][]);
+    if (bad.size) {
+      setRows((current) => current.map((row) => (bad.has(row.key) ? { ...row, error: bad.get(row.key) } : row)));
+      return setError("");
+    }
+    setBusy(true);
+    setError("");
+    const saved: string[] = [];
+    const failed = new Map<number, string>();
+    for (const row of wanted) {
+      const name = row.name.trim();
+      try {
+        await api("/recurring-bills", "POST", {
+          transaction: {
+            kind: "expense",
+            date: row.due,
+            account_id: source.id,
+            category_id: Number(row.category),
+            amount: row.amount.replace(/[$₿,\s]/g, ""),
+            description: name,
+            notes: "",
+          },
+          frequency: row.frequency,
+          record_now: false,
+        });
+        saved.push(name);
+      } catch (e) {
+        failed.set(row.key, (e as Error).message);
+      }
+    }
+    setBusy(false);
+    const all = [...added, ...saved];
+    if (!failed.size) return onDone(`Added ${all.join(", ")}.`);
+    setAdded(all);
+    setRows((current) => current.filter((row) => failed.has(row.key) || !billFilled(row)).map((row) => ({ ...row, error: failed.get(row.key) })));
+    if (saved.length) onSome?.();
+  }
+
+  return (
+    <Sheet label="Add bills" onClose={onClose} wide>
+      <h2>Add your bills</h2>
+      <p className="sub">One row for each bill that comes back: rent, utilities, phone, insurance, subscriptions. The grey text is only an example. Saving never records a payment.</p>
+      {added.length > 0 && <p className="hint" role="status">Added {added.join(", ")}. The rows below did not save yet.</p>}
+      <form onSubmit={save} style={{ display: "grid", gap: 12 }}>
+        <div className="rows" style={{ ["--cols" as string]: "minmax(140px, 1.4fr) minmax(110px, 0.9fr) minmax(130px, 1fr) minmax(130px, 1fr) minmax(130px, 1fr)" }}>
+          <div className="rows-head" aria-hidden="true">
+            <span>Name</span>
+            <span>Amount</span>
+            <span>How often</span>
+            <span>Next due</span>
+            <span>Category</span>
+          </div>
+          {rows.map((row, index) => {
+            const example = BILL_EXAMPLES[index % BILL_EXAMPLES.length];
+            return (
+              <div key={row.key} className="rows-line" aria-invalid={row.error ? true : undefined} role="group" aria-label={`Bill ${index + 1}`}>
+                <input className="wide-cell" aria-label={`Name of bill ${index + 1}`} maxLength={500} placeholder={example.name} value={row.name} onChange={(event) => edit(row.key, { name: event.target.value })} data-autofocus={index === 0 ? true : undefined} />
+                <span className="unit">
+                  <b className={bitcoin ? "btc" : undefined} aria-hidden="true">
+                    {bitcoin ? "₿" : "$"}
+                  </b>
+                  <AmountInput aria-label={`Amount of bill ${index + 1}`} placeholder={bitcoin ? "12,000" : example.amount} value={row.amount} onChange={(event) => edit(row.key, { amount: event.target.value })} />
+                </span>
+                <select aria-label={`How often bill ${index + 1} comes`} value={row.frequency} onChange={(event) => edit(row.key, { frequency: event.target.value })}>
+                  {FREQUENCIES.map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+                <input type="date" aria-label={`Next due date of bill ${index + 1}`} min={data.today} value={row.due} onChange={(event) => edit(row.key, { due: event.target.value })} />
+                <select aria-label={`Category of bill ${index + 1}`} className={row.category ? undefined : "unset"} value={row.category} onChange={(event) => edit(row.key, { category: event.target.value })}>
+                  <option value="">{categories.some((category) => category.name === example.category) ? example.category : "Category"}</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+                {row.error && (
+                  <p className="rows-error" role="alert">
+                    {row.error}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+          <button type="button" className="btn sm ghost rows-more" onClick={more}>
+            + Add another row
+          </button>
+        </div>
+        <div className="rows-shared">
+          <label className="field">
+            <span>Paid from</span>
+            <select value={from} onChange={(event) => setFrom(Number(event.target.value))}>
+              {payFrom.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="hint" style={{ flex: "1 1 260px" }}>
+            Paying a card or loan? Add it here, then use Change on that bill to link it to the debt, so you can pay the whole balance off and destroy the bill.
+          </p>
+        </div>
+        {error && (
+          <p className="gate-error" role="alert">
+            {error}
+          </p>
+        )}
+        <div className="acts">
+          <button className="btn primary" disabled={busy}>
+            {busy ? "Adding…" : "Add bills"}
+          </button>
+          <button type="button" className="btn ghost" onClick={onClose}>
+            {added.length ? "Done" : "Cancel"} <kbd>Esc</kbd>
+          </button>
         </div>
       </form>
     </Sheet>

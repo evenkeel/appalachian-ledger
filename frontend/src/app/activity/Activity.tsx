@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { AmountInput } from "../lib/AmountInput";
 import { api } from "../../lib/api";
 import { matchRule, payeeMemory, upsertRule } from "../../lib/payees";
 import { accountChoices } from "./accountChoices";
@@ -446,11 +447,9 @@ export function Activity({ onChanged }: { onChanged?: () => void }) {
           )}
           <label className="field">
             <span>{amountLabel}</span>
-            <input
+            <AmountInput
               ref={amount}
               name="amount"
-              className="num"
-              inputMode="decimal"
               defaultValue={editing?.amount ?? ""}
               placeholder={sourceAccount?.currency === "BITCOIN" ? "0" : "0.00"}
               required
@@ -463,10 +462,8 @@ export function Activity({ onChanged }: { onChanged?: () => void }) {
                   ? "Bitcoin received (₿)"
                   : "Dollars received"}
               </span>
-              <input
+              <AmountInput
                 name="received"
-                className="num"
-                inputMode="decimal"
                 defaultValue={editing?.destination_amount ?? ""}
                 placeholder={
                   targetAccount!.currency === "BITCOIN" ? "0" : "0.00"

@@ -1,9 +1,15 @@
-"""Permanent purchase-date cost observations; never use a recording-time spot quote."""
+"""Permanent purchase-date cost observations.
 
+An expense keeps the price it was first given. A past day uses that day's reference
+price; an expense dated today uses the live market quote at the moment it is saved,
+which is the price of the day it was bought. Neither is rewritten later.
+"""
+
+from datetime import date
 from decimal import Decimal, localcontext
 from sqlalchemy import select
 from . import accounting as ledger
-from .models import Account, BillOccurrence, ConversionAttachment, ExpenseCost, ExchangeRate, JournalEntry
+from .models import Account, BillOccurrence, ConversionAttachment, ExpenseCost, ExchangeRate, JournalEntry, PriceQuote
 from .money import convert
 
 
@@ -32,8 +38,22 @@ def capture(db, day=None, entry_id=None):
         if value is None:
             rate = ledger.rate_for(db, entry.date)
             value = rate.usd_per_btc if rate else None
+        quote = None
+        if value is None and entry.date == str(date.today()):
+            # Today has no closing price yet: price it at the live quote, fetched in the last ten minutes.
+            live = ledger.current_rate(db)
+            if isinstance(live, PriceQuote):
+                quote, value = live, live.usd_per_btc
         if value is None:
             continue
+        if previous_cost and previous.date == entry.date:
+            source, method, observed = previous_cost.source, previous_cost.method, previous_cost.observed_at
+        elif rate:
+            source, method, observed = rate.source, rate.method, rate.observed_at or rate.day
+        elif quote:
+            source, method, observed = quote.source, "spot", quote.observed_at
+        else:
+            source, method, observed = "Saved journal reference", "saved", entry.date
         account = db.get(Account, entry.account_id)
         db.add(
             ExpenseCost(
@@ -41,26 +61,43 @@ def capture(db, day=None, entry_id=None):
                 usd=convert(entry.amount_minor, account.currency, "USD", value),
                 bitcoin=convert(entry.amount_minor, account.currency, "BITCOIN", value),
                 usd_per_btc=value,
-                source=previous_cost.source
-                if previous_cost and previous.date == entry.date
-                else rate.source
-                if rate
-                else "Saved journal reference",
-                method=previous_cost.method
-                if previous_cost and previous.date == entry.date
-                else rate.method
-                if rate
-                else "saved",
-                observed_at=previous_cost.observed_at
-                if previous_cost and previous.date == entry.date
-                else (rate.observed_at or rate.day)
-                if rate
-                else entry.date,
+                source=source,
+                method=method,
+                observed_at=observed,
             )
         )
         count += 1
     db.flush()
     return count
+
+
+def unpriced_today(db):
+    """Expenses dated today that still have no cost: priced as soon as a live quote arrives."""
+    today = str(date.today())
+    costed = select(ExpenseCost.entry_id)
+    return list(
+        db.scalars(
+            select(JournalEntry.id).where(
+                JournalEntry.kind == "expense",
+                JournalEntry.status == "posted",
+                JournalEntry.date == today,
+                JournalEntry.id.not_in(costed),
+            )
+        )
+    )
+
+
+def ask_for_price(db, entry):
+    """An expense saved with no price: have the price source fetch what it needs, now rather than tomorrow."""
+    from .price_sync import queue_history, sync_state
+
+    source = ledger.selected_source(db)
+    if source == "manual" or db.get(ExpenseCost, entry.id):
+        return
+    if entry.date >= str(date.today()):
+        sync_state(db, source).quote_requested = True
+    else:
+        queue_history(db, source, date.fromisoformat(entry.date))
 
 
 def change(current, previous):

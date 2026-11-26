@@ -718,11 +718,10 @@ export function BudgetsPanel({ className, data, flag, go }: { className?: string
 export function SetupPanel({ className, data, demoEnabled, go, onPaycheck, onDemo }: { className?: string; data: DashboardData; demoEnabled: boolean; go: Go; onPaycheck: () => void; onDemo: () => void }) {
   const s = data.setup;
   const steps: { done: boolean; title: string; sub: string; action?: ReactNode }[] = [
-    { done: s.has_account, title: "Add your checking or cash account", sub: "Turns on: Checking forecast, Spend pace", action: <button className="btn sm" onClick={() => go("accounts", "add")}>Add account</button> },
-    { done: s.has_paycheck, title: "Add the income you expect", sub: "A paycheck, tips, side work. Turns on: payday in Checking forecast", action: s.has_account ? <button className="btn sm" onClick={onPaycheck}>Add income</button> : undefined },
-    { done: s.has_bills, title: "Add recurring bills", sub: "Turns on: Checking forecast, Bills", action: <button className="btn sm" onClick={() => go("bills", "add")}>Add bills</button> },
+    { done: s.has_account, title: "Add your accounts", sub: "Checking, savings, cards, loans, all at once. Turns on: Checking forecast, Spend pace", action: <button className="btn sm" onClick={() => go("accounts", "add")}>Add accounts</button> },
+    { done: s.has_paycheck, title: "Add the income you expect", sub: "Paychecks, tips, side work. Turns on: payday in Checking forecast", action: s.has_account ? <button className="btn sm" onClick={onPaycheck}>Add income</button> : undefined },
+    { done: s.has_bills, title: "Add your bills", sub: "Rent, utilities, phone, subscriptions, all at once. Turns on: Checking forecast, Bills", action: <button className="btn sm" onClick={() => go("bills", "add")}>Add bills</button> },
     { done: s.has_bitcoin, title: "Record your bitcoin", sub: "Turns on: Stack", action: <button className="btn sm" onClick={() => go("accounts", "add-bitcoin")}>Add bitcoin</button> },
-    { done: s.has_price_source, title: "Choose a price source", sub: "Turns on: bitcoin cost on every expense", action: <button className="btn sm" onClick={() => go("settings")}>Choose</button> },
     { done: s.has_backup, title: "Make an encrypted backup", sub: "Turns on: backup reminders", action: <button className="btn sm" onClick={() => go("settings")}>Back up</button> },
   ];
   const done = steps.filter((step) => step.done).length;

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { AmountInput } from "../lib/AmountInput";
 import { api } from "../../lib/api";
 import { Panel } from "../dashboard/panels";
 import { Sheet } from "../dashboard/Sheets";
@@ -380,7 +381,7 @@ function ValueForm({ account, asset, today, onDone }: { account: Account; asset:
     <form className="acc-form" onSubmit={save} aria-label={`New value for ${account.name}`}>
       <label className="field">
         <span>Worth now{account.currency === "BITCOIN" ? " (₿)" : ""}</span>
-        <input name="value" className="num" inputMode="decimal" placeholder={account.currency === "BITCOIN" ? "0" : "0.00"} required />
+        <AmountInput name="value" placeholder={account.currency === "BITCOIN" ? "0" : "0.00"} required />
       </label>
       <label className="field">
         <span>As of</span>

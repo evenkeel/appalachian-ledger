@@ -45,6 +45,12 @@ function Screens() {
   useEffect(() => {
     if (phase === "ready") refreshPrice();
   }, [phase, refreshPrice]);
+  // Coinbase is on from the start, so a new ledger's first price lands seconds after sign-in: look again until it does.
+  useEffect(() => {
+    if (phase !== "ready" || price !== null || !priceChosen) return;
+    const timer = window.setInterval(refreshPrice, 10_000);
+    return () => window.clearInterval(timer);
+  }, [phase, price, priceChosen, refreshPrice]);
   const changed = useCallback(() => {
     void refreshAlerts();
     refreshPrice();

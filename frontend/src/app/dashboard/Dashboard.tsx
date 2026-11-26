@@ -98,7 +98,9 @@ export function Dashboard({
       </div>
     );
 
-  const setupDone = Object.values(data.setup).every(Boolean);
+  // Prices come from Coinbase from the start, so the price source is not a setup step.
+  const { has_price_source: _priceSource, ...steps } = data.setup;
+  const setupDone = Object.values(steps).every(Boolean);
   const recent = spending.transactions.filter((row) => row.date.startsWith(data.month));
   const flag = (panel: string): Flag => {
     const alert = alerts?.active

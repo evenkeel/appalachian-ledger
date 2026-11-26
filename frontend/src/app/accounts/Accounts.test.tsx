@@ -169,17 +169,51 @@ describe("accounts", () => {
 
   it("adds a bitcoin wallet in whole bitcoin units", async () => {
     await show();
-    fireEvent.click(screen.getByRole("button", { name: "Add an account" }));
-    set("Kind", "bitcoin_wallet");
-    set("Name", "Phone wallet");
-    set("Bitcoin held (₿)", "₿125,000");
-    fireEvent.click(dialog().getByRole("button", { name: "Add account" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add accounts" }));
+    set("Kind of account 1", "bitcoin_wallet");
+    set("Name of account 1", "Phone wallet");
+    set("Bitcoin held in account 1", "₿125,000");
+    fireEvent.click(dialog().getByRole("button", { name: "Add accounts" }));
     await waitFor(() => expect(writes()).toHaveLength(1));
     expect(writes()[0]).toEqual({
       path: "/accounts",
       method: "POST",
       body: { name: "Phone wallet", kind: "bitcoin_wallet", currency: "BITCOIN", opening_balance: "125000", date: "2026-11-19" },
     });
+  });
+
+  it("adds several accounts at once, skips empty rows and shows grey examples", async () => {
+    await show();
+    fireEvent.click(screen.getByRole("button", { name: "Add accounts" }));
+    // Five rows to start, each with an example of its kind.
+    expect(dialog().getAllByRole("group", { name: /^Account \d$/ })).toHaveLength(5);
+    expect(dialog().getByLabelText("Name of account 1")).toHaveAttribute("placeholder", "Everyday checking");
+    expect(dialog().getByLabelText("Bitcoin held in account 4")).toHaveAttribute("placeholder", "1,250,000");
+    set("Name of account 1", "Credit union");
+    set("Balance today of account 1", "2400");
+    expect(dialog().getByLabelText("Balance today of account 1")).toHaveValue("2,400");
+    set("Name of account 3", "Store card");
+    set("Owed today on account 3", "310.25");
+    set("Credit limit of account 3", "1500");
+    set("Payment due day of account 3", "20");
+    fireEvent.click(dialog().getByRole("button", { name: "+ Add another row" }));
+    expect(dialog().getAllByRole("group", { name: /^Account \d$/ })).toHaveLength(6);
+    fireEvent.click(dialog().getByRole("button", { name: "Add accounts" }));
+    await waitFor(() => expect(writes()).toHaveLength(3));
+    expect(writes()).toEqual([
+      { path: "/accounts", method: "POST", body: { name: "Credit union", kind: "checking", currency: "USD", opening_balance: "2400", date: "2026-11-19" } },
+      { path: "/accounts", method: "POST", body: { name: "Store card", kind: "credit_card", currency: "USD", opening_balance: "310.25", date: "2026-11-19" } },
+      expect.objectContaining({ method: "PUT", body: { credit_limit: "1500", due_day: 20 } }),
+    ]);
+  });
+
+  it("asks for a name on a row that has only a balance, and saves nothing", async () => {
+    await show();
+    fireEvent.click(screen.getByRole("button", { name: "Add accounts" }));
+    set("Balance today of account 2", "500");
+    fireEvent.click(dialog().getByRole("button", { name: "Add accounts" }));
+    expect(await dialog().findByText("Give this account a name.")).toBeInTheDocument();
+    expect(writes()).toHaveLength(0);
   });
 
   it("closes an account only after a second press", async () => {

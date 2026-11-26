@@ -187,7 +187,7 @@ def test_automatic_schedule_offline_and_quote_age(owner, monkeypatch):
     provider.history_calls = []
     monkeypatch.setattr(price_sync, "provider_for", lambda _: provider)
     monkeypatch.setattr("app.accounting.utcnow", lambda: CLOCK)
-    assert price_sync.tick(CLOCK) is False  # Manual default performs no HTTP.
+    assert price_sync.tick(CLOCK) is False  # Manual prices perform no HTTP.
     assert provider.quote_calls == 0
     select_source(owner, automatic=True)
     price_sync.tick(CLOCK)
@@ -203,6 +203,20 @@ def test_automatic_schedule_offline_and_quote_age(owner, monkeypatch):
     select_source(owner, source="manual")
     price_sync.tick(CLOCK + timedelta(hours=1))
     assert provider.quote_calls == 1
+
+
+def test_a_new_owner_starts_on_automatic_coinbase_prices(coinbase_owner, monkeypatch):
+    provider = FakeCoinbase()
+    provider.history_calls = []
+    monkeypatch.setattr(price_sync, "provider_for", lambda _: provider)
+    monkeypatch.setattr("app.accounting.utcnow", lambda: CLOCK)
+    preferences = coinbase_owner.get("/api/settings").json()["preferences"]
+    assert preferences["rate_source"] == "coinbase"
+    assert preferences["automatic_prices"] is True
+    # No setup step: the first tick fetches a quote and the checklist does not ask for a source.
+    price_sync.tick(CLOCK)
+    assert provider.quote_calls == 1
+    assert coinbase_owner.get("/api/dashboard").json()["setup"]["has_price_source"] is True
 
 
 def test_review_conversions_is_audited_and_does_not_edit_journals(owner):

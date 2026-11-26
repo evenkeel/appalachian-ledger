@@ -5,7 +5,7 @@ import { useSession } from "../lib/session";
 
 /** First-run setup and sign-in. Nothing from the ledger is shown until this succeeds. */
 export function SignIn() {
-  const { phase, signIn } = useSession();
+  const { phase, signedOut, signIn } = useSession();
   const creating = phase === "setup";
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -30,11 +30,13 @@ export function SignIn() {
     <main className="gate">
       <Lockup />
       <form className="inst gate-form" onSubmit={submit} aria-labelledby="gate-title">
-        <h1 id="gate-title">{creating ? "Create your owner account" : "Unlock your ledger"}</h1>
+        <h1 id="gate-title">{creating ? "Create your owner account" : signedOut ? "You are logged out" : "Unlock your ledger"}</h1>
         <p className="sub">
           {creating
             ? "This account lives only on this machine. There is no cloud sign-up and no recovery email, so pick a password you will remember."
-            : "Your session ended. Sign in to show your figures again."}
+            : signedOut
+              ? "Nothing from the ledger is on screen. Sign in to open it again."
+              : "Your session ended. Sign in to show your figures again."}
         </p>
         <label className="field">
           <span>Username</span>
@@ -61,7 +63,7 @@ export function SignIn() {
           </p>
         )}
         <button className="btn primary" disabled={busy}>
-          {busy ? "One moment…" : creating ? "Create account" : "Unlock"}
+          {busy ? "One moment…" : creating ? "Create account" : signedOut ? "Sign in" : "Unlock"}
         </button>
       </form>
       <p className="hint">Self-hosted. No telemetry, no third-party analytics.</p>
