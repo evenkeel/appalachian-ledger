@@ -28,7 +28,20 @@ from .prices import parse_time
 router = APIRouter(prefix="/api/market", dependencies=[Depends(authenticate)])
 
 #: Seconds in each bar the screen can ask for.
-INTERVALS = {"1m": 60, "5m": 300, "15m": 900, "1h": 3600, "4h": 14400, "1d": 86400, "1w": 604800}
+INTERVALS = {
+    "1m": 60,
+    "5m": 300,
+    "15m": 900,
+    "1h": 3600,
+    "4h": 14400,
+    "1d": 86400,
+    "1w": 604800,
+    "1mo": 2629746,
+    "3mo": 7889238,
+    "1y": 31556952,
+}
+#: Bar sizes cut on the calendar, so their length in seconds above is only an average.
+CALENDAR = {"1mo": 1, "3mo": 3, "1y": 12}
 SYMBOL = re.compile(r"^[A-Z0-9^][A-Z0-9.\-^=]{0,14}$")
 BITCOIN = "BTC-USD"
 #: The most bars one reply carries.
@@ -78,7 +91,15 @@ def check_symbol(value):
 
 
 def bucket(stamp, interval):
-    """The start of the bar a moment falls in, for bars cut on UTC boundaries. Weeks start on Monday."""
+    """The start of the bar a moment falls in, for bars cut on UTC boundaries.
+
+    Weeks start on Monday; months, quarters and years on the first day of January, April, July and October.
+    """
+    if interval in CALENDAR:
+        date = datetime.fromtimestamp(stamp, timezone.utc)
+        months = CALENDAR[interval]
+        month = (date.month - 1) // months * months + 1
+        return int(datetime(date.year, month, 1, tzinfo=timezone.utc).timestamp())
     if interval == "1w":
         day = stamp // 86400
         return (day - (day + 3) % 7) * 86400
@@ -158,25 +179,31 @@ def trim(rows, keep):
 #: Bar size -> (Coinbase granularity, pages of 300 bars loaded the first time).
 COINBASE_BARS = {"1m": (60, 3), "5m": (300, 3), "15m": (900, 3), "1h": (3600, 8), "1d": (86400, 5)}
 #: Bar sizes Coinbase does not serve, built from a smaller one.
-COINBASE_BUILT = {"4h": "1h", "1w": "1d"}
+COINBASE_BUILT = {"4h": "1h", "1w": "1d", "1mo": "1d", "3mo": "1d", "1y": "1d"}
+#: Pages of daily bars that reach back past Coinbase's first bitcoin trade in 2015, for the longest bars.
+ALL_DAYS = 16
 
 
 _coinbase_gate = threading.Lock()
 _coinbase_last = 0.0
 
 
-def coinbase_page(granularity, end=None):
+def coinbase_pause():
+    """Long histories are read page after page; stay well inside Coinbase's public request limit."""
     global _coinbase_last
-    params = {"granularity": granularity}
-    if end is not None:
-        iso = lambda stamp: datetime.fromtimestamp(stamp, timezone.utc).isoformat()  # noqa: E731
-        params.update(start=iso(end - 299 * granularity), end=iso(end))
-    # Long histories are read page after page; stay well inside Coinbase's public request limit.
     with _coinbase_gate:
         pause = _coinbase_last + 0.12 - time.monotonic()
         if pause > 0:
             time.sleep(pause)
         _coinbase_last = time.monotonic()
+
+
+def coinbase_page(granularity, end=None):
+    params = {"granularity": granularity}
+    if end is not None:
+        iso = lambda stamp: datetime.fromtimestamp(stamp, timezone.utc).isoformat()  # noqa: E731
+        params.update(start=iso(end - 299 * granularity), end=iso(end))
+    coinbase_pause()
     data = fetch_json(f"{COINBASE}/products/{BITCOIN}/candles", params)
     if not isinstance(data, list):
         raise Unavailable("Coinbase sent an unreadable reply. Retrying.")
@@ -282,7 +309,7 @@ def with_last_trade(rows, interval, ticker):
 
 def bitcoin_candles(interval):
     base = COINBASE_BUILT.get(interval, interval)
-    rows, stale = coinbase_series(base)
+    rows, stale = coinbase_series(base, ALL_DAYS if interval in CALENDAR else None)
     if base != interval:
         rows = combine(rows, interval)
     try:
@@ -326,6 +353,48 @@ def bitcoin_quote():
     }
 
 
+#: Pages of 1,000 recent trades read for a tick chart, and how long one reading is shared.
+TRADE_PAGES = 10
+TRADE_REUSE = 5
+
+
+def coinbase_trades():
+    """Bitcoin's most recent trades on Coinbase, oldest first, as {"p": price, "s": size in BTC, "t": milliseconds}."""
+
+    def load():
+        found = {}
+        cursor = None
+        for _ in range(TRADE_PAGES):
+            params = {"limit": 1000, **({"after": cursor} if cursor is not None else {})}
+            coinbase_pause()
+            try:
+                data = fetch_json(f"{COINBASE}/products/{BITCOIN}/trades", params)
+            except Unavailable:
+                if found:
+                    break  # The newest pages are enough to draw from.
+                raise
+            if not isinstance(data, list) or not data:
+                break
+            for item in data:
+                try:
+                    trade = int(item["trade_id"])
+                    found[trade] = {
+                        "p": number(item["price"]),
+                        "s": number(item["size"]),
+                        "t": int(parse_time(item["time"]).timestamp() * 1000),
+                    }
+                except (KeyError, TypeError, ValueError):
+                    continue
+            if not found:
+                break
+            cursor = min(found)  # Coinbase pages back from the oldest trade id seen so far.
+        if not found:
+            raise Unavailable("Coinbase returned no recent trades. Retrying.")
+        return [found[key] for key in sorted(found)]
+
+    return remembered(("coinbase", "trades"), TRADE_REUSE, load)
+
+
 # ---------- Everything else: Yahoo Finance ----------
 
 #: Bar size -> (Yahoo's name for it, range loaded the first time, range re-read on each refresh).
@@ -337,7 +406,10 @@ YAHOO_BARS = {
     "4h": ("4h", "1y", "5d"),
     "1d": ("1d", "5y", "1mo"),
     "1w": ("1wk", "10y", "3mo"),
+    "1mo": ("1mo", "max", "1y"),
 }
+#: Bar sizes Yahoo does not serve dependably, built from its monthly bars.
+YAHOO_BUILT = {"3mo": "1mo", "1y": "1mo"}
 _names = {}
 
 
@@ -382,11 +454,13 @@ def yahoo_rows(result, interval):
             volume = number(prices["volume"][index] or 0)
         except (TypeError, ValueError, IndexError, KeyError):
             continue  # Yahoo leaves gaps as nulls where nothing traded.
-        if interval in ("1d", "1w"):
+        if interval in ("1d", "1w", "1mo"):
             day = local_day(stamp, meta)
             if interval == "1w":
                 day -= (day + 3) % 7
             stamp = day * 86400
+            if interval == "1mo":
+                stamp = bucket(stamp, "1mo")
         elif last is not None and 0 < stamp - last < step:
             stamp = last  # The newest row carries the time of the last trade, not the start of its bar.
         bar = rows.get(stamp)
@@ -402,7 +476,12 @@ def yahoo_chart(symbol, code, span):
     try:
         data = fetch_json(
             f"{YAHOO}/v8/finance/chart/{urlquote(symbol, safe='')}",
-            {"interval": code, "range": span, "includePrePost": "false"},
+            {
+                "interval": code,
+                "includePrePost": "false",
+                # Asked for as a range, "max" comes back in coarser bars than asked; a span of dates does not.
+                **({"period1": 0, "period2": int(time.time())} if span == "max" else {"range": span}),
+            },
         )
     except NotFound:
         raise NotFound(f"No prices found for {symbol}. Check the symbol.") from None
@@ -416,14 +495,21 @@ def yahoo_chart(symbol, code, span):
         raise NotFound(f"No prices found for {symbol}. Check the symbol.") from None
 
 
-def yahoo_candles(symbol, interval):
+def yahoo_candles(symbol, interval, deep=False):
+    """Bars from Yahoo. `deep` reads a symbol's daily bars back to its first trade, for the longest bars."""
+    if interval in YAHOO_BUILT:
+        reply = yahoo_candles(symbol, YAHOO_BUILT[interval])
+        return {**reply, "candles": combine(reply["candles"], interval)}
     code, first, again = YAHOO_BARS[interval]
     series = series_for(("yahoo", symbol, interval))
     with series.lock:
         now = time.monotonic()
-        if not series.rows or now - series.at >= series.wait:
+        widen = deep and not series.pages
+        if not series.rows or widen or now - series.at >= series.wait:
             try:
-                result = yahoo_chart(symbol, code, again if series.rows else first)
+                result = yahoo_chart(symbol, code, "max" if widen else again if series.rows else first)
+                if widen:
+                    series.pages = 1
                 series.rows.update(yahoo_rows(result, interval))
                 series.meta = result["meta"]
                 # A closed market has nothing new; ask far less often.
@@ -437,7 +523,7 @@ def yahoo_candles(symbol, interval):
             series.at = now
         if not series.rows:
             raise NotFound(f"Yahoo Finance has no {interval} prices for {symbol}.")
-        trim(series.rows, MAX_BARS)
+        trim(series.rows, 40000 if series.pages else MAX_BARS)
         meta = series.meta
         name = meta.get("longName") or meta.get("shortName") or symbol
         _names[symbol] = name
@@ -567,6 +653,8 @@ PRICED_WITH = {
     "1h": [("1h", 15)],
     "4h": [("1h", 15)],
     "1d": [("1h", 15), ("1d", 7)],
+    # Months, quarters and years are built from days priced back to Coinbase's first bitcoin bar.
+    "all": [("1h", 15), ("1d", ALL_DAYS)],
 }
 #: How long the last trade stands as the price when a stretch has no bitcoin bars.
 QUIET = 3600
@@ -708,15 +796,24 @@ def in_bitcoin(rows, interval, symbol, meta, tape):
 
 def bitcoin_priced(symbol, interval):
     """Bars for a dollar-quoted symbol in whole bitcoin. Anything else comes back in its own unit."""
-    # A week is built from its days, so a holiday Monday or Friday is priced on the days that traded.
-    base = "1d" if interval == "1w" else interval
-    reply = yahoo_candles(symbol, base)
+    # Weeks and longer are built from their days, so a holiday Monday or Friday is priced on the days that traded.
+    long = interval in CALENDAR
+    base = "1d" if interval == "1w" or long else interval
+    reply = yahoo_candles(symbol, base, deep=long)
     if reply["currency"] != "USD" or symbol in YIELDS:
         return reply if base == interval else yahoo_candles(symbol, interval)
-    tape, stale = bitcoin_tape(base)
-    rows = in_bitcoin(reply["candles"], base, symbol, series_for(("yahoo", symbol, base)).meta, tape)
-    if interval == "1w":
-        rows = combine(rows, "1w")
+    tape, stale = bitcoin_tape("all" if long else base)
+    # Days from before bitcoin's first bar can never be priced, so they are not looked at.
+    earliest = min((starts[0] for _, starts, _ in tape.layers), default=0) - 86400
+    rows = in_bitcoin(
+        [row for row in reply["candles"] if row[0] >= earliest],
+        base,
+        symbol,
+        series_for(("yahoo", symbol, base)).meta,
+        tape,
+    )
+    if base != interval:
+        rows = combine(rows, interval)
     if not rows:
         raise Unavailable("Bitcoin's prices for this stretch have not arrived yet. Retrying.")
     digits = 0 if rows[-1][4] >= 100 else 2
@@ -766,6 +863,12 @@ def candles(
     full = after is None or not rows or after < rows[0][0] or after > rows[-1][0]
     reply["candles"] = rows if full else [row for row in rows if row[0] >= after]
     return {"unit": reply["currency"], **reply, "interval": interval, "full": full}
+
+
+@router.get("/trades")
+def trades():
+    """Bitcoin's most recent trades, oldest first, to start a tick chart before the live stream adds to it."""
+    return {"trades": answer(coinbase_trades)}
 
 
 @router.get("/quotes")

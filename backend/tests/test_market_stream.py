@@ -181,6 +181,12 @@ def test_the_order_book_is_sent_as_a_picture_nearest_levels_exact_and_the_rest_g
         "bids": [[60000, 2.0], [59995, 2.0], [59990, 4.0], [59000, 10.0]],
         "asks": [[60005, 2.0], [60015, 3.0], [61000, 8.0]],
     }
+    # Grouped by fifty dollars and reaching a quarter of the price either way, for the widest groups.
+    assert picture["far"] == {
+        "step": 50,
+        "bids": [[60000, 2.0], [59950, 6.0], [59000, 10.0]],
+        "asks": [[60050, 5.0], [61000, 8.0]],
+    }
 
 
 def test_updates_change_the_book_and_pictures_are_sent_a_few_times_a_second(monkeypatch):

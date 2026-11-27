@@ -5,10 +5,17 @@ writes to the ledger, and nothing on it is used to value an account or an expens
 
 ## What it shows
 
-- **Charts.** Open-high-low-close bars by default, with candles, a line or an area one click away. The bar
-  size is chosen from a row on every chart: 1m, 5m, 15m, 1h, 4h, 1D, 1W. Volume, 20/50/200-bar moving
-  averages and a log scale are under **Indicators**. Hover to read a bar's open, high, low and close, and
-  drag to move through time.
+- **Charts.** Open-high-low-close bars by default, with candles one click away. The bar size is chosen from
+  a row on every chart: 1m, 5m, 15m, 1h, 4h, 1D, 1W, 1M (month), 3M (quarter) and 1Y (year). Months,
+  quarters and years start on the first of the month and reach back to each symbol's first price (bitcoin
+  from Coinbase's start in 2015). Under **Indicators**: volume, 20/50/200-bar moving averages, Bollinger
+  bands (20 bars, two standard deviations), RSI (14 bars, with the 70 and 30 lines) and MACD (12, 26, 9) in
+  panes under the price, and a log scale for the price. Hover to read a bar's open, high, low and close and
+  each indicator's value, and drag to move through time.
+- **Bitcoin's tick chart.** Each bar is a set number of trades (50, 100, 250, 500 or 1,000) however long
+  they took, so a busy minute draws many bars and a quiet hour few. It starts from bitcoin's latest 10,000
+  Coinbase trades and adds every trade from the live stream after them; the axis reads when each bar's first
+  trade happened. Volume and RSI can be shown under it. The newest 60,000 trades are kept while it is open.
 - **Scrolling and zooming.** Scrolling with the pointer over a chart moves the page, as it does anywhere
   else. To zoom a chart, hold Ctrl or ⌘ and scroll, pinch on a trackpad, use the − and + buttons that appear
   over the chart, or drag along the dates at the bottom. A sideways swipe moves through time. A chart that
@@ -18,15 +25,15 @@ writes to the ledger, and nothing on it is used to value an account or an expens
 - **Bitcoin's order book.** Everyone waiting to buy and sell on Coinbase: sellers above, buyers below, the
   spread between them, updated about four times a second. Each row shows the price, the bitcoin resting
   there and the running total out from the middle, shaded by that total. Prices can be shown to the cent or
-  grouped in wider dollar steps.
+  grouped in wider dollar steps, from $1 up to a few thousand dollars.
 - **Bitcoin's depth chart.** The same order book added up outward from the price: buy orders rising to the
   left, sell orders to the right. Hovering reads how much bitcoin, and how many dollars, sit between the
-  price and the pointer. The reach either side is ±0.25%, ±0.5%, ±1% or ±2.5%.
+  price and the pointer. The reach either side runs from ±0.25% to ±25%.
 - **Any symbol.** Bitcoin, gold, silver, stock indexes and single stocks are quick picks; anything else is
   found by name or ticker through the search.
 
-Panels are added from **+ Add** at the top of the screen. The order book and depth chart are for bitcoin
-only, since Coinbase is the one source here with a public order book.
+Panels are added from **+ Add** at the top of the screen. The order book, depth chart and tick chart are for
+bitcoin only, since Coinbase is the one source here with a public order book and every trade.
 
 Panels are dragged by their top edge and resized from the bottom-right corner, the bottom edge or the right
 edge. A chart can fill the screen and come back with Escape. On a phone the panels stack in one column.
@@ -61,6 +68,7 @@ Bitcoin's chart stays in dollars and, under the bitcoin lens, adds how much bitc
 
 How a bar is priced:
 
+- A month, quarter or year is built from its days priced this way, as a week is.
 - A bar's **open** is its dollar open divided by bitcoin's price at the moment the bar opened, and its
   **close** is its dollar close divided by bitcoin's price at the moment it closed.
 - What the price reached in between is not known in bitcoin, because the dollar high and the bitcoin price at
@@ -76,8 +84,8 @@ How a bar is priced:
   any other contract is taken at the 17:00 close. The newest bar is priced no later than its last trade.
 
 How far back each bar size goes in bitcoin: 1m about two days, 5m about ten days, 15m a month, 1h and 4h
-about six months, 1D and 1W five years (the most recent six months of daily bars use hourly bitcoin prices,
-older ones daily).
+about six months, 1D and 1W five years, 1M, 3M and 1Y back to 2015 (the most recent six months of daily bars
+use hourly bitcoin prices, older ones daily).
 
 A yield (such as the 10-year Treasury) is a rate, not a price, and a symbol quoted in another currency would
 need an exchange rate, so both stay as they are and are marked **Not priced in bitcoin**. Watchlists stay in
@@ -112,8 +120,9 @@ Each trade carries the exchange's own timestamp; on a home connection a trade is
 
 The full BTC-USD book is tens of thousands of price levels, so the server keeps it and sends the browser a
 picture about four times a second: the 60 levels nearest the spread on each side exactly as the exchange
-holds them, a view grouped by the dollar a quarter of a percent either way, and a coarser view 2.5% either
-way for the depth chart and the wider groups. The server holds the book only while an order book or depth
+holds them, a view grouped by the dollar a quarter of a percent either way, a coarser view 2.5% either way,
+and a view in round steps of about a tenth of a percent reaching 25% either way, for the widest groups and
+reaches. The server holds the book only while an order book or depth
 panel is open. If an update is missed and the book stops making sense (a buyer above the lowest seller), it
 is read again from the start instead of being shown wrong. Sizes are in BTC.
 
@@ -126,7 +135,8 @@ Neither source is a contracted feed. Either can change, rate-limit or go quiet. 
 keeps the last bars it received and is marked **Not updating**; a symbol with no prices says so instead of
 drawing an empty chart. No price is ever filled in.
 
-Four-hour and weekly bitcoin bars are built from Coinbase's hourly and daily bars. Daily and weekly bars for
+Four-hour bitcoin bars are built from Coinbase's hourly bars, and weekly, monthly, quarterly and yearly ones
+from its daily bars. Monthly bars for other symbols are Yahoo's own; quarters and years are built from them. Daily and weekly bars for
 other symbols sit on their trading date in the exchange's own time zone; bars within a day are shown in your
 browser's time zone.
 
@@ -147,8 +157,10 @@ All require a signed-in owner and are read-only.
 - `GET /api/market/stream`: server-sent events, one per BTC-USD trade, as `{"p": price, "s": size in BTC,
   "t": milliseconds}`. A stream ends after ten minutes and the browser reconnects, which checks the sign-in
   again. It is sent with `X-Accel-Buffering: no`, so the bundled nginx passes events through unbuffered.
+- `GET /api/market/trades`: bitcoin's latest 10,000 or so Coinbase trades, oldest first, each as
+  `{"p", "s", "t"}` like the stream, to start a tick chart.
 - `GET /api/market/book`: server-sent events, each a picture of the BTC-USD order book as `{"t", "bid",
-  "ask", "top", "near", "wide"}`, where each view is `{"step", "bids", "asks"}` with levels as
+  "ask", "top", "near", "wide", "far"}`, where each view is `{"step", "bids", "asks"}` with levels as
   `[price, size in BTC]`, bids from the highest price down and asks from the lowest up.
 - `GET /api/market/quotes?symbols=A,B,C`: latest price, the earlier price the change is measured from
   (`previous`, with `basis` saying whether that is 24 hours ago or the previous close) and a short run of

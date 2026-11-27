@@ -57,6 +57,7 @@ class Provider:
         self.candles = {}
         self.charts = {}
         self.spark = {}
+        self.trades = {}
 
     def __call__(self, url, params=None):
         self.calls.append((url, dict(params or {})))
@@ -66,6 +67,8 @@ class Provider:
             return self.ticker
         if url.endswith("/stats"):
             return {"open": "58000"}
+        if url.endswith("/trades"):
+            return self.trades.get(params.get("after"), [])
         if url.endswith("/candles"):
             if "end" in params:
                 return []
@@ -137,6 +140,44 @@ def test_four_hour_and_weekly_bitcoin_bars_are_built_from_smaller_ones(owner, pr
     # Saturday and Sunday belong to the week that began the Monday before.
     assert [bar[0] for bar in week] == [MONDAY - 7 * DAY, MONDAY]
     assert week[0][1:5] == [57999, 59005, 57995, 59000]
+
+
+def test_month_quarter_and_year_bars_are_built_from_days_on_the_calendar(owner, provider):
+    # 2026-09-29 to 2026-10-02: the end of September, the start of October and of the fourth quarter.
+    start = 1790640000
+    provider.candles[86400] = coinbase_rows(start, DAY, [58000, 59000, 60000, 61000])
+    month = owner.get("/api/market/candles?symbol=BTC-USD&interval=1mo").json()["candles"]
+    # 1 September and 1 October 2026, then November opened by the newest trade.
+    assert [bar[0] for bar in month] == [1788220800, 1790812800, 1793491200]
+    assert month[0][1:5] == [57999, 59005, 57995, 59000]
+    quarter = owner.get("/api/market/candles?symbol=BTC-USD&interval=3mo").json()["candles"]
+    assert [bar[0] for bar in quarter] == [1782864000, 1790812800]  # 1 July and 1 October 2026
+    year = owner.get("/api/market/candles?symbol=BTC-USD&interval=1y").json()["candles"]
+    assert [bar[0] for bar in year] == [1767225600]  # 1 January 2026
+    assert year[0][1:6] == [57999, 61005, 57995, 60100.5, 8.0]
+    # Daily bars are read page after page until Coinbase has none older, since a year bar needs them all.
+    assert (
+        sum(1 for url, params in provider.calls if url.endswith("/candles") and params.get("granularity") == 86400) == 2
+    )
+
+
+def test_a_tick_chart_starts_from_bitcoins_recent_trades_oldest_first(owner, provider):
+    trade = lambda number, price, second: {  # noqa: E731
+        "trade_id": number,
+        "price": str(price),
+        "size": "0.5",
+        "time": f"2026-11-16T05:30:{second:02d}.250Z",
+    }
+    provider.trades[None] = [trade(12, 60010, 9), trade(11, 60000, 8), {"trade_id": "x"}]
+    provider.trades[11] = [trade(10, 59990, 7)]
+    trades = owner.get("/api/market/trades").json()["trades"]
+    assert trades == [
+        {"p": 59990.0, "s": 0.5, "t": 1794807007250},
+        {"p": 60000.0, "s": 0.5, "t": 1794807008250},
+        {"p": 60010.0, "s": 0.5, "t": 1794807009250},
+    ]
+    # Older pages are read back from the oldest trade seen, until Coinbase has no more.
+    assert [params.get("after") for url, params in provider.calls if url.endswith("/trades")] == [None, 11, 10]
 
 
 def test_a_refresh_sends_only_the_bars_from_the_one_held(owner, provider):

@@ -4,8 +4,8 @@ import type { Layout } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import { Sheet } from "../dashboard/Sheets";
 import { useSession } from "../lib/session";
-import { BITCOIN, COLUMNS, MAX_PANELS, PRESETS, ROW, SMALLEST, addPanel, changePanel, chart, defaultBoard, followLens, loadBoard, removePanel, saveBoard, symbolsOn } from "./board";
-import type { Board, BookSpec, ChartSpec, DepthSpec, Instrument, Spec } from "./board";
+import { BITCOIN, COLUMNS, MAX_PANELS, PRESETS, ROW, SMALLEST, addPanel, changePanel, chart, defaultBoard, followLens, loadBoard, removePanel, saveBoard, symbolsOn, ticks } from "./board";
+import type { Board, BookSpec, ChartSpec, DepthSpec, Instrument, Spec, TicksSpec } from "./board";
 import { ChartPanel } from "./ChartPanel";
 import { DepthChart } from "./DepthChart";
 import { Menu } from "./Menu";
@@ -14,6 +14,7 @@ import { useQuotes } from "./feed";
 import { LOOKS, loadLook, saveLook } from "./looks";
 import type { Look } from "./looks";
 import { SymbolPicker } from "./SymbolPicker";
+import { TickChart } from "./TickChart";
 import { Watchlist } from "./Watchlist";
 import "./markets.css";
 
@@ -84,6 +85,15 @@ export function Markets() {
       />
     ) : spec.kind === "book" ? (
       <OrderBook spec={spec} onChange={(patch) => setBoard((before) => changePanel<BookSpec>(before, spec.id, patch))} onRemove={() => remove(spec.id)} />
+    ) : spec.kind === "ticks" ? (
+      <TickChart
+        spec={spec}
+        look={look}
+        expanded={expanded === spec.id}
+        onChange={(patch) => setBoard((before) => changePanel<TicksSpec>(before, spec.id, patch))}
+        onRemove={() => remove(spec.id)}
+        onExpand={() => setExpanded(expanded === spec.id ? null : spec.id)}
+      />
     ) : spec.kind === "depth" ? (
       <DepthChart spec={spec} onChange={(patch) => setBoard((before) => changePanel<DepthSpec>(before, spec.id, patch))} onRemove={() => remove(spec.id)} />
     ) : (
@@ -164,6 +174,9 @@ export function Markets() {
                   </button>
                   <button onClick={add((id) => ({ id, kind: "depth", reach: 0.01 }))}>
                     Depth chart <small>bitcoin, live</small>
+                  </button>
+                  <button onClick={add(ticks)}>
+                    Tick chart <small>bitcoin, by trades</small>
                   </button>
                 </>
               );

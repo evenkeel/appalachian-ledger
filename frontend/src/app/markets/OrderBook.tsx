@@ -56,14 +56,16 @@ export function OrderBook({ spec, onChange, onRemove }: { spec: BookSpec; onChan
       </div>
       {groups.length > 0 && (
         <div className="mk-bar">
-          <span className="mk-label">Group $</span>
-          <div className="seg mk-tf" role="group" aria-label="Price group in dollars">
+          <label className="mk-label" htmlFor={`${spec.id}-group`}>
+            Group $
+          </label>
+          <select id={`${spec.id}-group`} className="mk-select num" value={width} onChange={(event) => onChange({ group: Number(event.target.value) })} title="Join price levels into wider steps">
             {groups.map((group) => (
-              <button key={group} aria-pressed={group === width} title={group < 1 ? "Every price level, to the cent" : `Prices grouped in steps of $${group}`} onClick={() => onChange({ group })}>
-                {group}
-              </button>
+              <option key={group} value={group}>
+                {group < 1 ? "0.01 (every level)" : group.toLocaleString("en-US")}
+              </option>
             ))}
-          </div>
+          </select>
         </div>
       )}
       <div ref={ref} className="mk-ob num">

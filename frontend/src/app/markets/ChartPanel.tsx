@@ -16,7 +16,7 @@ const glyph = (children: ReactNode) => (
     {children}
   </svg>
 );
-const STYLE_ICON: Record<Style, ReactNode> = {
+export const STYLE_ICON: Record<Style, ReactNode> = {
   bars: glyph(<path d="M4 3v10M4 5H2M4 10h2M11 2v11M11 4H9M11 11h2" />),
   candles: glyph(
     <>
@@ -25,16 +25,9 @@ const STYLE_ICON: Record<Style, ReactNode> = {
       <rect x="10" y="6" width="3" height="6" fill="currentColor" />
     </>,
   ),
-  line: glyph(<path d="M1.5 12l4-5 3 3 6-7" />),
-  area: glyph(
-    <>
-      <path d="M1.5 12l4-5 3 3 6-7v11h-13z" fill="currentColor" opacity=".3" stroke="none" />
-      <path d="M1.5 12l4-5 3 3 6-7" />
-    </>,
-  ),
 };
-const EXPAND = glyph(<path d="M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5l-4.5 4.5M2.5 13.5l4.5-4.5" />);
-const SHRINK = glyph(<path d="M13.5 6.5h-4v-4M2.5 9.5h4v4M9.5 6.5l4-4M6.5 9.5l-4 4" />);
+export const EXPAND = glyph(<path d="M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5l-4.5 4.5M2.5 13.5l4.5-4.5" />);
+export const SHRINK = glyph(<path d="M13.5 6.5h-4v-4M2.5 9.5h4v4M9.5 6.5l4-4M6.5 9.5l-4 4" />);
 
 /** Whether the newest price ticked up or down, for a brief flash. The count restarts the flash each tick. */
 function useTick(value: number | undefined) {
@@ -186,6 +179,15 @@ export function ChartPanel({
             </label>
           ))}
           <label>
+            <input type="checkbox" checked={spec.bands} onChange={(event) => onChange({ bands: event.target.checked })} /> Bollinger bands <small>20, 2</small>
+          </label>
+          <label>
+            <input type="checkbox" checked={spec.rsi} onChange={(event) => onChange({ rsi: event.target.checked })} /> RSI <small>14</small>
+          </label>
+          <label>
+            <input type="checkbox" checked={spec.macd} onChange={(event) => onChange({ macd: event.target.checked })} /> MACD <small>12, 26, 9</small>
+          </label>
+          <label>
             <input type="checkbox" checked={spec.log} onChange={(event) => onChange({ log: event.target.checked })} /> Log scale
           </label>
         </Menu>
@@ -199,7 +201,7 @@ export function ChartPanel({
       </div>
       <div className="mk-body">
         {feed.bars.length > 0 ? (
-          <PriceChart bars={feed.bars} dataKey={feed.key} interval={spec.interval} style={spec.style} volume={spec.volume} log={spec.log} averages={spec.averages} digits={digits} bitcoin={spec.symbol === BITCOIN} inBitcoin={priced} fillsScreen={expanded} look={look} />
+          <PriceChart bars={feed.bars} dataKey={feed.key} interval={spec.interval} style={spec.style} volume={spec.volume} log={spec.log} averages={spec.averages} bands={spec.bands} rsi={spec.rsi} macd={spec.macd} digits={digits} bitcoin={spec.symbol === BITCOIN} inBitcoin={priced} fillsScreen={expanded} look={look} />
         ) : feed.error ? (
           <div className="mk-empty" role="alert">
             <p className="sub">{feed.error}</p>
