@@ -165,9 +165,10 @@ class Relay(Feed):
 BOOK_EVERY = 0.25
 #: Price levels sent exactly as the exchange holds them, nearest the spread, for each side.
 BOOK_TOP = 60
-#: How far from the middle price the two grouped views reach, as a share of the price.
+#: How far from the middle price the grouped views reach, as a share of the price.
 BOOK_NEAR = 0.0025
 BOOK_WIDE = 0.025
+BOOK_FAR = 0.25
 
 
 def nice_step(value):
@@ -181,7 +182,7 @@ class Book(Feed):
     """The BTC-USD order book: every resting buy and sell order, kept current from Coinbase's updates.
 
     The whole book is tens of thousands of price levels, so the browser is sent a picture instead: the
-    levels nearest the spread exactly as they are, and two grouped views for a wider look.
+    levels nearest the spread exactly as they are, and three grouped views reaching further out.
     """
 
     channel = "level2_batch"
@@ -278,6 +279,7 @@ class Book(Feed):
             },
             "near": grouped(nice_step(middle * 0.00002), BOOK_NEAR),
             "wide": grouped(nice_step(middle * 0.0001), BOOK_WIDE),
+            "far": grouped(nice_step(middle * 0.001), BOOK_FAR),
         }
 
 

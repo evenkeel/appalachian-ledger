@@ -23,6 +23,8 @@ export interface Picture {
   near: View;
   /** Grouped coarsely, a long way either side, for the depth chart and wider groups. */
   wide: View;
+  /** Grouped more coarsely still, a quarter of the price either side, for the widest groups and reaches. */
+  far?: View;
 }
 
 const watchers = new Set<() => void>();
@@ -71,7 +73,12 @@ const multiple = (value: number, of: number) => same(Math.round(value / of) * of
 /** The group widths a picture can be shown at: the exchange's own cent levels, then each wider grouping. */
 export function groupsOf(book: Picture): number[] {
   const { step } = book.wide;
-  return [book.top.step, book.near.step, step, step * 2, step * 10, step * 20].filter((value, at, all) => all.findIndex((other) => same(other, value)) === at);
+  // The far view is a quarter of the price either way, so even its widest groups fill a panel with rows.
+  const farStep = book.far?.step;
+  const far = farStep ? [1, 2, 5, 10, 20].map((times) => farStep * times) : [];
+  return [book.top.step, book.near.step, step, step * 2, step * 10, step * 20, ...far]
+    .filter((value, at, all) => all.findIndex((other) => same(other, value)) === at)
+    .sort((a, b) => a - b);
 }
 
 /** Levels joined into wider price groups. A group of bids is named by its lowest price, a group of asks by its highest. */
@@ -91,8 +98,11 @@ function regroup(levels: Level[], width: number, side: "bids" | "asks"): Level[]
 export function grouped(book: Picture, width: number): View {
   if (same(width, book.top.step)) return book.top;
   if (same(width, book.near.step)) return book.near;
-  if (width > book.wide.step && multiple(width, book.wide.step)) return { step: width, bids: regroup(book.wide.bids, width, "bids"), asks: regroup(book.wide.asks, width, "asks") };
   if (same(width, book.wide.step)) return book.wide;
+  if (book.far && same(width, book.far.step)) return book.far;
+  // The wider a group, the further out the book it is joined from has to reach to fill a panel.
+  const source = book.far && width >= book.far.step && multiple(width, book.far.step) ? book.far : book.wide;
+  if (width > source.step && multiple(width, source.step)) return { step: width, bids: regroup(source.bids, width, "bids"), asks: regroup(source.asks, width, "asks") };
   return book.near;
 }
 
@@ -122,8 +132,10 @@ export function depth(book: Picture, reach: number) {
   const middle = (book.bid + book.ask) / 2;
   const low = middle * (1 - reach),
     high = middle * (1 + reach);
-  // The finely grouped view is used when it reaches far enough; otherwise the wide one.
-  const view = book.near.bids.length && book.near.bids[book.near.bids.length - 1][0] <= low && book.near.asks[book.near.asks.length - 1][0] >= high ? book.near : book.wide;
+  // The finest grouped view that reaches far enough is used.
+  const reachesOut = (view: View | undefined): view is View =>
+    !!view && view.bids.length > 0 && view.asks.length > 0 && view.bids[view.bids.length - 1][0] <= low && view.asks[view.asks.length - 1][0] >= high;
+  const view = [book.near, book.wide].find(reachesOut) ?? book.far ?? book.wide;
   return {
     middle,
     low,

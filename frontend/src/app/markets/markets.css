@@ -9,6 +9,13 @@
   --mk-ma-2: #bd90e4;
   --mk-ma-3: #4fb3a6;
 }
+/* The studies borrow the moving-average inks, so every look colours them without a token of its own. */
+.mk {
+  --mk-band: var(--mk-ma-1);
+  --mk-rsi: var(--mk-ma-2);
+  --mk-macd: var(--mk-ma-3);
+  --mk-signal: var(--btc);
+}
 :root[data-theme="day"] .mk {
   --mk-down: #b8324f;
   --mk-ma-1: #5d7f92;
@@ -103,7 +110,8 @@
 .mk-stack > div {
   display: flex;
 }
-.mk-stack > .mk-cell-chart {
+.mk-stack > .mk-cell-chart,
+.mk-stack > .mk-cell-ticks {
   height: 480px;
 }
 .mk-stack > .mk-cell-list {
@@ -364,6 +372,25 @@
   cursor: pointer;
   white-space: nowrap;
 }
+.mk-select {
+  font: inherit;
+  font-size: var(--t-small);
+  color: var(--ink);
+  background: var(--well);
+  border: 1px solid var(--bezel);
+  border-radius: 5px;
+  padding: 3px 6px;
+  cursor: pointer;
+}
+.mk-select:focus-visible {
+  outline: 2px solid var(--btc);
+  outline-offset: 1px;
+}
+.mk-pop label > small {
+  margin-left: auto;
+  padding-left: 12px;
+  color: var(--ink-3);
+}
 .mk-pop label:hover {
   background: var(--panel);
 }
@@ -403,6 +430,15 @@
 .mk-legend > span {
   background: color-mix(in srgb, var(--panel) 78%, transparent);
   border-radius: 3px;
+}
+.mk-legend .mk-leg-band {
+  color: var(--mk-band);
+}
+.mk-legend .mk-leg-rsi {
+  color: var(--mk-rsi);
+}
+.mk-legend .mk-leg-macd {
+  color: var(--mk-macd);
 }
 .mk-legend i {
   font-style: normal;

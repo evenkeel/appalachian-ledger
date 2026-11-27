@@ -91,8 +91,20 @@ export function useLive(enabled = true) {
   return useSyncExternalStore(enabled ? watch : never, () => enabled && trades.isConnected());
 }
 
-/** The start, in seconds, of the bar a moment falls in. Bitcoin's bars are cut on UTC boundaries; weeks start on Monday. */
+/** Months in each bar cut on the calendar. */
+const MONTHS: Partial<Record<Interval, number>> = { "1mo": 1, "3mo": 3, "1y": 12 };
+
+/**
+ * The start, in seconds, of the bar a moment falls in. Bitcoin's bars are cut on UTC boundaries; weeks
+ * start on Monday, and months, quarters and years on the first of the month.
+ */
 export function barStart(seconds: number, interval: Interval) {
+  const months = MONTHS[interval];
+  if (months) {
+    const date = new Date(seconds * 1000);
+    const month = Math.floor(date.getUTCMonth() / months) * months;
+    return Date.UTC(date.getUTCFullYear(), month, 1) / 1000;
+  }
   if (interval === "1w") {
     const day = Math.floor(seconds / 86400);
     return (day - ((((day + 3) % 7) + 7) % 7)) * 86400;

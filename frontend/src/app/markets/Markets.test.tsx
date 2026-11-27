@@ -8,7 +8,7 @@ import { change, compact, inBitcoin, mergeBars } from "./feed";
 import type { Bar, Quote } from "./feed";
 import { applyTrades, barStart, resetLive } from "./live";
 import { LOOKS, loadLook, saveLook } from "./looks";
-import { movingAverage, rowsFrom, wheelAction } from "./series";
+import { bands, expAverage, macd, movingAverage, rowsFrom, rsi, tickBars, wheelAction } from "./series";
 
 const calls: string[] = [];
 let failing = "";
@@ -178,9 +178,12 @@ describe("the board", () => {
       active: "p3",
     })!;
     expect(damaged.panels).toEqual([
-      { id: "p1", kind: "chart", symbol: "AAPL", name: "AAPL", interval: "1h", style: "bars", volume: true, log: false, averages: [20] },
+      { id: "p1", kind: "chart", symbol: "AAPL", name: "AAPL", interval: "1h", style: "bars", volume: true, log: false, averages: [20], rsi: false, macd: false, bands: false },
       { id: "p3", kind: "list", items: [{ symbol: "GC=F", name: "Gold" }] },
     ]);
+    // Lines and areas are no longer offered, so a chart saved as one comes back as candles; the new bar sizes and studies are kept.
+    const older = boardFrom({ panels: [{ id: "p1", kind: "chart", symbol: "GC=F", name: "Gold", interval: "1y", style: "area", rsi: true, macd: true, bands: true }], layout: [] })!;
+    expect(older.panels[0]).toMatchObject({ style: "candles", interval: "1y", rsi: true, macd: true, bands: true });
     // Too small a slot is grown to the smallest usable size and kept on the board; a broken one is placed below.
     expect(damaged.layout).toEqual([
       { i: "p1", x: 9, y: 0, w: 3, h: 7 },
@@ -192,10 +195,24 @@ describe("the board", () => {
     expect(boardFrom({ panels: "x" })).toBeNull();
     // Order book and depth panels are kept, and a setting that makes no sense goes back to the usual one.
     const extra = boardFrom({
-      panels: [{ id: "p1", kind: "book", group: 10 }, { id: "p2", kind: "depth", reach: 0.005 }, { id: "p3", kind: "book", group: -4 }, { id: "p4", kind: "depth", reach: 7 }],
+      panels: [
+        { id: "p1", kind: "book", group: 10 },
+        { id: "p2", kind: "depth", reach: 0.005 },
+        { id: "p3", kind: "book", group: -4 },
+        { id: "p4", kind: "depth", reach: 7 },
+        { id: "p5", kind: "ticks", ticks: 500, style: "bars", volume: false, rsi: true },
+        { id: "p6", kind: "ticks", ticks: 3, style: "line" },
+      ],
       layout: [],
     })!;
-    expect(extra.panels).toEqual([{ id: "p1", kind: "book", group: 10 }, { id: "p2", kind: "depth", reach: 0.005 }, { id: "p3", kind: "book", group: 1 }, { id: "p4", kind: "depth", reach: 0.01 }]);
+    expect(extra.panels).toEqual([
+      { id: "p1", kind: "book", group: 10 },
+      { id: "p2", kind: "depth", reach: 0.005 },
+      { id: "p3", kind: "book", group: 1 },
+      { id: "p4", kind: "depth", reach: 0.01 },
+      { id: "p5", kind: "ticks", ticks: 500, style: "bars", volume: false, rsi: true },
+      { id: "p6", kind: "ticks", ticks: 100, style: "candles", volume: true, rsi: false },
+    ]);
     expect(extra.active).toBeNull();
     expect(symbolsOn(extra)).toEqual([BITCOIN]);
     // A chart set on its own keeps that choice across a reload.
@@ -264,6 +281,11 @@ describe("price figures", () => {
     expect(barStart(1794787200 + 5 * 86400 + 7, "1w")).toBe(1794787200);
     expect(barStart(1794787200 - 1, "1w")).toBe(1794787200 - 7 * 86400);
     expect(barStart(1794787200 + 3 * 3600, "4h")).toBe(1794787200);
+    // Months, quarters and years start on the first of the month, by UTC.
+    const moment = Date.UTC(2026, 10, 27, 15) / 1000;
+    expect(barStart(moment, "1mo")).toBe(Date.UTC(2026, 10, 1) / 1000);
+    expect(barStart(moment, "3mo")).toBe(Date.UTC(2026, 9, 1) / 1000);
+    expect(barStart(moment, "1y")).toBe(Date.UTC(2026, 0, 1) / 1000);
   });
 
   it("lets a plain scroll move the page and keeps zoom for a deliberate gesture", () => {
@@ -307,6 +329,46 @@ describe("price figures", () => {
     expect(far.bids[far.bids.length - 1]).toMatchObject({ price: 59000, total: 18 });
     expect(far.asks[far.asks.length - 1]).toMatchObject({ price: 61000, total: 13 });
     expect(far.middle).toBeCloseTo(60000.55, 6);
+
+    // A picture that also carries the far view offers groups into the thousands, joined from it.
+    const wider: Picture = {
+      ...picture,
+      far: { step: 50, bids: [[60000, 2], [59950, 6], [59000, 10], [46000, 40]], asks: [[60050, 5], [61000, 8], [74000, 30]] },
+    };
+    expect(groupsOf(wider)).toEqual([0.01, 1, 5, 10, 50, 100, 250, 500, 1000]);
+    expect(grouped(wider, 50)).toBe(wider.far);
+    expect(grouped(wider, 1000)).toEqual({ step: 1000, bids: [[60000, 2], [59000, 16], [46000, 40]], asks: [[61000, 13], [74000, 30]] });
+    // A reach past the wide view's is read from the far one.
+    expect(depth(wider, 0.25).bids[depth(wider, 0.25).bids.length - 1]).toMatchObject({ price: 46000, total: 58 });
+  });
+
+  it("works out RSI, MACD and Bollinger bands from the closes", () => {
+    // Steady rises with no falls are as strong as RSI goes; a flat run sits in the middle.
+    expect(rsi([1, 2, 3, 4, 5], 3)).toEqual([null, null, null, 100, 100]);
+    expect(rsi([5, 5, 5, 5], 3)[3]).toBe(50);
+    const mixed = rsi([10, 11, 10, 11, 12], 2);
+    expect(mixed[2]).toBeCloseTo(50, 6);
+    expect(mixed[4]).toBeCloseTo(87.5, 6);
+    expect(expAverage([2, 4, 6, 8], 3)).toEqual([null, null, 4, 6]);
+    const flat = macd(Array(40).fill(100));
+    expect(flat.line[25]).toBe(0);
+    expect(flat.signal[33]).toBe(0);
+    expect(flat.histogram[32]).toBeNull();
+    const band = bands([1, 2, 3, 4], 2, 2);
+    expect(band.middle).toEqual([null, 1.5, 2.5, 3.5]);
+    expect(band.upper[1]).toBeCloseTo(2.5, 6);
+    expect(band.lower[3]).toBeCloseTo(2.5, 6);
+  });
+
+  it("gathers trades into bars of a set number of trades, numbered from where the held trades start", () => {
+    const trades = [100, 102, 99, 101, 103].map((p, at) => ({ p, s: 0.5, t: 1794787200000 + at * 250 }));
+    const { bars: ticked, times } = tickBars(trades, 2, 7);
+    expect(ticked).toEqual([
+      [7, 100, 102, 100, 102, 1],
+      [8, 99, 101, 99, 101, 1],
+      [9, 103, 103, 103, 103, 0.5],
+    ]);
+    expect(times).toEqual([1794787200, 1794787200.5, 1794787201]);
   });
 
   it("averages the last closes and waits until there are enough", () => {
@@ -522,9 +584,10 @@ describe("markets screen", () => {
     // One stream of the book serves every panel that shows it, beside the one stream of trades.
     expect(FakeStream.opened.map((stream) => stream.url).sort()).toEqual(["/api/market/book", "/api/market/stream"]);
 
-    fireEvent.click(within(panel).getByRole("button", { name: "0.01" }));
+    const group = within(panel).getByRole("combobox", { name: "Group $" });
+    fireEvent.change(group, { target: { value: "0.01" } });
     expect(within(bids).getAllByRole("listitem")[0]).toHaveTextContent("60,000.50" + "1.5000");
-    fireEvent.click(within(panel).getByRole("button", { name: "10" }));
+    fireEvent.change(group, { target: { value: "10" } });
     expect(within(asks).getAllByRole("listitem")[0]).toHaveTextContent("60,010" + "2.0000");
     await waitFor(() => expect(saved().panels[4]).toEqual({ id: "p5", kind: "book", group: 10 }));
 
@@ -534,7 +597,7 @@ describe("markets screen", () => {
     // Everything waiting within 1% of the price: 8 BTC of bids, 5 BTC of offers.
     expect(within(chart).getByText("8.00 BTC bid")).toBeInTheDocument();
     expect(within(chart).getByText("5.00 BTC offered")).toBeInTheDocument();
-    fireEvent.click(within(chart).getByRole("button", { name: "±2.5%" }));
+    fireEvent.change(within(chart).getByRole("combobox", { name: "Reach" }), { target: { value: "0.025" } });
     expect(within(chart).getByText("18.00 BTC bid")).toBeInTheDocument();
     expect(within(chart).getByText("13.00 BTC offered")).toBeInTheDocument();
     await waitFor(() => expect(saved().panels[5]).toEqual({ id: "p6", kind: "depth", reach: 0.025 }));

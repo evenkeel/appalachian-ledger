@@ -1,6 +1,6 @@
 /** The Markets board: which panels are open, what each shows and where it sits. Kept in this browser. */
 
-export type Interval = "1m" | "5m" | "15m" | "1h" | "4h" | "1d" | "1w";
+export type Interval = "1m" | "5m" | "15m" | "1h" | "4h" | "1d" | "1w" | "1mo" | "3mo" | "1y";
 export const INTERVALS: { id: Interval; label: string; long: string; seconds: number }[] = [
   { id: "1m", label: "1m", long: "1 minute", seconds: 60 },
   { id: "5m", label: "5m", long: "5 minutes", seconds: 300 },
@@ -9,16 +9,20 @@ export const INTERVALS: { id: Interval; label: string; long: string; seconds: nu
   { id: "4h", label: "4h", long: "4 hours", seconds: 14400 },
   { id: "1d", label: "1D", long: "1 day", seconds: 86400 },
   { id: "1w", label: "1W", long: "1 week", seconds: 604800 },
+  // Cut on the calendar, so their seconds are only an average length.
+  { id: "1mo", label: "1M", long: "1 month", seconds: 2629746 },
+  { id: "3mo", label: "3M", long: "3 months", seconds: 7889238 },
+  { id: "1y", label: "1Y", long: "1 year", seconds: 31556952 },
 ];
+/** Bar sizes a day or longer, whose bars sit on a date rather than a time of day. */
+export const DATED = new Set<Interval>(["1d", "1w", "1mo", "3mo", "1y"]);
 
 /** What a chart is priced in: dollars (its own currency) or bitcoin. */
 export type Unit = "USD" | "BITCOIN";
-export type Style = "bars" | "candles" | "line" | "area";
+export type Style = "bars" | "candles";
 export const STYLES: { id: Style; label: string }[] = [
   { id: "bars", label: "Bars" },
   { id: "candles", label: "Candles" },
-  { id: "line", label: "Line" },
-  { id: "area", label: "Area" },
 ];
 /** Moving averages a chart can draw, in bars. */
 export const AVERAGES = [20, 50, 200];
@@ -37,6 +41,12 @@ export interface ChartSpec {
   volume: boolean;
   log: boolean;
   averages: number[];
+  /** Relative strength index, 14 bars, in a pane under the price. */
+  rsi: boolean;
+  /** MACD (12, 26, 9), in a pane under the price. */
+  macd: boolean;
+  /** Bollinger bands: 20 bars, two standard deviations either side. */
+  bands: boolean;
   /** Set when this chart was switched on its own; without it the chart follows the switch in the top bar. */
   unit?: Unit;
 }
@@ -59,9 +69,21 @@ export interface DepthSpec {
   /** How far either side of the price the chart reaches, as a share of the price. */
   reach: number;
 }
-export type Spec = ChartSpec | ListSpec | BookSpec | DepthSpec;
+/** Bitcoin's tick chart: each bar is a set number of trades, however long they took. */
+export interface TicksSpec {
+  id: string;
+  kind: "ticks";
+  /** Trades in each bar. */
+  ticks: number;
+  style: Style;
+  volume: boolean;
+  rsi: boolean;
+}
+export type Spec = ChartSpec | ListSpec | BookSpec | DepthSpec | TicksSpec;
 /** The distances a depth chart can reach either side of the price. */
-export const REACHES = [0.0025, 0.005, 0.01, 0.025];
+export const REACHES = [0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25];
+/** Trades per bar a tick chart can be drawn at. */
+export const TICKS = [50, 100, 250, 500, 1000];
 export interface Slot {
   i: string;
   x: number;
@@ -81,8 +103,8 @@ export const COLUMNS = 12;
 export const ROW = 30;
 export const MAX_PANELS = 12;
 export const MAX_LIST = 30;
-export const SMALLEST = { chart: { w: 3, h: 7 }, list: { w: 2, h: 5 }, book: { w: 2, h: 8 }, depth: { w: 3, h: 6 } };
-const START = { chart: { w: 6, h: 11 }, list: { w: 3, h: 11 }, book: { w: 3, h: 14 }, depth: { w: 6, h: 9 } };
+export const SMALLEST = { chart: { w: 3, h: 7 }, list: { w: 2, h: 5 }, book: { w: 2, h: 8 }, depth: { w: 3, h: 6 }, ticks: { w: 3, h: 7 } };
+const START = { chart: { w: 6, h: 11 }, list: { w: 3, h: 11 }, book: { w: 3, h: 14 }, depth: { w: 6, h: 9 }, ticks: { w: 6, h: 11 } };
 const SYMBOL = /^[A-Z0-9^][A-Z0-9.\-^=]{0,14}$/;
 export const isSymbol = (value: string) => SYMBOL.test(value);
 
@@ -123,7 +145,11 @@ export const PRESETS: { group: string; items: Instrument[] }[] = [
 const preset = (symbol: string) => PRESETS.flatMap((group) => group.items).find((item) => item.symbol === symbol)!;
 
 export function chart(id: string, instrument: Instrument, interval: Interval = "1h"): ChartSpec {
-  return { id, kind: "chart", ...instrument, interval, style: "bars", volume: true, log: false, averages: [] };
+  return { id, kind: "chart", ...instrument, interval, style: "bars", volume: true, log: false, averages: [], rsi: false, macd: false, bands: false };
+}
+
+export function ticks(id: string): TicksSpec {
+  return { id, kind: "ticks", ticks: 100, style: "candles", volume: true, rsi: false };
 }
 
 /** What a first visit shows: bitcoin large, a watchlist beside it, gold and the S&P 500 below. */
@@ -212,8 +238,17 @@ function panelFrom(raw: unknown): Spec | null {
     const items = item.items.map(instrument).filter((entry): entry is Instrument => entry !== null);
     return { id: item.id, kind: "list", items: items.slice(0, MAX_LIST) };
   }
-  if (item.kind === "book") return { id: item.id, kind: "book", group: typeof item.group === "number" && item.group > 0 && item.group <= 100000 ? item.group : 1 };
+  if (item.kind === "book") return { id: item.id, kind: "book", group: typeof item.group === "number" && item.group > 0 && item.group <= 1000000 ? item.group : 1 };
   if (item.kind === "depth") return { id: item.id, kind: "depth", reach: REACHES.includes(item.reach as number) ? (item.reach as number) : 0.01 };
+  if (item.kind === "ticks")
+    return {
+      id: item.id,
+      kind: "ticks",
+      ticks: TICKS.includes(item.ticks as number) ? (item.ticks as number) : 100,
+      style: item.style === "bars" ? "bars" : "candles",
+      volume: item.volume !== false,
+      rsi: item.rsi === true,
+    };
   if (item.kind !== "chart") return null;
   const base = instrument(item);
   if (!base) return null;
@@ -222,10 +257,14 @@ function panelFrom(raw: unknown): Spec | null {
     kind: "chart",
     ...base,
     interval: INTERVALS.some((entry) => entry.id === item.interval) ? (item.interval as Interval) : "1h",
-    style: STYLES.some((entry) => entry.id === item.style) ? (item.style as Style) : "bars",
+    // A chart saved as a line or an area, which are no longer offered, comes back as candles.
+    style: STYLES.some((entry) => entry.id === item.style) ? (item.style as Style) : item.style === "line" || item.style === "area" ? "candles" : "bars",
     volume: item.volume !== false,
     log: item.log === true,
     averages: Array.isArray(item.averages) ? AVERAGES.filter((period) => (item.averages as unknown[]).includes(period)) : [],
+    rsi: item.rsi === true,
+    macd: item.macd === true,
+    bands: item.bands === true,
     ...(item.unit === "USD" || item.unit === "BITCOIN" ? { unit: item.unit } : {}),
   };
 }

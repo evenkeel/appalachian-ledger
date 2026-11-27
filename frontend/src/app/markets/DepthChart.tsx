@@ -66,14 +66,16 @@ export function DepthChart({ spec, onChange, onRemove }: { spec: DepthSpec; onCh
         </div>
       </div>
       <div className="mk-bar">
-        <span className="mk-label">Reach</span>
-        <div className="seg mk-tf" role="group" aria-label="How far either side of the price">
+        <label className="mk-label" htmlFor={`${spec.id}-reach`}>
+          Reach
+        </label>
+        <select id={`${spec.id}-reach`} className="mk-select num" value={spec.reach} onChange={(event) => onChange({ reach: Number(event.target.value) })} title="How far either side of the price">
           {REACHES.map((reach) => (
-            <button key={reach} aria-pressed={reach === spec.reach} title={`Orders within ${percent(reach)} of the price`} onClick={() => onChange({ reach })}>
+            <option key={reach} value={reach}>
               {percent(reach)}
-            </button>
+            </option>
           ))}
-        </div>
+        </select>
       </div>
       <div ref={ref} className="mk-depth">
         {book && data && buys && sells && wide > 0 && tall > 0 ? (
