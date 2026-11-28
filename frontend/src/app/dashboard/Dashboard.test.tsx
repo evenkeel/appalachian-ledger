@@ -3,6 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { categories, empty, periods, reading, report, transactions } from "../test/fixture";
 import type { Period } from "./history";
 import type { DashboardData } from "./types";
+import { act } from "@testing-library/react";
+import { setPrivate } from "../lib/privacy";
+import { readableBitcoin, readableTips } from "../test/privacy";
 
 const calls: { path: string; method: string; body?: unknown }[] = [];
 let current: DashboardData = reading;
@@ -39,6 +42,25 @@ beforeEach(() => {
 });
 
 describe("dashboard", () => {
+  it("blurs every bitcoin amount, and hides them from hover tips, while privacy is on", async () => {
+    for (const unit of ["USD", "BITCOIN"]) {
+      lens = unit;
+      const { container, unmount } = render(<Dashboard go={() => {}} onData={() => {}} />);
+      await screen.findByLabelText(/^Checking forecast/);
+      await screen.findByLabelText(/^Stack: /);
+      // Every bitcoin amount drawn is marked for the blur; the held stack is one of them.
+      expect(screen.getByText("₿21,932,000")).toHaveClass("private");
+      expect(readableBitcoin(container)).toEqual([]);
+      // Hover tips show amounts while privacy is off, and hide them once it is on.
+      if (unit === "BITCOIN") expect(readableTips(container).length).toBeGreaterThan(0);
+      act(() => setPrivate(true));
+      expect(document.documentElement).toHaveAttribute("data-private");
+      expect(readableTips(container)).toEqual([]);
+      act(() => setPrivate(false));
+      unmount();
+    }
+  });
+
   it("shows the day-one readings exactly as the ledger reports them", async () => {
     await show();
     const cash = screen.getByLabelText(/^Checking forecast/);
@@ -48,7 +70,7 @@ describe("dashboard", () => {
     expect(within(stack).getByText("₿21,932,000")).toBeInTheDocument();
     expect(within(stack).getByText("11.3%")).toBeInTheDocument();
     expect(within(stack).getByText("best yet")).toBeInTheDocument();
-    expect(within(stack).getByText("₿68,000 to go")).toBeInTheDocument();
+    expect(within(stack).getByText("₿68,000").parentElement).toHaveTextContent(/^₿68,000 to go$/);
     // Spend pace: $154.20 so far against $126.30 by the same day last month.
     const pace = screen.getByLabelText(/^Spend pace/);
     expect(within(pace).getByText("$154.20")).toBeInTheDocument();

@@ -1,15 +1,16 @@
 import type { ReactNode } from "react";
 import type { Transaction } from "../../lib/types";
 import { btc, shortDate, usd } from "../lib/format";
+import { Private } from "../lib/privacy";
 
 /** What an entry cost in bitcoin on its own date. Missing is shown as missing, never guessed. */
 export function bitcoinThatDay(row: Transaction): ReactNode {
   if (row.kind === "transfer" && row.destination_currency === "BITCOIN" && row.destination_amount)
-    return <span className="btc">+{btc(row.destination_amount)}</span>;
-  if (row.currency === "BITCOIN") return btc(row.amount);
-  if (row.purchase_cost) return btc(row.purchase_cost.bitcoin);
+    return <span className="btc">+<Private>{btc(row.destination_amount)}</Private></span>;
+  if (row.currency === "BITCOIN") return <Private>{btc(row.amount)}</Private>;
+  if (row.purchase_cost) return <Private>{btc(row.purchase_cost.bitcoin)}</Private>;
   if (row.kind === "expense") return <span className="tag miss">no price saved</span>;
-  return <span className="dim">{row.bitcoin !== null ? btc(row.bitcoin) : "—"}</span>;
+  return <span className="dim">{row.bitcoin !== null ? <Private>{btc(row.bitcoin)}</Private> : "—"}</span>;
 }
 
 export const amountText = (row: Transaction) =>
@@ -56,7 +57,9 @@ export function EntryTable({
                   {row.destination_account ? ` → ${row.destination_account}` : ""}
                 </td>
               )}
-              <td className="num r">{amountText(row)}</td>
+              <td className="num r">
+                <Private when={row.currency !== "USD"}>{amountText(row)}</Private>
+              </td>
               <td className="num r">{bitcoinThatDay(row)}</td>
               {actions && <td className="r hide-s">{actions(row)}</td>}
             </tr>

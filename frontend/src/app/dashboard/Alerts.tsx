@@ -4,6 +4,7 @@ import { api } from "../../lib/api";
 import { LevelIcon } from "../design/icons";
 import { btc, plural, usd } from "../lib/format";
 import type { Route } from "../lib/router";
+import { Private, PrivateText } from "../lib/privacy";
 
 export type Level = "advisory" | "caution" | "warning";
 type Unit = "USD" | "BITCOIN" | "percent" | "days" | "count" | "text";
@@ -179,7 +180,7 @@ export function AlertDrawer({
                 {label(alert)}
                 {alert.acknowledged ? " · acknowledged" : ""}
               </span>
-              <span className="t">{alert.title}</span>
+              <span className="t"><PrivateText text={alert.title} /></span>
               <span className="dim">Details →</span>
             </button>
           ))
@@ -201,14 +202,14 @@ export function AlertDrawer({
           {one.level}
           {one.acknowledged ? " · acknowledged" : ""}
         </span>
-        <h3>{one.title}</h3>
-        <p>{one.why}</p>
+        <h3><PrivateText text={one.title} /></h3>
+        <p><PrivateText text={one.why} /></p>
         {one.facts.length > 0 && (
           <div className="kv">
             {one.facts.map((fact) => (
               <div key={fact.label}>
                 <span>{fact.label}</span>
-                <b>{formatValue(fact)}</b>
+                <b><Private when={fact.unit === "BITCOIN"}>{formatValue(fact)}</Private></b>
               </div>
             ))}
           </div>
@@ -221,7 +222,7 @@ export function AlertDrawer({
                   {row.name}
                   {row.note && <small className="num dim"> · {row.note}</small>}
                 </span>
-                <span className="num">{formatValue(row)}</span>
+                <span className="num"><Private when={row.unit === "BITCOIN"}>{formatValue(row)}</Private></span>
               </li>
             ))}
           </ul>
@@ -229,7 +230,7 @@ export function AlertDrawer({
         {one.advice && (
           <p>
             {one.advice.text.split("{value}")[0]}
-            <b className="num">{formatValue(one.advice)}</b>
+            <b className="num"><Private when={one.advice.unit === "BITCOIN"}>{formatValue(one.advice)}</Private></b>
             {one.advice.text.split("{value}")[1] ?? ""}
           </p>
         )}

@@ -7,6 +7,7 @@ import { Choice, Pager, monthsBetween, partOfYear } from "../design/timeline";
 import { btc, cents, coordinate, fromCents, longMonth, monthName, monthYear, plural, shortDate, usd } from "../lib/format";
 import type { Lens } from "../lib/session";
 import "./history.css";
+import { hideAmounts, Private, usePrivacy } from "../lib/privacy";
 
 interface Sum {
   count: number;
@@ -102,6 +103,7 @@ export function HistoryPanel({ className, data, lens }: { className?: string; da
   const value = (sum: Sum) => (lens === "USD" ? sum.usd : sum.missing_bitcoin > 0 ? null : sum.bitcoin);
   const show = (amount: string | null) => (amount === null ? "Partial" : lens === "USD" ? usd(amount) : btc(amount));
   const short = (amount: string) => (lens === "USD" ? usdShort(amount) : btcShort(amount));
+  const [hidden] = usePrivacy();
   const zero = lens === "USD" ? "0.00" : "0";
   const unit = lens === "USD" ? "in dollars" : "in bitcoin, at each day's price";
 
@@ -170,8 +172,12 @@ export function HistoryPanel({ className, data, lens }: { className?: string; da
           <>
             <span className="sub num hist-sum" aria-live="polite" style={byMonthData ? undefined : { visibility: "hidden" }}>
               {years[at]}
-              {part(years[at]) ? ` ${part(years[at])!.short}` : ""} · <b style={{ color: lens === "USD" ? "var(--ink)" : "var(--btc)" }}>{show(pageTotal)}</b>
-              {pageTotal !== null && pageMonths.length > 1 && ` · ${show(monthlyAverage(pageTotal, pageMonths.length, lens))} a month on average`}
+              {part(years[at]) ? ` ${part(years[at])!.short}` : ""} · <b style={{ color: lens === "USD" ? "var(--ink)" : "var(--btc)" }}><Private when={lens === "BITCOIN"}>{show(pageTotal)}</Private></b>
+              {pageTotal !== null && pageMonths.length > 1 && (
+                <>
+                  {" "}· <Private when={lens === "BITCOIN"}>{show(monthlyAverage(pageTotal, pageMonths.length, lens))}</Private> a month on average
+                </>
+              )}
             </span>
             <Pager
               label="Spending history: which year"
@@ -209,8 +215,8 @@ export function HistoryPanel({ className, data, lens }: { className?: string; da
             const height = amount === null ? 100 : (coordinate(amount) / topMonth) * 100;
             const label = `${monthYear(month)}: ${amount === null ? `partial, ${entries(sum!.missing_bitcoin)} without a bitcoin price` : show(amount)}${month === data.month ? ", so far" : ""}`;
             return (
-              <button key={month} aria-pressed={picked === month} aria-label={label} title={label} onClick={() => setPicked(picked === month ? null : month)}>
-                <span className="hist-v num">{amount === null ? "Partial" : short(amount)}</span>
+              <button key={month} aria-pressed={picked === month} aria-label={label} title={hideAmounts(label, hidden)} onClick={() => setPicked(picked === month ? null : month)}>
+                <span className="hist-v num">{amount === null ? "Partial" : <Private when={lens === "BITCOIN"}>{short(amount)}</Private>}</span>
                 <span className="hist-col">
                   <i className={amount === null ? "partial" : month === data.month ? "now" : undefined} style={{ height: `${Math.max(height, amount === null ? 100 : 1.5).toFixed(1)}%` }} />
                 </span>
@@ -234,12 +240,12 @@ export function HistoryPanel({ className, data, lens }: { className?: string; da
               amount === null ? `partial, ${entries(sum!.missing_bitcoin)} without a bitcoin price` : `${show(amount)}, ${show(average)} a month on average over ${plural(months, "month")}`
             }. Show its months.`;
             return (
-              <button key={each} aria-label={label} title={label} onClick={() => open(each)}>
+              <button key={each} aria-label={label} title={hideAmounts(label, hidden)} onClick={() => open(each)}>
                 <span className="hist-v num">
-                  {amount === null ? "Partial" : short(amount)}
+                  {amount === null ? "Partial" : <Private when={lens === "BITCOIN"}>{short(amount)}</Private>}
                   {average !== null && (
                     <small>
-                      {short(average)}
+                      <Private when={lens === "BITCOIN"}>{short(average)}</Private>
                       <span className="hist-per"> a month</span>
                     </small>
                   )}
@@ -281,7 +287,7 @@ export function HistoryPanel({ className, data, lens }: { className?: string; da
               {picked === data.month ? " so far" : ""}
             </b>
             <span className="sub num">
-              <b style={{ color: lens === "USD" ? "var(--ink)" : "var(--btc)" }}>{show(value(detail.totals))}</b> · {entries(detail.totals.count)}
+              <b style={{ color: lens === "USD" ? "var(--ink)" : "var(--btc)" }}><Private when={lens === "BITCOIN"}>{show(value(detail.totals))}</Private></b> · {entries(detail.totals.count)}
               {lens === "BITCOIN" && detail.totals.missing_bitcoin > 0 && ` · ${detail.totals.missing_bitcoin} without a bitcoin price`}
             </span>
           </div>
@@ -293,7 +299,7 @@ export function HistoryPanel({ className, data, lens }: { className?: string; da
                 {ranked.map((category) => (
                   <li key={category.name}>
                     <span className="nm">{category.name}</span>
-                    <span className="num">{show(value(category))}</span>
+                    <span className="num"><Private when={lens === "BITCOIN"}>{show(value(category))}</Private></span>
                     <span className="bar" aria-hidden="true">
                       <i style={{ width: `${((coordinate(value(category)) / most) * 100).toFixed(1)}%`, background: lens === "USD" ? "var(--usd)" : "var(--btc)" }} />
                     </span>
@@ -347,7 +353,7 @@ export function EntryRows({ rows, thisYear }: { rows: Entry[]; thisYear: string 
               <span className="tag">{row.category}</span>
             </td>
             <td className="num r">{row.usd === null ? <span className="tag miss">no price</span> : usd(row.usd)}</td>
-            <td className="num r">{row.bitcoin === null ? <span className="tag miss">no price</span> : btc(row.bitcoin)}</td>
+            <td className="num r">{row.bitcoin === null ? <span className="tag miss">no price</span> : <Private>{btc(row.bitcoin)}</Private>}</td>
           </tr>
         ))}
       </tbody>

@@ -13,6 +13,7 @@ import { MissingPrices } from "./MissingPrices";
 import { Node } from "./Node";
 import { Note, useAction, useLists } from "./controls";
 import "./settings.css";
+import { usePrivacy } from "../lib/privacy";
 
 
 /** Each section saves on its own and says what happened. */
@@ -56,6 +57,7 @@ export function Settings({ go, onChanged }: { go: (route: Route) => void; onChan
 
 function Appearance() {
   const { theme, setTheme, lens, setLens } = useSession();
+  const [hidden, setHidden] = usePrivacy();
   return (
     <Panel name="Appearance" plain="saved as you choose">
       <div className="set-choice">
@@ -80,7 +82,21 @@ function Appearance() {
           </button>
         </div>
       </div>
-      <div className="hint">The same switches as the top bar. Recorded amounts never change; only how totals and charts are priced.</div>
+      <div className="set-choice">
+        <span id="set-private">Bitcoin amounts</span>
+        <div className="seg" role="group" aria-labelledby="set-private">
+          <button type="button" aria-pressed={!hidden} onClick={() => setHidden(false)}>
+            Show
+          </button>
+          <button type="button" aria-pressed={hidden} onClick={() => setHidden(true)}>
+            Blur
+          </button>
+        </div>
+      </div>
+      <div className="hint">
+        The same switches as the top bar. Recorded amounts never change; only how totals and charts are priced. Blur hides your bitcoin, and what it is worth, from anyone looking over your
+        shoulder. It is kept on this device until you switch it off.
+      </div>
     </Panel>
   );
 }

@@ -8,6 +8,7 @@ import type { SpendingAnalysis } from "../../lib/spendingAnalysis";
 import type { Category, Report, Transaction } from "../../lib/types";
 import { Scrub, axisLabels, monthsBetween, RangeControl, useRange } from "../design/timeline";
 import type { Span } from "../design/timeline";
+import { PrivateTspans, Private, Tip } from "../lib/privacy";
 import { btc, cents, fromCents, longMonth, monthName, monthYear, plural, shortMonthYear, usd } from "../lib/format";
 import type { Lens } from "../lib/session";
 import { measureText, useFontsReady } from "../lib/measureText";
@@ -315,7 +316,7 @@ export function CostOfLivingPanel({
         </div>
         <div>
           <span>{monthYear(inBitcoin.period)} in bitcoin</span>
-          <b className="btc">{priced(inBitcoin) ? btc(inBitcoin.bitcoin) : spent(inBitcoin) ? <span className="tag miss">no price saved</span> : "—"}</b>
+          <b className="btc">{priced(inBitcoin) ? <Private>{btc(inBitcoin.bitcoin)}</Private> : spent(inBitcoin) ? <span className="tag miss">no price saved</span> : "—"}</b>
           <small>{change(indexBtc, inBitcoin) ?? (spent(inBitcoin) ? "left out of the bitcoin line" : "—")}</small>
         </div>
       </div>
@@ -378,7 +379,7 @@ export function BridgePanel({
     <Panel className={className} name={name} plain={plain} link={onExplore && { label: "Explore", onClick: onExplore }}>
       {steps.length === 0 ? (
         <div className="sub">
-          Spending matches {prior} to the {lens === "USD" ? "cent" : "bitcoin"}: {money(analysis.current.value)}.
+          Spending matches {prior} to the {lens === "USD" ? "cent" : "bitcoin"}: <Private when={lens === "BITCOIN"}>{money(analysis.current.value)}</Private>.
         </div>
       ) : (
         <Frame
@@ -402,7 +403,7 @@ export function BridgePanel({
               <>
                 <line x1={px} x2={px} y1={top - 6} y2={top + 5} stroke="var(--ink-2)" strokeWidth="2" />
                 <text x={px} y={top - 10} textAnchor={px > W / 2 ? "end" : "start"}>
-                  {monthName(analysis.previousMonth)} {range} · {money(analysis.previous.value!)}
+                  {monthName(analysis.previousMonth)} {range} · <PrivateTspans text={money(analysis.previous.value!)} />
                 </text>
                 {steps.map((step, i) => {
                   const yy = top + i * rowH,
@@ -432,15 +433,14 @@ export function BridgePanel({
                       </text>
                       <rect x={x0} y={yy + 5} width={w} height={rowH - 10} rx="2" fill={up ? colour : "none"} stroke={colour} strokeWidth="1.4" strokeDasharray={up ? undefined : "3 2"} />
                       <text x={W} y={yy + 15} textAnchor="end" className="lbl">
-                        {up ? "+" : "−"}
-                        {money(size)}
+                        <PrivateTspans text={`${up ? "+" : "−"}${money(size)}`} />
                       </text>
                     </g>
                   );
                 })}
                 <line x1={cx} x2={cx} y1={endY - 5} y2={endY + 8} stroke={colour} strokeWidth="2.5" />
                 <text x={cx} y={endY + 21} textAnchor={cx > W / 2 ? "end" : "start"} className="lbl" style={{ fontWeight: 700 }}>
-                  {monthName(analysis.month)} 1–{analysis.cutoff} · {money(analysis.current.value!)}
+                  {monthName(analysis.month)} 1–{analysis.cutoff} · <PrivateTspans text={money(analysis.current.value!)} />
                 </text>
               </>
             );
@@ -586,7 +586,7 @@ function FlowLabel({ placed, fill }: { placed: FlowPlaced; fill: (kind: "name" |
               dx={at ? PART_GAP : undefined}
               style={{ fontFamily: part.kind === "name" ? "var(--font-ui)" : "var(--font-num)", fontSize: part.size, fontWeight: part.weight, fill: fill(part.kind) }}
             >
-              {part.text}
+              {part.kind === "value" ? <PrivateTspans text={part.text} /> : part.text}
             </tspan>
           ))}
         </text>
@@ -638,7 +638,7 @@ function FlowChart({
             const at = layout.sources[index];
             return (
               <g key={`s-${origin.name}`}>
-                <title>{`${origin.name} ${money(origin.value)}`}</title>
+                <Tip text={`${origin.name} ${money(origin.value)}`} />
                 <path d={ribbon(layout.sourceX + layout.node, at.y, at.y + at.height, layout.hubX, at.hubY, at.hubY + at.height)} fill="var(--usd)" opacity=".13" />
                 <rect x={layout.sourceX} y={at.y} width={layout.node} height={at.height} rx="2" fill="var(--usd)" />
                 <FlowLabel placed={at} fill={(kind) => (kind === "name" ? "var(--ink-2)" : "var(--ink-3)")} />
@@ -666,7 +666,7 @@ function FlowChart({
                   }
                 }}
               >
-                <title>{`${d.name} ${d.label ?? money(d.value)}${d.kind === "rest" ? `. ${restNote}` : ""}`}</title>
+                <Tip text={`${d.name} ${d.label ?? money(d.value)}${d.kind === "rest" ? `. ${restNote}` : ""}`} />
                 <path d={ribbon(layout.hubX + layout.node, at.hubY, at.hubY + at.height, layout.destX, at.y, at.y + at.height)} fill={fill} opacity={opacity} />
                 <rect x={layout.destX} y={at.y} width={layout.node} height={at.height} rx="2" fill={fill} />
                 <FlowLabel placed={at} fill={(kind) => (d.kind === "stack" ? "var(--btc)" : kind === "name" && d.kind !== "rest" ? "var(--ink-2)" : "var(--ink-3)")} />

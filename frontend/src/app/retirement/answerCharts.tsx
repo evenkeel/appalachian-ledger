@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { PrivateText, Tip } from "../lib/privacy";
 import { Frame } from "../dashboard/charts";
 import { btc, coordinate } from "../lib/format";
 import { runwayText } from "./answer";
@@ -92,7 +93,7 @@ export function CrossingChart({ answer, lastAge }: { answer: Answer; lastAge: nu
                 {logTicks(low, high).map((v) => (
                   <g key={v}>
                     <line x1={left} x2={right} y1={y(v)} y2={y(v)} stroke="var(--hairline)" />
-                    <text x={left - 6} y={y(v) + 3.5} textAnchor="end">
+                    <text className="private" x={left - 6} y={y(v) + 3.5} textAnchor="end">
                       {compact(v, "BITCOIN")}
                     </text>
                   </g>
@@ -134,7 +135,7 @@ export function CrossingChart({ answer, lastAge }: { answer: Answer; lastAge: nu
         </Frame>
       </div>
       <div className="sub" role="status">
-        {reading(shown)}
+        <PrivateText text={reading(shown)} />
       </div>
     </>
   );
@@ -285,10 +286,10 @@ export function YearBars({
                     stroke={row.planned ? "var(--plan)" : "none"}
                     strokeDasharray="3 3"
                   >
-                    <title>{`${row.year}${row.planned ? " projected" : ""}: ${exact(row.value)}`}</title>
+                    <Tip text={`${row.year}${row.planned ? " projected" : ""}: ${exact(row.value)}`} />
                   </rect>
                   {(!narrow || ends) && (
-                    <text x={x + width / 2} y={bottom - tall - 5} textAnchor="middle">
+                    <text className={unit === "BITCOIN" ? "private" : undefined} x={x + width / 2} y={bottom - tall - 5} textAnchor="middle">
                       {compact(coordinate(row.value), unit)}
                     </text>
                   )}

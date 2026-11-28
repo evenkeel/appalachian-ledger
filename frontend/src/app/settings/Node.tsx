@@ -5,6 +5,7 @@ import { Panel } from "../dashboard/panels";
 import { btc } from "../lib/format";
 import { Note, moment, useAction } from "./controls";
 import type { Lists } from "./controls";
+import { Private } from "../lib/privacy";
 
 interface Status {
   connected: boolean;
@@ -122,19 +123,19 @@ export function Node({ lists }: { lists: Lists | null }) {
         <dl className="kv set-kv" aria-label={`${comparison.wallet} compared with the ledger`}>
           <div>
             <span>On the node</span>
-            <b className="btc">{btc(comparison.balance_bitcoin)}</b>
+            <b className="btc"><Private>{btc(comparison.balance_bitcoin)}</Private></b>
           </div>
           <div>
             <span>In the ledger</span>
-            <b className="btc">{btc(comparison.ledger_balance)}</b>
+            <b className="btc"><Private>{btc(comparison.ledger_balance)}</Private></b>
           </div>
           <div>
             <span>Difference</span>
-            <b>{btc(comparison.difference)}</b>
+            <b><Private>{btc(comparison.difference)}</Private></b>
           </div>
           <div>
             <span>Unconfirmed</span>
-            <b>{btc(comparison.pending_bitcoin)}</b>
+            <b><Private>{btc(comparison.pending_bitcoin)}</Private></b>
           </div>
         </dl>
       )}

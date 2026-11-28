@@ -4,6 +4,7 @@ import { useId } from "react";
 import type { ReactNode } from "react";
 import { btc, btcShort, coordinate, daysBetween, longMonth, monthName, monthYear, plural, shortDate, usd } from "../lib/format";
 import type { Lens } from "../lib/session";
+import { Tip } from "../lib/privacy";
 import { useSize } from "../lib/useSize";
 import type { Bill, CashEvent, DashboardData } from "./types";
 
@@ -101,7 +102,7 @@ export function CashAheadChart({ data }: { data: DashboardData }) {
             steps.push(<line key={`s${index}`} x1={ex} x2={ex} y1={y(balance)} y2={y(next)} stroke="var(--plan)" strokeWidth="2.5" strokeLinecap="round" />);
             marks.push(
               <circle key={`m${index}`} cx={ex} cy={y(next)} r="8" fill="transparent">
-                <title>{`${event.estimate ? "Expected" : "Planned"}: ${event.name} ${event.estimate ? "about " : ""}${usd(event.amount)} on ${shortDate(event.date)}. ${event.estimate ? "The amount varies. " : ""}Not recorded yet. Checking after: ${usd(event.balance_after)}.`}</title>
+                <Tip text={`${event.estimate ? "Expected" : "Planned"}: ${event.name} ${event.estimate ? "about " : ""}${usd(event.amount)} on ${shortDate(event.date)}. ${event.estimate ? "The amount varies. " : ""}Not recorded yet. Checking after: ${usd(event.balance_after)}.`} />
               </circle>,
             );
           } else if (isCardPayment(event)) {
@@ -119,7 +120,7 @@ export function CashAheadChart({ data }: { data: DashboardData }) {
               <g key={`m${index}`}>
                 <circle cx={ex} cy={y(next)} r="4.5" fill="var(--ink)" stroke="var(--panel)" strokeWidth="1.5" />
                 <circle cx={ex} cy={y(next)} r="9" fill="transparent">
-                  <title>{title}</title>
+                  <Tip text={title} />
                 </circle>
               </g>,
             );
@@ -128,7 +129,7 @@ export function CashAheadChart({ data }: { data: DashboardData }) {
               <g key={`m${index}`}>
                 <circle cx={ex} cy={y(next)} r="3" fill="var(--panel)" stroke={event.overdue ? "var(--warn)" : "var(--usd)"} strokeWidth="1.5" />
                 <circle cx={ex} cy={y(next)} r="8" fill="transparent">
-                  <title>{`${event.name} ${usd(event.amount)}, ${event.overdue ? "overdue" : `due ${shortDate(event.date)}`}. Checking after: ${usd(event.balance_after)}.`}</title>
+                  <Tip text={`${event.name} ${usd(event.amount)}, ${event.overdue ? "overdue" : `due ${shortDate(event.date)}`}. Checking after: ${usd(event.balance_after)}.`} />
                 </circle>
               </g>,
             );
@@ -216,7 +217,7 @@ export function CashAheadChart({ data }: { data: DashboardData }) {
             {steps}
             {marks}
             <circle cx={x(0)} cy={y(start)} r="4" fill="var(--usd)">
-              <title>{`In checking today: ${usd(cash.start)}.`}</title>
+              <Tip text={`In checking today: ${usd(cash.start)}.`} />
             </circle>
             {cash.events.length > 0 && (
               <text className="lbl" x={low.x} y={low.y} textAnchor={low.end ? "end" : "start"} style={{ fontWeight: 700, fill: short ? "var(--warn)" : undefined }}>
@@ -285,7 +286,7 @@ export function BillsLane({
                 }
               }}
             >
-              <title>{`${bill.name} ${usd(bill.amount)}. ${bill.overdue ? `${-bill.days_until} days overdue` : `Due ${shortDate(bill.due_date)}, in ${bill.days_until} days`}. Select to pay, or destroy it for good.`}</title>
+              <Tip text={`${bill.name} ${usd(bill.amount)}. ${bill.overdue ? `${-bill.days_until} days overdue` : `Due ${shortDate(bill.due_date)}, in ${bill.days_until} days`}. Select to pay, or destroy it for good.`} />
               <g className={going ? (gone!.mode === "pay" ? "hit" : "boom") : ""}>
                 <circle
                   r={s / 2}
@@ -381,7 +382,7 @@ export function StackTape({ stack }: { stack: DashboardData["stack"] }) {
           ticks.push(<line key={`t${v}`} x1={W - (major ? 14 : 8)} x2={W} y1={ty} y2={ty} stroke="var(--ink-3)" />);
           if (major && Math.abs(ty - H / 2) > 11 && v >= 0)
             ticks.push(
-              <text key={`n${v}`} x={W - 18} y={ty + 3.5} textAnchor="end">
+              <text key={`n${v}`} className="private" x={W - 18} y={ty + 3.5} textAnchor="end">
                 {btcShort(v)}
               </text>,
             );
@@ -392,11 +393,11 @@ export function StackTape({ stack }: { stack: DashboardData["stack"] }) {
           <>
             <rect x="0" y="0" width={W} height={H} rx="6" fill="var(--well)" stroke="var(--hairline)" />
             <rect x={W - 6} y={Math.min(yc, y1)} width="6" height={Math.abs(y1 - yc)} fill="var(--btc)">
-              <title>{`This month: ${btc(stack.month_start)} to ${btc(stack.held)}`}</title>
+              <Tip text={`This month: ${btc(stack.month_start)} to ${btc(stack.held)}`} />
             </rect>
             {ticks}
             <path d={`M0,${yc - 10}H${W - 16}L${W - 7},${yc}L${W - 16},${yc + 10}H0Z`} fill="var(--panel-2)" stroke="var(--btc)" strokeWidth="1.2" />
-            <text x={W - 21} y={yc + 4} textAnchor="end" style={{ fill: "var(--ink)", fontSize: 11, fontWeight: 700 }}>
+            <text className="private" x={W - 21} y={yc + 4} textAnchor="end" style={{ fill: "var(--ink)", fontSize: 11, fontWeight: 700 }}>
               {btcShort(held)}
             </text>
           </>
@@ -429,7 +430,7 @@ export function StackSpark({ history }: { history: DashboardData["stack"]["histo
             <path d={d} fill="none" stroke="var(--btc)" strokeWidth="1.8" />
             {history.map((point, i) => (
               <circle key={point.month} cx={x(i)} cy={y(values[i])} r="2" fill="var(--btc)">
-                <title>{`${monthYear(point.month)}: ${btc(point.held)}`}</title>
+                <Tip text={`${monthYear(point.month)}: ${btc(point.held)}`} />
               </circle>
             ))}
             <text x={x(0)} y={H - 1}>
@@ -472,7 +473,7 @@ export function StackRateBars({ rates }: { rates: DashboardData["stack"]["rates"
                     fill="var(--btc)"
                     opacity={i === n - 1 ? 1 : 0.38}
                   >
-                    <title>{`${monthYear(point.month)}: ${point.rate}% of income stacked${i === n - 1 ? " so far" : ""}`}</title>
+                    <Tip text={`${monthYear(point.month)}: ${point.rate}% of income stacked${i === n - 1 ? " so far" : ""}`} />
                   </rect>
                 )}
                 <text x={i * stepX + bar / 2} y={H - 2} textAnchor="middle" className={i === n - 1 ? "lbl" : undefined}>
@@ -532,7 +533,7 @@ export function PaceChart({ pace, lens, month }: { pace: DashboardData["pace"]; 
                 <path d={line(previous)} fill="none" stroke="var(--ink-3)" strokeWidth="1.5" strokeDasharray="2 3" />
                 {end !== null && (
                   <text x={W - pad.r} y={y(Number(end)) - 5} textAnchor="end">
-                    {prior} {format(end)}
+                    {prior} <tspan className={lens === "BITCOIN" ? "private" : undefined}>{format(end)}</tspan>
                   </text>
                 )}
               </>
@@ -544,7 +545,7 @@ export function PaceChart({ pace, lens, month }: { pace: DashboardData["pace"]; 
               (value, i) =>
                 value !== null && (
                   <circle key={i} cx={x(i + 1)} cy={y(Number(value))} r="6" fill="transparent">
-                    <title>{`Day ${i + 1}: ${format(value)} so far${previous?.[i] != null ? `; ${longMonth(shift(month, -1))} ${format(previous[i])}` : ""}`}</title>
+                    <Tip text={`Day ${i + 1}: ${format(value)} so far${previous?.[i] != null ? `; ${longMonth(shift(month, -1))} ${format(previous[i])}` : ""}`} />
                   </circle>
                 ),
             )}

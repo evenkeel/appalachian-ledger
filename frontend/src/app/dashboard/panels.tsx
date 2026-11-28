@@ -5,6 +5,7 @@ import { LevelIcon } from "../design/icons";
 import { btc, cents, coordinate, fromCents, longMonth, monthName, monthYear, plural, shortDate, usd, usdWhole } from "../lib/format";
 import type { Route } from "../lib/router";
 import type { Lens } from "../lib/session";
+import { Private, PrivateText } from "../lib/privacy";
 import { BillsLane, CashAheadChart, PaceChart, StackRateBars, StackSpark, StackTape, isCardPayment, shift } from "./charts";
 import type { BillMode } from "./Sheets";
 import type { Bill, CashCard, DashboardData } from "./types";
@@ -36,7 +37,7 @@ export function Panel({
         <span className="inst-name" style={inop ? { color: "var(--ink-3)" } : undefined}>
           {name}
         </span>
-        <span className="inst-plain">{plain}</span>
+        <span className="inst-plain">{plain && <PrivateText text={plain} />}</span>
         {flag && (
           <button className={`flagchip ${flag.level}`} onClick={flag.onOpen}>
             {LevelIcon[flag.level]}
@@ -359,10 +360,10 @@ export function StackPanel({ className, data, flag, go }: { className?: string; 
       <div className="split">
         <StackTape stack={stack} />
         <div style={{ flex: 1, display: "grid", gap: 6, alignContent: "start", minWidth: 0 }}>
-          <div className="num hero btc">{btc(stack.held)}</div>
+          <div className="num hero btc private">{btc(stack.held)}</div>
           <div className="sub">
             <b className="num btc">
-              {up ? "▲" : "▼"} {btc(stack.gained.replace("-", ""))}
+              {up ? "▲" : "▼"} <Private>{btc(stack.gained.replace("-", ""))}</Private>
             </b>{" "}
             this month
           </div>
@@ -404,9 +405,9 @@ export function StackPanel({ className, data, flag, go }: { className?: string; 
       <div style={{ display: "grid", gap: 4 }}>
         <div className="split sub" style={{ justifyContent: "space-between" }}>
           <span>
-            Next milestone <b className="num btc">{btc(stack.milestone.next)}</b>
+            Next milestone <b className="num btc private">{btc(stack.milestone.next)}</b>
           </span>
-          <span className="num">{btc(toGo)} to go</span>
+          <span className="num"><Private>{btc(toGo)}</Private> to go</span>
         </div>
         <div className="meter" role="img" aria-label={`${Math.round(progress)}% of the way to the next milestone`}>
           <i style={{ width: `${Math.max(0, Math.min(100, progress)).toFixed(1)}%`, background: "var(--btc)" }} />
@@ -415,7 +416,7 @@ export function StackPanel({ className, data, flag, go }: { className?: string; 
           {stack.streak_months > 0 && <span className="badge">{stack.streak_months}-month streak</span>}{" "}
           {stack.best_month && (
             <>
-              Best month <b className="num btc">{btc(stack.best_month.bitcoin)}</b> in {monthYear(stack.best_month.month)}
+              Best month <b className="num btc private">{btc(stack.best_month.bitcoin)}</b> in {monthYear(stack.best_month.month)}
             </>
           )}
         </div>
@@ -468,7 +469,7 @@ export function PacePanel({ className, data, flag, lens, go }: { className?: str
     difference = (
       <span className="sub num">
         <b style={{ color: "var(--ink)" }}>
-          {amount} {delta >= 0n ? "more" : "less"}
+          <Private when={lens === "BITCOIN"}>{amount}</Private> {delta >= 0n ? "more" : "less"}
         </b>{" "}
         than {priorName} 1–{pace.day}
         {percent !== null && ` · ${percent >= 0 ? "+" : "−"}${Math.abs(percent).toFixed(1)}%`}
@@ -478,7 +479,7 @@ export function PacePanel({ className, data, flag, lens, go }: { className?: str
   return (
     <Panel className={className} flag={flag} name="Spend pace" plain={pace.previous ? "vs last month" : "this month so far"} link={{ label: "Spending", onClick: () => go("spending") }}>
       <div className="split" style={{ alignItems: "baseline", justifyContent: "space-between", flexWrap: "wrap", gap: "4px 12px" }}>
-        <span className="num read">{current !== null ? format(current) : "Partial"}</span>
+        <span className="num read">{current !== null ? <Private when={lens === "BITCOIN"}>{format(current)}</Private> : "Partial"}</span>
         {difference}
       </div>
       <PaceChart pace={pace} lens={lens} month={data.month} />
@@ -581,7 +582,7 @@ export function BillsPanel({
                   · {bill.overdue ? `${plural(-bill.days_until, "day")} overdue` : bill.days_until === 0 ? "due today" : `${shortDate(bill.due_date)}, in ${plural(bill.days_until, "day")}`}
                 </small>
               </span>
-              <span className="num">{bill.currency === "USD" ? usd(bill.amount) : btc(bill.amount)}</span>
+              <span className="num">{bill.currency === "USD" ? usd(bill.amount) : <Private>{btc(bill.amount)}</Private>}</span>
               <button className="btn sm" disabled={!!gone} onClick={() => onAct(bill, "pay")} aria-label={`Pay ${bill.name}, ${usd(bill.amount)}`}>
                 Pay
               </button>

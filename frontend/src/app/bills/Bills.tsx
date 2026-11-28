@@ -11,6 +11,7 @@ import { bitcoinFor, btc, cents, fromCents, plural, shortDate, usd } from "../li
 import { subPath } from "../lib/router";
 import type { Route } from "../lib/router";
 import { AmountInput } from "../lib/AmountInput";
+import { Private } from "../lib/privacy";
 
 interface Destroyed {
   id: number;
@@ -249,11 +250,11 @@ export function Bills({ go, onChanged }: { go: (route: Route) => void; onChanged
                     <small className={bill.overdue ? "overdue" : undefined}>{when(bill)}</small>
                   </div>
                   <div className="bl-amt num">
-                    <span>{money(bill.amount, bill.currency)}</span>
+                    <span><Private when={bill.currency === "BITCOIN"}>{money(bill.amount, bill.currency)}</Private></span>
                     {bill.payoff !== null ? (
-                      <small>{money(bill.payoff, bill.currency)} owed</small>
+                      <small><Private when={bill.currency === "BITCOIN"}>{money(bill.payoff, bill.currency)}</Private> owed</small>
                     ) : (
-                      bill.frequency !== "monthly" && bill.frequency !== "once" && <small>{money(bill.monthly_amount, bill.currency)} a month</small>
+                      bill.frequency !== "monthly" && bill.frequency !== "once" && <small><Private when={bill.currency === "BITCOIN"}>{money(bill.monthly_amount, bill.currency)}</Private> a month</small>
                     )}
                   </div>
                   <div className="bl-acts">
@@ -354,7 +355,7 @@ export function Bills({ go, onChanged }: { go: (route: Route) => void; onChanged
                 {freedBitcoin !== null && (
                   <>
                     {" "}
-                    Stacked instead, that is about <b className="num btc">{btc(freedBitcoin.toString())}</b> a month at today's price.
+                    Stacked instead, that is about <b className="num btc"><Private>{btc(freedBitcoin.toString())}</Private></b> a month at today's price.
                   </>
                 )}
               </div>
@@ -368,7 +369,7 @@ export function Bills({ go, onChanged }: { go: (route: Route) => void; onChanged
                       </small>
                     </div>
                     <div className="bl-amt num">
-                      <span>{money(bill.monthly_amount, bill.currency)}</span>
+                      <span><Private when={bill.currency === "BITCOIN"}>{money(bill.monthly_amount, bill.currency)}</Private></span>
                       <small>a month freed</small>
                     </div>
                     <div className="bl-acts">

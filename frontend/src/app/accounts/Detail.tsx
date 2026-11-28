@@ -7,6 +7,7 @@ import { Sheet } from "../dashboard/Sheets";
 import { cents, plural, shortDate, usd } from "../lib/format";
 import { KIND, holdsShares, moment, money, native, signed, typed, untyped, valuedByHand } from "./shared";
 import type { Account } from "./shared";
+import { Private } from "../lib/privacy";
 
 interface ActivityRow {
   id: number;
@@ -126,7 +127,7 @@ export function AccountDetail({
           {account.name}
         </h2>
         <span className={`acc-bal${account.currency === "BITCOIN" ? " btc" : ""}`}>
-          {native(account)}
+          <Private when={account.currency === "BITCOIN"}>{native(account)}</Private>
           {account.role === "liability" && <small className="sub"> owed</small>}
         </span>
         <span className="acc-grow" />
@@ -250,12 +251,12 @@ export function AccountDetail({
                   {history.map((item) => (
                     <li key={item.date}>
                       <span className="num dim">{item.date}</span>
-                      <span className="num">{money(item.value, account.currency)}</span>
+                      <Private className="num" when={account.currency === "BITCOIN"}>{money(item.value, account.currency)}</Private>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <div className="sub">No value has been recorded since the account was added. Its value is the opening balance, {native(account)}.</div>
+                <div className="sub">No value has been recorded since the account was added. Its value is the opening balance, <Private when={account.currency === "BITCOIN"}>{native(account)}</Private>.</div>
               )}
               {canValue ? (
                 <ValueForm account={account} asset={asset} today={today} onDone={onDone} />
@@ -308,8 +309,8 @@ export function AccountDetail({
                           )}
                           {about.length > 0 && <small>{about.join(" · ")}</small>}
                         </td>
-                        <td className={`num r ${change >= 0n ? "acc-up" : "acc-down"}`}>{signed(change, account.currency)}</td>
-                        <td className="num r">{money(row.balance, account.currency)}</td>
+                        <td className={`num r ${change >= 0n ? "acc-up" : "acc-down"}`}><Private when={account.currency === "BITCOIN"}>{signed(change, account.currency)}</Private></td>
+                        <td className="num r"><Private when={account.currency === "BITCOIN"}>{money(row.balance, account.currency)}</Private></td>
                       </tr>
                     );
                   })}
