@@ -14,7 +14,6 @@ import type { Line, Marker } from "./charts";
 import { monthYear, prepare, today, wholeAge } from "./plan";
 import type { Field } from "./plan";
 import "./retirement.css";
-import { Private } from "../lib/privacy";
 
 type Lens = "USD" | "BITCOIN";
 type TextField = Exclude<Field, "as_of" | "current_age" | "retirement_age" | "planning_age" | "spending_model">;
@@ -599,19 +598,19 @@ function Outlook({
         <div className="kv ret-kv">
           <div>
             <span>Bitcoin at retirement</span>
-            <b className="btc"><Private>{btc(result.retirement.bitcoin)}</Private></b>
+            <b className="btc">{btc(result.retirement.bitcoin)}</b>
           </div>
           <div>
             <span>Cost of living a year, at retirement</span>
-            <b className={lens === "BITCOIN" ? "btc" : undefined}><Private when={lens === "BITCOIN"}>{spending}</Private></b>
+            <b className={lens === "BITCOIN" ? "btc" : undefined}>{spending}</b>
           </div>
           <div>
             <span>Portfolio at age {plan.planning_age}</span>
-            <b className="ret-plan-ink"><Private>{inLens(result.end, lens)}</Private></b>
+            <b className="ret-plan-ink">{inLens(result.end, lens)}</b>
           </div>
           <div>
             <span>Bitcoin held at age {plan.planning_age}</span>
-            <b className="btc"><Private>{btc(result.end.bitcoin)}</Private></b>
+            <b className="btc">{btc(result.end.bitcoin)}</b>
           </div>
           <div>
             <span>Unfunded over the plan</span>
@@ -667,7 +666,6 @@ function PortfolioPanel({ result, lens }: { result: ForecastResult; lens: Lens }
         }`}
         lines={[line]}
         unit={lens}
-        private
         markers={markers(result)}
         tick={ageTick}
       />
@@ -769,10 +767,10 @@ function YearTable({ result }: { result: ForecastResult }) {
           {result.history.map((row) => (
             <tr key={row.month}>
               <td className="num">{wholeAge(row.age)}</td>
-              <td className="num r btc"><Private>{btc(row.bitcoin)}</Private></td>
+              <td className="num r btc">{btc(row.bitcoin)}</td>
               <td className="num r">{usd(row.other_assets_usd)}</td>
               <td className="num r">{usd(row.cash_usd)}</td>
-              <td className="num r"><Private>{usd(row.portfolio_usd)}</Private></td>
+              <td className="num r">{usd(row.portfolio_usd)}</td>
               <td className="num r">{usd(row.withdrawals_usd)}</td>
               <td className="num r">{usd(row.shortfall_usd)}</td>
             </tr>
@@ -799,7 +797,6 @@ function Compare({ rows, lens }: { rows: Comparison[]; lens: Lens }) {
         label={`Projected portfolio for ${rows.map((row) => `${row.name}, ending at ${inLens(row.result.end, lens)}`).join("; ")}.`}
         lines={lines}
         unit={lens}
-        private
         tick={yearOf}
         numbered
         height={220}
@@ -831,12 +828,12 @@ function Compare({ rows, lens }: { rows: Comparison[]; lens: Lens }) {
                 <td className="num">{result.assumptions.as_of}</td>
                 <td className="num r">{result.assumptions.appreciation_pct}%</td>
                 <td className="num">{monthYear(result.retirement.date)}</td>
-                <td className="num r btc"><Private>{btc(result.retirement.bitcoin)}</Private></td>
+                <td className="num r btc">{btc(result.retirement.bitcoin)}</td>
                 <td className="num r">{usd(result.retirement.annual_spending_usd)}</td>
                 <td className="num r">{usd(result.end.withdrawals_usd)}</td>
                 <td className="num r">{usd(result.shortfall_usd)}</td>
                 <td className="num">{result.depletion_date ? monthYear(result.depletion_date) : "Never, in this plan"}</td>
-                <td className="num r"><Private>{usd(result.end.portfolio_usd)}</Private></td>
+                <td className="num r">{usd(result.end.portfolio_usd)}</td>
                 <td className="num r">{usd(result.target_surplus_usd)}</td>
               </tr>
             ))}

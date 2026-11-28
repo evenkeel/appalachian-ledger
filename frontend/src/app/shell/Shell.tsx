@@ -140,8 +140,8 @@ export function Shell({
             <button
               className="icon-btn privacy-toggle"
               aria-pressed={hidden}
-              aria-label={hidden ? "Show bitcoin amounts" : "Blur bitcoin amounts"}
-              title={hidden ? "Show bitcoin amounts" : "Blur bitcoin amounts"}
+              aria-label={hidden ? "Show balance" : "Hide balance"}
+              title={hidden ? "Show balance" : "Hide balance"}
               onClick={() => setHidden(!hidden)}
             >
               {hidden ? NavIcon.eyeOff : NavIcon.eye}
@@ -194,7 +194,7 @@ export function Shell({
             ))}
             <button className="nav" aria-pressed={hidden} onClick={() => setHidden(!hidden)}>
               {hidden ? NavIcon.eyeOff : NavIcon.eye}
-              <span>{hidden ? "Show bitcoin amounts" : "Blur bitcoin amounts"}</span>
+              <span>{hidden ? "Show balance" : "Hide balance"}</span>
             </button>
             <button className="nav" onClick={() => setTheme(theme === "night" ? "day" : "night")}>
               {theme === "night" ? NavIcon.sun : NavIcon.moon}

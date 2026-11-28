@@ -3,7 +3,6 @@ import { api } from "../../lib/api";
 import { Panel } from "../dashboard/panels";
 import { btc, plural, shortDate, usd } from "../lib/format";
 import { Note, useAction } from "./controls";
-import { Private } from "../lib/privacy";
 
 interface Item {
   entry_id: number;
@@ -93,7 +92,7 @@ export function MissingPrices({ onChanged }: { onChanged: () => void }) {
                       <td className="num dim">{shortDate(item.date)}</td>
                       <td className="set-clip">{item.description}</td>
                       <td className="num r">{item.usd === null ? "—" : usd(item.usd)}</td>
-                      <td className="num r btc">{item.bitcoin === null ? "—" : <Private>{btc(item.bitcoin)}</Private>}</td>
+                      <td className="num r btc">{item.bitcoin === null ? "—" : btc(item.bitcoin)}</td>
                       <td className="dim set-hide-s" title={`${usd(item.usd_per_btc)} per BTC`}>
                         {item.source}
                       </td>

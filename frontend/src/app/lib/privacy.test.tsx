@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { hideAmounts, isPrivate, Private, PrivateText, reloadPrivacy, setPrivate, Tip, usePrivacy } from "./privacy";
+import { hideAmounts, isPrivate, reloadPrivacy, setPrivate, Tip, usePrivacy } from "./privacy";
 
 afterEach(() => {
   act(() => setPrivate(false));
@@ -56,43 +56,19 @@ describe("privacy blur", () => {
     expect(isPrivate()).toBe(false);
   });
 
-  it("blurs the figure, not the layout around it", () => {
-    render(
-      <p>
-        Held <Private>₿21,932,000</Private> · spent <Private when={false}>$40.00</Private>
-      </p>,
-    );
-    expect(screen.getByText("₿21,932,000")).toHaveClass("private");
-    // A figure that is not the owner's bitcoin stays plain text, with no wrapper at all.
-    expect(screen.getByText(/spent \$40\.00/).tagName).toBe("P");
-  });
-
-  it("blurs only the bitcoin amounts in a sentence, so the words still read", () => {
-    const { container } = render(
-      <p>
-        <PrivateText text="A year of your life cost ₿1,250,000 in 2024 and −₿980,500 in 2025, about ₿2.1M or ₿45k at $90,000." />
-      </p>,
-    );
-    expect([...container.querySelectorAll(".private")].map((el) => el.textContent)).toEqual(["₿1,250,000", "−₿980,500", "₿2.1M", "₿45k"]);
-    expect(container).toHaveTextContent("A year of your life cost ₿1,250,000 in 2024 and −₿980,500 in 2025, about ₿2.1M or ₿45k at $90,000.");
-  });
-
   it("hides amounts in hover tips, which a blur cannot reach", () => {
     expect(hideAmounts("November 2026: ₿21,932,000, bought ₿334,300 for $400.00", true)).toBe("November 2026: ₿ hidden, bought ₿ hidden for $400.00");
     expect(hideAmounts("November 2026: ₿21,932,000", false)).toBe("November 2026: ₿21,932,000");
     const { container } = render(
       <svg>
         <circle>
-          <Tip text="Age 40: ₿5,000,000" />
-        </circle>
-        <circle>
-          <Tip text="Age 40: $1,200,000" all />
+          <Tip text="November 2026: ₿21,932,000" />
         </circle>
       </svg>,
     );
     const tips = () => [...container.querySelectorAll("title")].map((title) => title.textContent);
-    expect(tips()).toEqual(["Age 40: ₿5,000,000", "Age 40: $1,200,000"]);
+    expect(tips()).toEqual(["November 2026: ₿21,932,000"]);
     act(() => setPrivate(true));
-    expect(tips()).toEqual(["Age 40: ₿ hidden", "Age 40: $ hidden"]);
+    expect(tips()).toEqual(["November 2026: ₿ hidden"]);
   });
 });

@@ -12,7 +12,6 @@ import { Legend, LineChart } from "./charts";
 import { monthYear } from "./plan";
 import { Planner } from "./Planner";
 import "./retirement.css";
-import { Private, PrivateText } from "../lib/privacy";
 
 type Go = (route: Route, sub?: string) => void;
 type TextField = "growth_pct" | "cost_rise_pct" | "tax_pct" | "other_income_usd" | "other_income_age" | "last_age" | "monthly_spending_usd" | "monthly_purchase_usd";
@@ -475,13 +474,13 @@ function TodayBlock({ view }: { view: RetirementView }) {
       <div className="kv">
         <div>
           <span>A year of your life</span>
-          <b className="btc"><Private>{btc(today.year_bitcoin)}</Private></b>
+          <b className="btc">{btc(today.year_bitcoin)}</b>
           <small>{usd(today.year_usd)}</small>
         </div>
         <div>
           <span>Your stack</span>
-          <b className="btc"><Private>{btc(view.ledger.bitcoin)}</Private></b>
-          <small><Private>{usd(today.worth_usd)}</Private></small>
+          <b className="btc">{btc(view.ledger.bitcoin)}</b>
+          <small>{usd(today.worth_usd)}</small>
         </div>
       </div>
       {today.year_share_pct && (
@@ -620,7 +619,7 @@ function CostsBlock({
       {recorded.length > 0 && (
         <div className="hint">
           Each year runs 12 months to {longMonth(years[years.length - 1].end.slice(0, 7))}.
-          {priced.length > 1 && <PrivateText text={` A year of your life cost ${btc(bitcoinThen.bitcoin)} in ${bitcoinThen.year} and ${btc(bitcoinNow.bitcoin)} in ${bitcoinNow.year}.`} />}
+          {priced.length > 1 && ` A year of your life cost ${btc(bitcoinThen.bitcoin)} in ${bitcoinThen.year} and ${btc(bitcoinNow.bitcoin)} in ${bitcoinNow.year}.`}
         </div>
       )}
     </>
@@ -639,7 +638,7 @@ function AfterBlock({ after, stop }: { after: AfterSeries; stop: Stop }) {
         tick={(age) => String(Math.round(age))}
       />
       <div className="sub">
-        {name} you have <Private>{btc(stop.bitcoin)}</Private>. The first month of life takes <Private>{btc(stop.first_month_bitcoin)}</Private>, tax included.
+        {name} you have {btc(stop.bitcoin)}. The first month of life takes {btc(stop.first_month_bitcoin)}, tax included.
       </div>
     </>
   );

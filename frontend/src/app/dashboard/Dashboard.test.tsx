@@ -5,7 +5,6 @@ import type { Period } from "./history";
 import type { DashboardData } from "./types";
 import { act } from "@testing-library/react";
 import { setPrivate } from "../lib/privacy";
-import { readableBitcoin, readableTips } from "../test/privacy";
 
 const calls: { path: string; method: string; body?: unknown }[] = [];
 let current: DashboardData = reading;
@@ -42,23 +41,30 @@ beforeEach(() => {
 });
 
 describe("dashboard", () => {
-  it("blurs every bitcoin amount, and hides them from hover tips, while privacy is on", async () => {
-    for (const unit of ["USD", "BITCOIN"]) {
-      lens = unit;
-      const { container, unmount } = render(<Dashboard go={() => {}} onData={() => {}} />);
-      await screen.findByLabelText(/^Checking forecast/);
-      await screen.findByLabelText(/^Stack: /);
-      // Every bitcoin amount drawn is marked for the blur; the held stack is one of them.
-      expect(screen.getByText("₿21,932,000")).toHaveClass("private");
-      expect(readableBitcoin(container)).toEqual([]);
-      // Hover tips show amounts while privacy is off, and hide them once it is on.
-      if (unit === "BITCOIN") expect(readableTips(container).length).toBeGreaterThan(0);
-      act(() => setPrivate(true));
-      expect(document.documentElement).toHaveAttribute("data-private");
-      expect(readableTips(container)).toEqual([]);
-      act(() => setPrivate(false));
-      unmount();
-    }
+  it("can hide the balance while spending and this month's stacking stay readable", async () => {
+    lens = "BITCOIN";
+    render(<Dashboard go={() => {}} onData={() => {}} />);
+    await screen.findByLabelText(/^Checking forecast/);
+    const stack = screen.getByLabelText(/^Stack: /);
+    // Everything that gives the balance away is marked for the blur: the balance, the milestone and
+    // what is left to it, and the tape's scale around the balance.
+    expect(within(stack).getByText("₿21,932,000")).toHaveClass("private");
+    expect(within(stack).getByText("₿22,000,000")).toHaveClass("private");
+    expect(within(stack).getByText("₿68,000")).toHaveClass("private");
+    expect(stack.querySelectorAll("svg text.private").length).toBeGreaterThan(1);
+    // This month's stacking and the bitcoin spending stay plain.
+    const gained = within(stack).getByText(/^▲ ₿/);
+    expect(gained.closest(".private")).toBeNull();
+    const pace = screen.getByLabelText(/^Spend pace/);
+    expect(pace.querySelector(".private")).toBeNull();
+    expect(pace).toHaveTextContent("₿");
+    // Hover tips cannot be blurred, so the balance in them is hidden instead.
+    const tips = () => [...stack.querySelectorAll("title")].map((title) => title.textContent ?? "");
+    expect(tips().some((tip) => tip.includes("₿21,932,000"))).toBe(true);
+    act(() => setPrivate(true));
+    expect(document.documentElement).toHaveAttribute("data-private");
+    expect(tips().some((tip) => /₿\d/.test(tip))).toBe(false);
+    act(() => setPrivate(false));
   });
 
   it("shows the day-one readings exactly as the ledger reports them", async () => {

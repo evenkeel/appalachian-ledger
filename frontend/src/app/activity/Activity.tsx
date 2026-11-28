@@ -9,7 +9,6 @@ import type { PayeeRule, Preferences } from "../../lib/types";
 import type { Account, Category, Transaction } from "../../lib/types";
 import { btc, usd } from "../lib/format";
 import { EntryTable } from "./EntryTable";
-import { Private } from "../lib/privacy";
 
 type Kind = "expense" | "income" | "transfer" | "stack" | "sell";
 const KINDS: { kind: Kind; label: string }[] = [
@@ -618,7 +617,7 @@ export function Activity({ onChanged }: { onChanged?: () => void }) {
             <p className="sub">
               {removing.currency === "USD"
                 ? usd(removing.amount)
-                : <Private>{btc(removing.amount)}</Private>}{" "}
+                : btc(removing.amount)}{" "}
               on {removing.date}. It is removed by a reversal entry; the
               original stays in the journal for the record.
             </p>

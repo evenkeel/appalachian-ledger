@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { Tip } from "../lib/privacy";
 import { Frame } from "../dashboard/charts";
 import { compact } from "./plan";
 
@@ -51,7 +50,6 @@ export function LineChart({
   tick,
   numbered,
   height = 190,
-  private: hide,
 }: {
   label: string;
   lines: Line[];
@@ -62,10 +60,7 @@ export function LineChart({
   /** Put 1, 2, 3… at the end of each line, matching a numbered legend. */
   numbered?: boolean;
   height?: number;
-  /** The figures are the owner's own (their bitcoin, or what it is worth), so privacy blurs them. Bitcoin charts always are. */
-  private?: boolean;
 }) {
-  const secret = hide ?? unit === "BITCOIN";
   const all = lines.flatMap((line) => line.points);
   if (!all.length) return null;
   return (
@@ -88,7 +83,7 @@ export function LineChart({
             {[high, high / 2, 0].map((value, index) => (
               <g key={index}>
                 <line x1={left} x2={W - right} y1={y(value)} y2={y(value)} stroke={index === 2 ? "var(--bezel)" : "var(--hairline)"} />
-                <text className={secret ? "private" : undefined} x={left - 6} y={y(value) + 3.5} textAnchor="end">
+                <text x={left - 6} y={y(value) + 3.5} textAnchor="end">
                   {compact(value, unit)}
                 </text>
               </g>
@@ -125,7 +120,7 @@ export function LineChart({
                   {dots &&
                     line.points.map((point, i) => (
                       <circle key={i} cx={x(point.x)} cy={y(point.y)} r={i === 0 || i === line.points.length - 1 ? 3 : 2} fill={line.color}>
-                        <Tip text={point.title} all={secret} />
+                        <title>{point.title}</title>
                       </circle>
                     ))}
                   {numbered && (

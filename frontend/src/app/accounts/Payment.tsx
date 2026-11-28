@@ -5,7 +5,6 @@ import { api } from "../../lib/api";
 import { Sheet } from "../dashboard/Sheets";
 import { money, spendable, typed, untyped } from "./shared";
 import type { Account } from "./shared";
-import { hideAmounts, Private, usePrivacy } from "../lib/privacy";
 
 interface CategoryRow {
   id: number;
@@ -24,8 +23,6 @@ export function PaymentSheet({ debt, accounts, today, onClose, onDone }: { debt:
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const unit = debt.currency;
-  const [hidden] = usePrivacy();
-  const mine = unit === "BITCOIN";
   const total = typed(amount, unit);
   const charge = interest.trim() === "" ? 0n : typed(interest, unit);
   const hasCharge = charge !== null && charge > 0n;
@@ -87,7 +84,7 @@ export function PaymentSheet({ debt, accounts, today, onClose, onDone }: { debt:
     <Sheet label={title} onClose={onClose}>
       <h2>{title}</h2>
       <p className="sub">
-        Owed now: <b className="num"><Private when={mine}>{money(debt.balance, unit)}</Private></b>. Recording the payment lowers the paying account and the debt together.
+        Owed now: <b className="num">{money(debt.balance, unit)}</b>. Recording the payment lowers the paying account and the debt together.
       </p>
       <form onSubmit={save} style={{ display: "grid", gap: 10 }}>
         <div className="sheet-fields">
@@ -96,7 +93,7 @@ export function PaymentSheet({ debt, accounts, today, onClose, onDone }: { debt:
             <select name="account_id">
               {sources.map((account) => (
                 <option key={account.id} value={account.id}>
-                  {account.name} · {hideAmounts(money(spendable(account), unit), hidden)}
+                  {account.name} · {money(spendable(account), unit)}
                 </option>
               ))}
             </select>
@@ -136,10 +133,10 @@ export function PaymentSheet({ debt, accounts, today, onClose, onDone }: { debt:
         <p className="hint">
           {principal !== null && total !== null && total > 0n ? (
             <>
-              <b className="num"><Private when={mine}>{money(untyped(principal, unit), unit)}</Private></b> comes off the balance
+              <b className="num">{money(untyped(principal, unit), unit)}</b> comes off the balance
               {hasCharge && (
                 <>
-                  ; <b className="num"><Private when={mine}>{money(untyped(charge!, unit), unit)}</Private></b> is recorded as an expense
+                  ; <b className="num">{money(untyped(charge!, unit), unit)}</b> is recorded as an expense
                 </>
               )}
               .

@@ -15,7 +15,6 @@ import { AccountDetail } from "./Detail";
 import { PaymentSheet } from "./Payment";
 import { KIND, native } from "./shared";
 import type { Account } from "./shared";
-import { Private } from "../lib/privacy";
 
 export type { Account } from "./shared";
 
@@ -145,12 +144,12 @@ export function Accounts({ go, onChanged }: { go: (route: Route) => void; onChan
             <div className="kv worth">
               <div>
                 <span>Net worth</span>
-                <b className={lens === "BITCOIN" ? "btc" : undefined}>{lens === "BITCOIN" ? (netBitcoin === null ? "Needs a price" : <Private>{btc(netBitcoin.toString())}</Private>) : net === null ? "Needs a price" : <Private>{usd(fromCents(net))}</Private>}</b>
+                <b className={lens === "BITCOIN" ? "btc" : undefined}>{lens === "BITCOIN" ? (netBitcoin === null ? "Needs a price" : btc(netBitcoin.toString())) : net === null ? "Needs a price" : usd(fromCents(net))}</b>
               </div>
               <div>
                 <span>Bitcoin</span>
-                <b className="btc"><Private>{btc(held.toString())}</Private></b>
-                <small className="num">{totals.bitcoin === null ? "no price" : <Private>{usd(fromCents(totals.bitcoin))}</Private>}</small>
+                <b className="btc">{btc(held.toString())}</b>
+                <small className="num">{totals.bitcoin === null ? "no price" : usd(fromCents(totals.bitcoin))}</small>
               </div>
               <div>
                 <span>Dollars</span>
@@ -240,7 +239,7 @@ export function Accounts({ go, onChanged }: { go: (route: Route) => void; onChan
                   <small>{KIND[account.kind] ?? account.kind}</small>
                 </div>
                 <div className="bl-amt num">
-                  <Private when={account.currency === "BITCOIN"}>{native(account)}</Private>
+                  <span>{native(account)}</span>
                 </div>
                 <div className="bl-acts">
                   <button
@@ -300,10 +299,8 @@ function Row({ account, card, open, onDetail, onPay, onChange }: { account: Acco
         )}
       </div>
       <div className="bl-amt num">
-        <span className={account.currency === "BITCOIN" ? "btc" : undefined}>
-          <Private when={account.currency === "BITCOIN"}>{native(account)}</Private>
-        </span>
-        {account.role === "liability" ? <small>owed</small> : other && <small><Private when={account.currency === "BITCOIN" && account.usd !== null}>{other}</Private></small>}
+        <span className={account.currency === "BITCOIN" ? "btc" : undefined}>{native(account)}</span>
+        {account.role === "liability" ? <small>owed</small> : other && <small>{other}</small>}
       </div>
       <div className="bl-acts">
         {account.role === "liability" && (

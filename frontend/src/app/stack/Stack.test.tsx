@@ -4,9 +4,6 @@ import type { Account, Transaction } from "../../lib/types";
 import type { DashboardData } from "../dashboard/types";
 import { categories, empty, periods, reading, report, stackHistory, transactions } from "../test/fixture";
 import { bitcoinPerDollar, buysFrom, totals, usdPerBtc } from "./price";
-import { act } from "@testing-library/react";
-import { setPrivate } from "../lib/privacy";
-import { readableBitcoin, readableTips } from "../test/privacy";
 
 const wallet = (id: number, name: string, balance: string, usd: string | null, archived = false): Account => ({
   id,
@@ -113,31 +110,13 @@ describe("price paid", () => {
 });
 
 describe("stack screen", () => {
-  it("blurs the full stack, every wallet and every buy while privacy is on, but not the price", async () => {
-    longHistory = stackHistory;
-    const { container } = render(<Stack go={go} />);
-    await screen.findByLabelText("Held: all your bitcoin");
-    await screen.findByText("Cold storage");
-    await screen.findByText("$106,058.60");
-    expect(screen.getByText("₿21,932,000", { selector: ".hero" })).toHaveClass("private");
-    expect(screen.getByText("₿21,000,000")).toHaveClass("private");
-    // A wallet's dollar worth gives the stack away too.
-    expect(screen.getByText("$24,940.62")).toHaveClass("private");
-    // Only prices stay readable: what each buy got per $1, and today's price. They are public.
-    expect(readableBitcoin(container)).toEqual(["₿836", "₿1,050", "₿842"]);
-    expect(readableTips(container).length).toBeGreaterThan(0);
-    act(() => setPrivate(true));
-    expect(readableTips(container)).toEqual([]);
-    act(() => setPrivate(false));
-  });
-
   it("shows what is held, the score and every buy at the price paid", async () => {
     render(<Stack go={go} />);
     const held = await screen.findByLabelText("Held: all your bitcoin");
     expect(within(held).getByText("₿21,932,000", { selector: ".hero" })).toBeInTheDocument();
     // The best month is named with its year: on a ledger of several years the month alone could be any of them.
     expect(held).toHaveTextContent("Best month ₿700,000 in September 2026");
-    expect(within(held).getByText("₿68,000").parentElement).toHaveTextContent(/^₿68,000 to go$/);
+    expect(within(held).getByText("₿68,000 to go")).toBeInTheDocument();
     expect(within(held).getByText("2 buys for $800.00 this month")).toBeInTheDocument();
     expect(within(held).getByText("6-month streak")).toBeInTheDocument();
 
@@ -221,7 +200,7 @@ describe("stack screen", () => {
     const wallets = await screen.findByLabelText("Wallets: where it is held");
     await within(wallets).findByText("Cold storage");
     expect(within(wallets).getByText("₿21,000,000")).toBeInTheDocument();
-    expect(within(wallets).getByText("$24,940.62").parentElement).toHaveTextContent(/^\$24,940\.62 today$/);
+    expect(within(wallets).getByText("$24,940.62 today")).toBeInTheDocument();
     expect(within(wallets).getByText("₿932,000")).toBeInTheDocument();
     expect(within(wallets).getByText("no price")).toBeInTheDocument();
     expect(within(wallets).queryByText("Old wallet")).not.toBeInTheDocument();

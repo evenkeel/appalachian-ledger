@@ -1,9 +1,9 @@
 import { useSyncExternalStore } from "react";
-import type { ReactNode } from "react";
 
 /**
- * Privacy blur: blurs the owner's bitcoin amounts (and the dollar worth of their bitcoin) so
- * nobody nearby can read them. The layout stays; only the figures go soft.
+ * Privacy blur: blurs the bitcoin balance on the dashboard so nobody nearby can read it. Spending
+ * and this month's stacking stay readable; only the figures that give the balance away go soft
+ * (mark them with the `private` class). The layout stays.
  *
  * It belongs to this device, not the ledger: someone using the app in public wants it on here
  * even before signing in, and remembered across launches. The choice lives on the page root as
@@ -57,55 +57,16 @@ export function usePrivacy(): [boolean, (next: boolean) => void] {
   return [useSyncExternalStore(subscribe, isPrivate, isPrivate), setPrivate];
 }
 
-/** A figure that blurs while privacy is on. With `when` false (a dollar figure, say) it stays plain. */
-export function Private({ children, className, when = true }: { children: ReactNode; className?: string; when?: boolean }) {
-  if (!when) return className ? <span className={className}>{children}</span> : <>{children}</>;
-  return <span className={className ? `private ${className}` : "private"}>{children}</span>;
-}
+// A bitcoin amount as `btc()` writes it: ₿21,932,000, −₿1,200, +₿500.
+const AMOUNT = /[+−-]?₿\d+(?:,\d{3})*(?:\.\d+)?/g;
 
-// A bitcoin amount as `btc()` writes it (₿21,932,000, −₿1,200, +₿500), or a short label (₿2.1M, ₿45k).
-const AMOUNT = /[+−-]?₿\d+(?:,\d{3})*(?:\.\d+)?(?:e\+?\d+)?[kMBT]?/g;
-// A dollar amount, for figures that are the dollar worth of the owner's bitcoin.
-const DOLLARS = /[+−-]?\$\d+(?:,\d{3})*(?:\.\d+)?(?:e\+?\d+)?[kMBT]?/g;
-
-function split(text: string, wrap: (amount: string, key: number) => ReactNode) {
-  const parts: ReactNode[] = [];
-  let last = 0;
-  for (const match of text.matchAll(AMOUNT)) {
-    if (match.index > last) parts.push(text.slice(last, match.index));
-    parts.push(wrap(match[0], match.index));
-    last = match.index + match[0].length;
-  }
-  if (last < text.length) parts.push(text.slice(last));
-  return <>{parts}</>;
-}
-
-/** A sentence whose bitcoin amounts blur while privacy is on; the words stay readable. */
-export const PrivateText = ({ text }: { text: string }) =>
-  split(text, (amount, key) => <Private key={key}>{amount}</Private>);
-
-/** The same inside SVG text: each bitcoin amount becomes a blurred tspan. */
-export const PrivateTspans = ({ text }: { text: string }) =>
-  split(text, (amount, key) => (
-    <tspan key={key} className="private">
-      {amount}
-    </tspan>
-  ));
-
-/**
- * Hover tips and other plain text that styles cannot blur: bitcoin amounts become "₿ hidden"
- * while privacy is on. Pass the current choice so the text follows a change.
- */
+/** Hover tips cannot be blurred, so while privacy is on their bitcoin amounts read "₿ hidden". */
 export const hideAmounts = (text: string, hidden: boolean) => (hidden ? text.replace(AMOUNT, "₿ hidden") : text);
 
-/**
- * An SVG hover tip whose bitcoin amounts read "₿ hidden" while privacy is on. With `all`, for a
- * chart of what the owner's bitcoin is worth, dollar amounts read "$ hidden" too.
- */
-export function Tip({ text, all = false }: { text: string; all?: boolean }) {
+/** An SVG hover tip about the balance, which hides its amounts while privacy is on. */
+export function Tip({ text }: { text: string }) {
   const [hidden] = usePrivacy();
-  const shown = hideAmounts(text, hidden);
-  return <title>{hidden && all ? shown.replace(DOLLARS, "$ hidden") : shown}</title>;
+  return <title>{hideAmounts(text, hidden)}</title>;
 }
 
 /**

@@ -8,7 +8,6 @@ import type { Route } from "../lib/router";
 import { useSession } from "../lib/session";
 import type { Lens } from "../lib/session";
 import "./income.css";
-import { Private } from "../lib/privacy";
 
 interface Total {
   usd: string | null;
@@ -140,7 +139,7 @@ export function Income({ go, onChanged }: { go: (route: Route, sub?: string) => 
       )}
       <div className="grid2">
         <Panel className="c4" name="This month" plain={longMonth(month.month)}>
-          <div className={`num hero${lens === "BITCOIN" ? " btc" : ""}`}><Private when={lens === "BITCOIN"}>{money(lens, month)}</Private></div>
+          <div className={`num hero${lens === "BITCOIN" ? " btc" : ""}`}>{money(lens, month)}</div>
           <div className="sub">
             {month.paychecks === 0 ? "No income recorded yet this month." : `${plural(month.paychecks, "paycheck")} recorded.`}
             {missing(lens, month) > 0 && ` ${plural(missing(lens, month), "paycheck")} had no saved price, so there is no total in bitcoin.`}
@@ -148,7 +147,7 @@ export function Income({ go, onChanged }: { go: (route: Route, sub?: string) => 
           <div className="kv inc-kv">
             <div>
               <span>{year.length < 12 ? `Last ${plural(year.length, "month")}` : "Last 12 months"}</span>
-              <b className={`num${lens === "BITCOIN" ? " btc" : ""}`}><Private when={lens === "BITCOIN"}>{money(lens, yearTotal)}</Private></b>
+              <b className={`num${lens === "BITCOIN" ? " btc" : ""}`}>{money(lens, yearTotal)}</b>
             </div>
             <div>
               <span>Saved in bitcoin this month</span>
@@ -207,14 +206,14 @@ function HistoryPanel({ className, data, lens }: { className: string; data: Inco
       <div className="inc-read sub" aria-live="polite">
         {shown ? (
           <>
-            <b>{monthYear(shown.month)}</b> · <span className={`num${lens === "BITCOIN" ? " btc" : ""}`}><Private when={lens === "BITCOIN"}>{money(lens, shown)}</Private></span>
+            <b>{monthYear(shown.month)}</b> · <span className={`num${lens === "BITCOIN" ? " btc" : ""}`}>{money(lens, shown)}</span>
             {shown[unit] === null && ` · ${plural(missing(lens, shown), "paycheck")} with no saved price`}
             {sources
               .filter((source) => shown.sources[source.id])
               .map((source) => (
                 <span key={source.id}>
                   {" "}
-                  · {source.name} <Private when={lens === "BITCOIN"}>{money(lens, shown.sources[source.id])}</Private>
+                  · {source.name} {money(lens, shown.sources[source.id])}
                 </span>
               ))}
           </>
@@ -297,15 +296,11 @@ function SourcesPanel({ className, data, lens, onChanged, onError }: { className
               <small>
                 {plural(source.paychecks, "paycheck")}
                 {source.first_date && ` since ${shortMonthYear(source.first_date.slice(0, 7))}`}
-                {source.typical && (
-                  <>
-                    {" "}· a typical one is <Private when={source.currency === "BITCOIN"}>{amount(source.currency, source.typical)}</Private>
-                  </>
-                )}
+                {source.typical && ` · a typical one is ${amount(source.currency, source.typical)}`}
               </small>
             </div>
             <span className={`num r${lens === "BITCOIN" ? " btc" : ""}`} title="Last 12 months">
-              <Private when={lens === "BITCOIN"}>{money(lens, source.year)}</Private>
+              {money(lens, source.year)}
             </span>
             <button className="btn sm" onClick={() => setEditing(editing === source.id ? null : source.id)} aria-expanded={editing === source.id}>
               Change
@@ -403,7 +398,7 @@ function ExpectedPanel({ className, data, go }: { className: string; data: Incom
               <div className="split">
                 <b>{source.name}</b>
                 <span className="sub num">
-                  <Private when={schedule.currency === "BITCOIN"}>{amount(schedule.currency, schedule.amount)}</Private> {schedule.frequency}
+                  {amount(schedule.currency, schedule.amount)} {schedule.frequency}
                   {schedule.next_occurrence && ` · next ${shortDate(schedule.next_occurrence)}`}
                 </span>
               </div>
@@ -416,15 +411,11 @@ function ExpectedPanel({ className, data, go }: { className: string; data: Incom
                       <span className="nm">{shortDate(row.date)}</span>
                       <span className={`tag inc-${row.status}`}>{STATUS[row.status]}</span>
                       <small>
-                        {row.status === "short" && (
-                          <>
-                            <Private when={schedule.currency === "BITCOIN"}>{amount(schedule.currency, row.short_by)}</Private> under
-                          </>
-                        )}
+                        {row.status === "short" && `${amount(schedule.currency, row.short_by)} under`}
                         {(row.status === "late" || row.status === "missing") && `${plural(row.days_late, "day")} late, nothing recorded`}
                         {row.status === "received" && row.received_on !== row.date && row.received_on && `came ${shortDate(row.received_on)}`}
                       </small>
-                      <span className="num r">{row.actual ? <Private when={schedule.currency === "BITCOIN"}>{amount(schedule.currency, row.actual)}</Private> : "—"}</span>
+                      <span className="num r">{row.actual ? amount(schedule.currency, row.actual) : "—"}</span>
                     </li>
                   ))}
                 </ul>
@@ -457,8 +448,8 @@ function SavedPanel({ className, data, lens, go }: { className: string; data: In
           {shown.map((month) => (
             <tr key={month.month}>
               <td>{shortMonthYear(month.month)}</td>
-              <td className={`num r${lens === "BITCOIN" ? " btc" : ""}`}><Private when={lens === "BITCOIN"}>{money(lens, month)}</Private></td>
-              <td className="num r btc"><Private when={lens === "BITCOIN"}>{lens === "USD" ? usd(month.saved_usd) : btc(month.saved_bitcoin)}</Private></td>
+              <td className={`num r${lens === "BITCOIN" ? " btc" : ""}`}>{money(lens, month)}</td>
+              <td className="num r btc">{lens === "USD" ? usd(month.saved_usd) : btc(month.saved_bitcoin)}</td>
               <td className="num r">{month.stack_rate === null ? "—" : `${month.stack_rate}%`}</td>
             </tr>
           ))}

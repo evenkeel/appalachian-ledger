@@ -83,19 +83,19 @@ function Appearance() {
         </div>
       </div>
       <div className="set-choice">
-        <span id="set-private">Bitcoin amounts</span>
+        <span id="set-private">Bitcoin balance on the dashboard</span>
         <div className="seg" role="group" aria-labelledby="set-private">
           <button type="button" aria-pressed={!hidden} onClick={() => setHidden(false)}>
             Show
           </button>
           <button type="button" aria-pressed={hidden} onClick={() => setHidden(true)}>
-            Blur
+            Hide
           </button>
         </div>
       </div>
       <div className="hint">
-        The same switches as the top bar. Recorded amounts never change; only how totals and charts are priced. Blur hides your bitcoin, and what it is worth, from anyone looking over your
-        shoulder. It is kept on this device until you switch it off.
+        The same switches as the top bar. Recorded amounts never change; only how totals and charts are priced. Hide blurs your bitcoin balance on the dashboard so nobody looking over your
+        shoulder can read it; spending and this month's stacking stay readable. It is kept on this device until you switch it off.
       </div>
     </Panel>
   );
