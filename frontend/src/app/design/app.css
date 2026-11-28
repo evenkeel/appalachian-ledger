@@ -34,6 +34,29 @@ button {
 .btc {
   color: var(--btc);
 }
+/* Privacy blur: the owner's bitcoin figures go soft; the layout stays. Sized to the text, so a
+   hero number blurs as thoroughly as a table cell. Selection and copying are off while blurred. */
+.private {
+  transition: filter 0.15s ease;
+}
+html[data-private] .private {
+  filter: blur(0.3em);
+  user-select: none;
+  -webkit-user-select: none;
+}
+html[data-private] svg .private {
+  filter: url(#private-blur);
+}
+/* A blurred bar still shows its proportions, so a chart marked private is hidden instead. */
+html[data-private] .chart.private {
+  filter: none;
+  visibility: hidden;
+}
+@media (prefers-reduced-motion: reduce) {
+  .private {
+    transition: none;
+  }
+}
 .plan {
   color: var(--plan);
 }

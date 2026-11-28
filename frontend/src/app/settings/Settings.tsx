@@ -13,6 +13,7 @@ import { MissingPrices } from "./MissingPrices";
 import { Node } from "./Node";
 import { Note, useAction, useLists } from "./controls";
 import "./settings.css";
+import { usePrivacy } from "../lib/privacy";
 
 
 /** Each section saves on its own and says what happened. */
@@ -56,6 +57,7 @@ export function Settings({ go, onChanged }: { go: (route: Route) => void; onChan
 
 function Appearance() {
   const { theme, setTheme, lens, setLens } = useSession();
+  const [hidden, setHidden] = usePrivacy();
   return (
     <Panel name="Appearance" plain="saved as you choose">
       <div className="set-choice">
@@ -80,7 +82,21 @@ function Appearance() {
           </button>
         </div>
       </div>
-      <div className="hint">The same switches as the top bar. Recorded amounts never change; only how totals and charts are priced.</div>
+      <div className="set-choice">
+        <span id="set-private">Bitcoin balance</span>
+        <div className="seg" role="group" aria-labelledby="set-private">
+          <button type="button" aria-pressed={!hidden} onClick={() => setHidden(false)}>
+            Show
+          </button>
+          <button type="button" aria-pressed={hidden} onClick={() => setHidden(true)}>
+            Hide
+          </button>
+        </div>
+      </div>
+      <div className="hint">
+        The same switches as the top bar. Recorded amounts never change; only how totals and charts are priced. Hide blurs your bitcoin balance on the dashboard, Stack and Accounts so nobody looking over your
+        shoulder can read it; spending and this month's stacking stay readable. It is kept on this device until you switch it off.
+      </div>
     </Panel>
   );
 }

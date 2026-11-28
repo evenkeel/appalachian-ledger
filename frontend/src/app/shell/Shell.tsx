@@ -6,6 +6,7 @@ import { btc } from "../lib/format";
 import { Lockup, Tile } from "../design/Logo";
 import type { Route } from "../lib/router";
 import { useSession } from "../lib/session";
+import { PrivacyFilter, usePrivacy } from "../lib/privacy";
 import { DEMO } from "../../demo/mode";
 
 const NAV: { route: Route; label: string }[] = [
@@ -56,6 +57,7 @@ export function Shell({
 }) {
   const { lens, setLens, theme, setTheme, signOut, username, demo } = useSession();
   const [more, setMore] = useState(false);
+  const [hidden, setHidden] = usePrivacy();
   const link = (item: { route: Route; label: string }) => (
     <button
       key={item.route}
@@ -75,6 +77,7 @@ export function Shell({
   );
   return (
     <>
+      <PrivacyFilter />
       <div className="shell">
         <nav className="rail" aria-label="Main">
           <div className="rail-mark">
@@ -135,6 +138,15 @@ export function Shell({
               </button>
             </div>
             <button
+              className="icon-btn privacy-toggle"
+              aria-pressed={hidden}
+              aria-label={hidden ? "Show balance" : "Hide balance"}
+              title={hidden ? "Show balance" : "Hide balance"}
+              onClick={() => setHidden(!hidden)}
+            >
+              {hidden ? NavIcon.eyeOff : NavIcon.eye}
+            </button>
+            <button
               className="icon-btn theme-toggle"
               aria-label={theme === "night" ? "Switch to day theme" : "Switch to night theme"}
               onClick={() => setTheme(theme === "night" ? "day" : "night")}
@@ -180,6 +192,10 @@ export function Shell({
                 <span>{item === "settings" ? "Settings" : item === "activity" ? "Transactions" : NAV.find((entry) => entry.route === item)!.label}</span>
               </button>
             ))}
+            <button className="nav" aria-pressed={hidden} onClick={() => setHidden(!hidden)}>
+              {hidden ? NavIcon.eyeOff : NavIcon.eye}
+              <span>{hidden ? "Show balance" : "Hide balance"}</span>
+            </button>
             <button className="nav" onClick={() => setTheme(theme === "night" ? "day" : "night")}>
               {theme === "night" ? NavIcon.sun : NavIcon.moon}
               <span>{theme === "night" ? "Day theme" : "Night theme"}</span>

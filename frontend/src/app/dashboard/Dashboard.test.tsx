@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { categories, empty, periods, reading, report, transactions } from "../test/fixture";
 import type { Period } from "./history";
 import type { DashboardData } from "./types";
+import { act } from "@testing-library/react";
+import { setPrivate } from "../lib/privacy";
 
 const calls: { path: string; method: string; body?: unknown }[] = [];
 let current: DashboardData = reading;
@@ -39,6 +41,33 @@ beforeEach(() => {
 });
 
 describe("dashboard", () => {
+  it("can hide the balance while spending and this month's stacking stay readable", async () => {
+    lens = "BITCOIN";
+    render(<Dashboard go={() => {}} onData={() => {}} />);
+    await screen.findByLabelText(/^Checking forecast/);
+    const stack = screen.getByLabelText(/^Stack: /);
+    // Everything that gives the balance away is marked for the blur: the balance, the milestone and
+    // what is left to it, and the tape's scale around the balance.
+    expect(within(stack).getByText("₿21,932,000")).toHaveClass("private");
+    expect(within(stack).getByText("₿22,000,000")).toHaveClass("private");
+    expect(within(stack).getByText("₿68,000")).toHaveClass("private");
+    expect(stack.querySelectorAll("svg text.private").length).toBeGreaterThan(1);
+    // This month's stacking and the bitcoin spending stay plain.
+    const gained = within(stack).getByText(/^▲ ₿/);
+    expect(gained.closest(".private")).toBeNull();
+    const pace = screen.getByLabelText(/^Spend pace/);
+    expect(pace.querySelector(".private")).toBeNull();
+    expect(pace).toHaveTextContent("₿");
+    // Hover tips cannot be blurred, so the balance in them is hidden instead. The panel is looked up
+    // again each time, as a late answer from the server can draw it afresh.
+    const tips = () => [...screen.getByLabelText(/^Stack: /).querySelectorAll("title")].map((title) => title.textContent ?? "");
+    expect(tips().some((tip) => tip.includes("₿21,932,000"))).toBe(true);
+    act(() => setPrivate(true));
+    expect(document.documentElement).toHaveAttribute("data-private");
+    expect(tips().filter((tip) => /₿\d/.test(tip))).toEqual([]);
+    act(() => setPrivate(false));
+  });
+
   it("shows the day-one readings exactly as the ledger reports them", async () => {
     await show();
     const cash = screen.getByLabelText(/^Checking forecast/);
@@ -48,7 +77,7 @@ describe("dashboard", () => {
     expect(within(stack).getByText("₿21,932,000")).toBeInTheDocument();
     expect(within(stack).getByText("11.3%")).toBeInTheDocument();
     expect(within(stack).getByText("best yet")).toBeInTheDocument();
-    expect(within(stack).getByText("₿68,000 to go")).toBeInTheDocument();
+    expect(within(stack).getByText("₿68,000").parentElement).toHaveTextContent(/^₿68,000 to go$/);
     // Spend pace: $154.20 so far against $126.30 by the same day last month.
     const pace = screen.getByLabelText(/^Spend pace/);
     expect(within(pace).getByText("$154.20")).toBeInTheDocument();

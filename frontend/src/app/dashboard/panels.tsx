@@ -359,7 +359,7 @@ export function StackPanel({ className, data, flag, go }: { className?: string; 
       <div className="split">
         <StackTape stack={stack} />
         <div style={{ flex: 1, display: "grid", gap: 6, alignContent: "start", minWidth: 0 }}>
-          <div className="num hero btc">{btc(stack.held)}</div>
+          <div className="num hero btc private">{btc(stack.held)}</div>
           <div className="sub">
             <b className="num btc">
               {up ? "▲" : "▼"} {btc(stack.gained.replace("-", ""))}
@@ -404,9 +404,11 @@ export function StackPanel({ className, data, flag, go }: { className?: string; 
       <div style={{ display: "grid", gap: 4 }}>
         <div className="split sub" style={{ justifyContent: "space-between" }}>
           <span>
-            Next milestone <b className="num btc">{btc(stack.milestone.next)}</b>
+            Next milestone <b className="num btc private">{btc(stack.milestone.next)}</b>
           </span>
-          <span className="num">{btc(toGo)} to go</span>
+          <span className="num">
+            <span className="private">{btc(toGo)}</span> to go
+          </span>
         </div>
         <div className="meter" role="img" aria-label={`${Math.round(progress)}% of the way to the next milestone`}>
           <i style={{ width: `${Math.max(0, Math.min(100, progress)).toFixed(1)}%`, background: "var(--btc)" }} />

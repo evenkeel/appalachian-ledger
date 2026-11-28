@@ -161,7 +161,7 @@ function HeldPanel({ className, data, months, range }: { className: string; data
       <div className="split">
         <StackTape stack={stack} />
         <div className="stk-held">
-          <div className="num hero btc">{btc(stack.held)}</div>
+          <div className="num hero btc private">{btc(stack.held)}</div>
           <div className="sub">
             <b className="num btc">
               {up ? "▲" : "▼"} {btc(stack.gained.replace("-", ""))}
@@ -186,9 +186,11 @@ function HeldPanel({ className, data, months, range }: { className: string; data
       <div className="stk-milestone">
         <div className="split sub" style={{ justifyContent: "space-between" }}>
           <span>
-            Next milestone <b className="num btc">{btc(stack.milestone.next)}</b>
+            Next milestone <b className="num btc private">{btc(stack.milestone.next)}</b>
           </span>
-          <span className="num">{btc(toGo)} to go</span>
+          <span className="num">
+            <span className="private">{btc(toGo)}</span> to go
+          </span>
         </div>
         <div className="meter" role="img" aria-label={`${Math.round(progress)}% of the way from ${btc(stack.milestone.previous)} to ${btc(stack.milestone.next)}`}>
           <i style={{ width: `${Math.max(0, Math.min(100, progress)).toFixed(1)}%`, background: "var(--btc)" }} />
@@ -204,7 +206,7 @@ function HeldPanel({ className, data, months, range }: { className: string; data
               {read.month === data.month ? " so far" : ""}
             </span>
             <span>
-              held <b className="btc">{btc(read.held)}</b>
+              held <b className="btc private">{btc(read.held)}</b>
             </span>
             {read.bought !== undefined && (
               <span>
@@ -219,7 +221,7 @@ function HeldPanel({ className, data, months, range }: { className: string; data
             )}
           </div>
           <div className="hint">
-            {grew >= 0n ? "Up" : "Down"} {btc((grew < 0n ? -grew : grew).toString())} over the months shown. Each point is what you held at the end of that month.
+            {grew >= 0n ? "Up" : "Down"} <span className="private">{btc((grew < 0n ? -grew : grew).toString())}</span> over the months shown. Each point is what you held at the end of that month.
           </div>
         </>
       ) : (
@@ -321,10 +323,12 @@ function WalletsPanel({ className, wallets, failed, held, go }: { className: str
             return (
               <li key={wallet.id}>
                 <span className="stk-name">{wallet.name}</span>
-                <b className="num btc">{btc(wallet.balance)}</b>
+                <b className="num btc private">{btc(wallet.balance)}</b>
                 <span className="num sub">
                   {wallet.usd !== null ? (
-                    <span title={wallet.rate_source && wallet.rate_day ? `At ${wallet.rate_source}, ${shortDate(wallet.rate_day)}` : undefined}>{usd(wallet.usd)} today</span>
+                    <span title={wallet.rate_source && wallet.rate_day ? `At ${wallet.rate_source}, ${shortDate(wallet.rate_day)}` : undefined}>
+                      <span className="private">{usd(wallet.usd)}</span> today
+                    </span>
                   ) : (
                     <span className="tag miss">no price</span>
                   )}
@@ -377,7 +381,7 @@ function BuysPanel({ className, buys, failed, data, go }: { className: string; b
         </div>
         <div>
           <span>Bitcoin bought</span>
-          <b className="btc">{btc(sum.bitcoin.toString())}</b>
+          <b className="btc private">{btc(sum.bitcoin.toString())}</b>
         </div>
         <div>
           <span>Average price paid</span>
@@ -425,7 +429,9 @@ function BuysPanel({ className, buys, failed, data, go }: { className: string; b
                 <td className="num r btc">+{btc(buy.bitcoin.toString())}</td>
                 <td className="num r">{buy.price ? usd(buy.price) : <span className="tag miss">no price</span>}</td>
                 <td className="num r dim hide-s">{buy.perDollar ? btc(buy.perDollar) : "—"}</td>
-                <td className="num r dim hide-s">{btc(buy.soFar.toString())}</td>
+                <td className="num r dim hide-s">
+                  <span className="private">{btc(buy.soFar.toString())}</span>
+                </td>
               </tr>
             ))}
           </tbody>

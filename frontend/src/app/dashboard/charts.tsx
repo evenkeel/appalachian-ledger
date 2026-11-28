@@ -4,6 +4,7 @@ import { useId } from "react";
 import type { ReactNode } from "react";
 import { btc, btcShort, coordinate, daysBetween, longMonth, monthName, monthYear, plural, shortDate, usd } from "../lib/format";
 import type { Lens } from "../lib/session";
+import { Tip } from "../lib/privacy";
 import { useSize } from "../lib/useSize";
 import type { Bill, CashEvent, DashboardData } from "./types";
 
@@ -381,7 +382,7 @@ export function StackTape({ stack }: { stack: DashboardData["stack"] }) {
           ticks.push(<line key={`t${v}`} x1={W - (major ? 14 : 8)} x2={W} y1={ty} y2={ty} stroke="var(--ink-3)" />);
           if (major && Math.abs(ty - H / 2) > 11 && v >= 0)
             ticks.push(
-              <text key={`n${v}`} x={W - 18} y={ty + 3.5} textAnchor="end">
+              <text key={`n${v}`} className="private" x={W - 18} y={ty + 3.5} textAnchor="end">
                 {btcShort(v)}
               </text>,
             );
@@ -392,11 +393,11 @@ export function StackTape({ stack }: { stack: DashboardData["stack"] }) {
           <>
             <rect x="0" y="0" width={W} height={H} rx="6" fill="var(--well)" stroke="var(--hairline)" />
             <rect x={W - 6} y={Math.min(yc, y1)} width="6" height={Math.abs(y1 - yc)} fill="var(--btc)">
-              <title>{`This month: ${btc(stack.month_start)} to ${btc(stack.held)}`}</title>
+              <Tip text={`This month: ${btc(stack.month_start)} to ${btc(stack.held)}`} />
             </rect>
             {ticks}
             <path d={`M0,${yc - 10}H${W - 16}L${W - 7},${yc}L${W - 16},${yc + 10}H0Z`} fill="var(--panel-2)" stroke="var(--btc)" strokeWidth="1.2" />
-            <text x={W - 21} y={yc + 4} textAnchor="end" style={{ fill: "var(--ink)", fontSize: 11, fontWeight: 700 }}>
+            <text className="private" x={W - 21} y={yc + 4} textAnchor="end" style={{ fill: "var(--ink)", fontSize: 11, fontWeight: 700 }}>
               {btcShort(held)}
             </text>
           </>
@@ -429,7 +430,7 @@ export function StackSpark({ history }: { history: DashboardData["stack"]["histo
             <path d={d} fill="none" stroke="var(--btc)" strokeWidth="1.8" />
             {history.map((point, i) => (
               <circle key={point.month} cx={x(i)} cy={y(values[i])} r="2" fill="var(--btc)">
-                <title>{`${monthYear(point.month)}: ${btc(point.held)}`}</title>
+                <Tip text={`${monthYear(point.month)}: ${btc(point.held)}`} />
               </circle>
             ))}
             <text x={x(0)} y={H - 1}>

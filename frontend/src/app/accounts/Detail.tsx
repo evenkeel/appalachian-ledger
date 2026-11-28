@@ -125,7 +125,7 @@ export function AccountDetail({
         <h2 ref={heading} tabIndex={-1}>
           {account.name}
         </h2>
-        <span className={`acc-bal${account.currency === "BITCOIN" ? " btc" : ""}`}>
+        <span className={`acc-bal${account.currency === "BITCOIN" ? " btc private" : ""}`}>
           {native(account)}
           {account.role === "liability" && <small className="sub"> owed</small>}
         </span>
@@ -250,12 +250,12 @@ export function AccountDetail({
                   {history.map((item) => (
                     <li key={item.date}>
                       <span className="num dim">{item.date}</span>
-                      <span className="num">{money(item.value, account.currency)}</span>
+                      <span className={`num${account.currency === "BITCOIN" ? " private" : ""}`}>{money(item.value, account.currency)}</span>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <div className="sub">No value has been recorded since the account was added. Its value is the opening balance, {native(account)}.</div>
+                <div className="sub">No value has been recorded since the account was added. Its value is the opening balance, <span className={account.currency === "BITCOIN" ? "private" : undefined}>{native(account)}</span>.</div>
               )}
               {canValue ? (
                 <ValueForm account={account} asset={asset} today={today} onDone={onDone} />
@@ -309,7 +309,9 @@ export function AccountDetail({
                           {about.length > 0 && <small>{about.join(" · ")}</small>}
                         </td>
                         <td className={`num r ${change >= 0n ? "acc-up" : "acc-down"}`}>{signed(change, account.currency)}</td>
-                        <td className="num r">{money(row.balance, account.currency)}</td>
+                        <td className="num r">
+                          <span className={account.currency === "BITCOIN" ? "private" : undefined}>{money(row.balance, account.currency)}</span>
+                        </td>
                       </tr>
                     );
                   })}
