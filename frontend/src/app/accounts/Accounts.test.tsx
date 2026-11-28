@@ -134,6 +134,21 @@ describe("accounts", () => {
     expect(screen.getByText("Old checking")).toBeInTheDocument();
   });
 
+  it("can hide the bitcoin balance and net worth, while dollar accounts stay readable", async () => {
+    await show();
+    const totals = screen.getByLabelText(/^What you have/);
+    expect(within(totals).getByText("$33,454.18")).toHaveClass("private");
+    expect(within(totals).getByText("₿23,937,800")).toHaveClass("private");
+    expect(within(totals).getByText("$28,426.14")).toHaveClass("private");
+    // Shares of the whole would give the bitcoin's worth away next to the readable dollars.
+    expect(within(totals).getByText("Bitcoin", { selector: ".key span" }).querySelector("b")).toHaveClass("private");
+    expect(within(totals).getByText("$6,312.40")).not.toHaveClass("private");
+    const wallets = screen.getAllByText("₿23,937,800").filter((figure) => !totals.contains(figure));
+    expect(wallets.length).toBeGreaterThan(0);
+    for (const figure of wallets) expect(figure).toHaveClass("private");
+    expect(screen.getByText("$4,812.40", { selector: ".bl-amt span" })).not.toHaveClass("private");
+  });
+
   it("shows a missing price as missing instead of a guessed total", async () => {
     accounts = original.map((row) => (row.id === 1 ? { ...row, usd: null } : row));
     await show();

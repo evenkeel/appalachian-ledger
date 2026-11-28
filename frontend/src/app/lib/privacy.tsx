@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 /**
- * Privacy blur: blurs the bitcoin balance (on the dashboard and the Stack page) so nobody nearby can read it. Spending
+ * Privacy blur: blurs the bitcoin balance (on the dashboard, Stack and Accounts) so nobody nearby can read it. Spending
  * and this month's stacking stay readable; only the figures that give the balance away go soft
  * (mark them with the `private` class). The layout stays.
  *

@@ -144,12 +144,12 @@ export function Accounts({ go, onChanged }: { go: (route: Route) => void; onChan
             <div className="kv worth">
               <div>
                 <span>Net worth</span>
-                <b className={lens === "BITCOIN" ? "btc" : undefined}>{lens === "BITCOIN" ? (netBitcoin === null ? "Needs a price" : btc(netBitcoin.toString())) : net === null ? "Needs a price" : usd(fromCents(net))}</b>
+                <b className={lens === "BITCOIN" ? "btc private" : "private"}>{lens === "BITCOIN" ? (netBitcoin === null ? "Needs a price" : btc(netBitcoin.toString())) : net === null ? "Needs a price" : usd(fromCents(net))}</b>
               </div>
               <div>
                 <span>Bitcoin</span>
-                <b className="btc">{btc(held.toString())}</b>
-                <small className="num">{totals.bitcoin === null ? "no price" : usd(fromCents(totals.bitcoin))}</small>
+                <b className="btc private">{btc(held.toString())}</b>
+                <small className="num private">{totals.bitcoin === null ? "no price" : usd(fromCents(totals.bitcoin))}</small>
               </div>
               <div>
                 <span>Dollars</span>
@@ -239,7 +239,7 @@ export function Accounts({ go, onChanged }: { go: (route: Route) => void; onChan
                   <small>{KIND[account.kind] ?? account.kind}</small>
                 </div>
                 <div className="bl-amt num">
-                  <span>{native(account)}</span>
+                  <span className={account.currency === "BITCOIN" ? "private" : undefined}>{native(account)}</span>
                 </div>
                 <div className="bl-acts">
                   <button
@@ -299,8 +299,8 @@ function Row({ account, card, open, onDetail, onPay, onChange }: { account: Acco
         )}
       </div>
       <div className="bl-amt num">
-        <span className={account.currency === "BITCOIN" ? "btc" : undefined}>{native(account)}</span>
-        {account.role === "liability" ? <small>owed</small> : other && <small>{other}</small>}
+        <span className={account.currency === "BITCOIN" ? "btc private" : undefined}>{native(account)}</span>
+        {account.role === "liability" ? <small>owed</small> : other && <small className={account.currency === "BITCOIN" ? "private" : undefined}>{other}</small>}
       </div>
       <div className="bl-acts">
         {account.role === "liability" && (
@@ -330,7 +330,7 @@ function Mix({ bitcoin, dollars, other }: { bitcoin: bigint; dollars: bigint; ot
   const percent = (value: number) => `${((value / total) * 100).toFixed(1)}%`;
   return (
     <div style={{ display: "grid", gap: 6 }}>
-      <Frame height={14} label={`Of what you hold: ${parts.map((part) => `${part.name} ${percent(part.value)}`).join(", ")}.`}>
+      <Frame className="private" height={14} label={`Of what you hold: ${parts.map((part) => `${part.name} ${percent(part.value)}`).join(", ")}.`}>
         {(W) => {
           let x = 0;
           return (
@@ -349,7 +349,7 @@ function Mix({ bitcoin, dollars, other }: { bitcoin: bigint; dollars: bigint; ot
         {parts.map((part) => (
           <span key={part.name}>
             <i style={{ background: part.fill }} />
-            {part.name} <b className="num">{percent(part.value)}</b>
+            {part.name} <b className="num private">{percent(part.value)}</b>
           </span>
         ))}
       </div>

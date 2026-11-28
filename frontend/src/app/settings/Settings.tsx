@@ -94,7 +94,7 @@ function Appearance() {
         </div>
       </div>
       <div className="hint">
-        The same switches as the top bar. Recorded amounts never change; only how totals and charts are priced. Hide blurs your bitcoin balance on the dashboard and the Stack page so nobody looking over your
+        The same switches as the top bar. Recorded amounts never change; only how totals and charts are priced. Hide blurs your bitcoin balance on the dashboard, Stack and Accounts so nobody looking over your
         shoulder can read it; spending and this month's stacking stay readable. It is kept on this device until you switch it off.
       </div>
     </Panel>

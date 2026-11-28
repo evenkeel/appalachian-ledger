@@ -47,6 +47,11 @@ html[data-private] .private {
 html[data-private] svg .private {
   filter: url(#private-blur);
 }
+/* A blurred bar still shows its proportions, so a chart marked private is hidden instead. */
+html[data-private] .chart.private {
+  filter: none;
+  visibility: hidden;
+}
 @media (prefers-reduced-motion: reduce) {
   .private {
     transition: none;
