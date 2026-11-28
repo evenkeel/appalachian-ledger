@@ -58,12 +58,13 @@ describe("dashboard", () => {
     const pace = screen.getByLabelText(/^Spend pace/);
     expect(pace.querySelector(".private")).toBeNull();
     expect(pace).toHaveTextContent("₿");
-    // Hover tips cannot be blurred, so the balance in them is hidden instead.
-    const tips = () => [...stack.querySelectorAll("title")].map((title) => title.textContent ?? "");
+    // Hover tips cannot be blurred, so the balance in them is hidden instead. The panel is looked up
+    // again each time, as a late answer from the server can draw it afresh.
+    const tips = () => [...screen.getByLabelText(/^Stack: /).querySelectorAll("title")].map((title) => title.textContent ?? "");
     expect(tips().some((tip) => tip.includes("₿21,932,000"))).toBe(true);
     act(() => setPrivate(true));
     expect(document.documentElement).toHaveAttribute("data-private");
-    expect(tips().some((tip) => /₿\d/.test(tip))).toBe(false);
+    expect(tips().filter((tip) => /₿\d/.test(tip))).toEqual([]);
     act(() => setPrivate(false));
   });
 

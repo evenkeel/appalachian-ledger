@@ -74,7 +74,7 @@ export function HeldChart({ months, latest, at, onAt }: { months: StackMonth[]; 
               {lines.map((value) => (
                 <g key={value}>
                   <line x1={left} x2={W - right} y1={y(value)} y2={y(value)} stroke="var(--hairline)" />
-                  <text x={left - 6} y={y(value) + 3.5} textAnchor="end">
+                  <text className="private" x={left - 6} y={y(value) + 3.5} textAnchor="end">
                     {btcShort(value)}
                   </text>
                 </g>

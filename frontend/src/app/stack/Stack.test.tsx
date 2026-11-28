@@ -116,7 +116,12 @@ describe("stack screen", () => {
     expect(within(held).getByText("₿21,932,000", { selector: ".hero" })).toBeInTheDocument();
     // The best month is named with its year: on a ledger of several years the month alone could be any of them.
     expect(held).toHaveTextContent("Best month ₿700,000 in September 2026");
-    expect(within(held).getByText("₿68,000 to go")).toBeInTheDocument();
+    expect(within(held).getByText("₿68,000").parentElement).toHaveTextContent(/^₿68,000 to go$/);
+    // The balance can be hidden here as on the dashboard; this month's stacking stays readable.
+    for (const figure of within(held).getAllByText("₿21,932,000")) expect(figure).toHaveClass("private");
+    for (const figure of ["₿22,000,000", "₿68,000"]) expect(within(held).getByText(figure)).toHaveClass("private");
+    expect(within(held).getByText(/^▲ ₿/).closest(".private")).toBeNull();
+    expect(held.querySelectorAll("svg text.private").length).toBeGreaterThan(1);
     expect(within(held).getByText("2 buys for $800.00 this month")).toBeInTheDocument();
     expect(within(held).getByText("6-month streak")).toBeInTheDocument();
 
@@ -135,6 +140,10 @@ describe("stack screen", () => {
     expect(rows[0]).toHaveTextContent("$119,653.01");
     expect(rows[0]).toHaveTextContent("₿836");
     expect(rows[0]).toHaveTextContent("₿754,300");
+    // The running total and the total bought reach the balance, so they hide with it; each buy stays readable.
+    expect(within(rows[0]).getByText("₿754,300")).toHaveClass("private");
+    expect(within(rows[0]).getByText("+₿334,300").closest(".private")).toBeNull();
+    expect(within(buys).getAllByText("₿754,300").every((figure) => figure.classList.contains("private"))).toBe(true);
     // A buy from an earlier year carries its year.
     expect(rows[1]).toHaveTextContent("Dec 3, 2025");
     expect(rows[1]).toHaveTextContent("$95,238.10");
@@ -200,7 +209,10 @@ describe("stack screen", () => {
     const wallets = await screen.findByLabelText("Wallets: where it is held");
     await within(wallets).findByText("Cold storage");
     expect(within(wallets).getByText("₿21,000,000")).toBeInTheDocument();
-    expect(within(wallets).getByText("$24,940.62 today")).toBeInTheDocument();
+    expect(within(wallets).getByText("$24,940.62").parentElement).toHaveTextContent(/^\$24,940\.62 today$/);
+    // A wallet's balance, and what it is worth, give the total away, so they hide with it.
+    expect(within(wallets).getByText("₿21,000,000")).toHaveClass("private");
+    expect(within(wallets).getByText("$24,940.62")).toHaveClass("private");
     expect(within(wallets).getByText("₿932,000")).toBeInTheDocument();
     expect(within(wallets).getByText("no price")).toBeInTheDocument();
     expect(within(wallets).queryByText("Old wallet")).not.toBeInTheDocument();
